@@ -1,0 +1,5 @@
+[build]
+buildCommand = "bun install"
+
+[deploy]
+startCommand = "bun index.js"
