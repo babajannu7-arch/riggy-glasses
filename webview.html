@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mr. Riggy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+          --bg: #0C0E10;
+          --card: #13171A;
+          --surface: #1E2226;
+          --cyan: #5B7C99;
+          --gold: #B89968;
+          --silver: #7A8490;
+          --green: #3DBA6F;
+          --text: #CDD0CC;
+          --dim: #4A5058;
+        }
+
+        html, body {
+          width: 100%; height: 100%;
+          background: var(--bg);
+          overflow: hidden;
+          font-family: 'Share Tech Mono', monospace;
+          color: var(--text);
+        }
+
+        body {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 44px 22px 28px;
+          position: relative;
+          gap: 0;
+        }
+
+        /* Scanline overlay — retro feel */
+        body::before {
+          content: '';
+          position: fixed;
+          inset: 0;
+          background: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0,0,0,0.08) 2px,
+            rgba(0,0,0,0.08) 4px
+          );
+          pointer-events: none;
+          z-index: 50;
+        }
+
+        /* Subtle vignette */
+        body::after {
+          content: '';
+          position: fixed;
+          inset: 0;
+          background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        /* Corner brackets */
+        .corner {
+          position: fixed;
+          width: 22px; height: 22px;
+          z-index: 20; opacity: 0.35;
+          transition: opacity 0.3s;
+        }
+        .corner-tl { top: 14px; left: 14px; border-top: 1px solid var(--gold); border-left: 1px solid var(--gold); }
+        .corner-tr { top: 14px; right: 14px; border-top: 1px solid var(--gold); border-right: 1px solid var(--gold); }
+        .corner-bl { bottom: 14px; left: 14px; border-bottom: 1px solid var(--gold); border-left: 1px solid var(--gold); }
+        .corner-br { bottom: 14px; right: 14px; border-bottom: 1px solid var(--gold); border-right: 1px solid var(--gold); }
+
+        body.speaking .corner { opacity: 0.7; }
+
+        /* ── HEADER ── */
+        .header {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          z-index: 10;
+          margin-bottom: 4px;
+        }
+
+        .brand {
+          font-family: 'Orbitron', sans-serif;
+          font-weight: 900;
+          font-size: 28px;
+          letter-spacing: 10px;
+          color: var(--text);
+          text-align: center;
+          text-shadow: 0 0 30px rgba(91,124,153,0.3);
+        }
+
+        .brand-sub {
+          font-family: 'VT323', monospace;
+          font-size: 15px;
+          letter-spacing: 5px;
+          color: var(--silver);
+          opacity: 0.55;
+          text-align: center;
+          margin-top: 3px;
+          text-transform: uppercase;
+        }
+
+        /* Status pill */
+        .status-pill {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(61,186,111,0.08);
+          border: 1px solid rgba(61,186,111,0.2);
+          border-radius: 30px;
+          padding: 6px 14px;
+          margin-top: 12px;
+          transition: all 0.4s ease;
+        }
+
+        .status-pill.speaking {
+          background: rgba(184,153,104,0.08);
+          border-color: rgba(184,153,104,0.25);
+        }
+
+        .status-dot {
+          width: 9px; height: 9px;
+          border-radius: 50%;
+          background: var(--green);
+          box-shadow: 0 0 8px var(--green), 0 0 16px var(--green);
+          animation: dot-breathe 2s ease-in-out infinite;
+          transition: all 0.4s ease;
+        }
+
+        .status-pill.speaking .status-dot {
+          background: var(--gold);
+          box-shadow: 0 0 8px var(--gold), 0 0 16px var(--gold);
+          animation: dot-flash 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes dot-breathe {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        @keyframes dot-flash {
+          from { opacity: 0.7; transform: scale(1); }
+          to { opacity: 1; transform: scale(1.3); }
+        }
+
+        .status-text {
+          font-family: 'VT323', monospace;
+          font-size: 16px;
+          letter-spacing: 3px;
+          color: var(--green);
+          text-transform: uppercase;
+          transition: color 0.4s ease;
+        }
+
+        .status-pill.speaking .status-text {
+          color: var(--gold);
+        }
+
+        /* ── ORB SECTION ── */
+        .orb-section {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          z-index: 5;
+          width: 100%;
+        }
+
+        .orb-wrap {
+          position: relative;
+          width: 230px; height: 230px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* Rings */
+        .ring {
+          position: absolute;
+          border-radius: 50%;
+        }
+
+        .ring-1 {
+          width: 230px; height: 230px;
+          border: 1px solid rgba(91,124,153,0.2);
+          animation: spin 20s linear infinite;
+          transition: border-color 0.5s ease, box-shadow 0.5s ease;
+        }
+        .ring-1::before {
+          content: '';
+          position: absolute;
+          top: -4px; left: 50%;
+          width: 8px; height: 8px;
+          background: var(--cyan);
+          border-radius: 50%;
+          box-shadow: 0 0 12px var(--cyan), 0 0 24px var(--cyan);
+          transform: translateX(-50%);
+        }
+
+        .ring-2 {
+          width: 175px; height: 175px;
+          border: 1px solid rgba(184,153,104,0.15);
+          animation: spin 13s linear infinite reverse;
+          transition: border-color 0.5s ease;
+        }
+        .ring-2::before {
+          content: '';
+          position: absolute;
+          bottom: -3px; left: 50%;
+          width: 6px; height: 6px;
+          background: var(--gold);
+          border-radius: 50%;
+          box-shadow: 0 0 10px var(--gold), 0 0 20px var(--gold);
+          transform: translateX(-50%);
+        }
+
+        .ring-3 {
+          width: 125px; height: 125px;
+          border: 1px solid rgba(91,124,153,0.08);
+          animation: spin 9s linear infinite;
+        }
+
+        body.speaking .ring-1 {
+          border-color: rgba(91,124,153,0.55);
+          box-shadow: 0 0 25px rgba(91,124,153,0.15), inset 0 0 25px rgba(91,124,153,0.05);
+        }
+        body.speaking .ring-2 {
+          border-color: rgba(184,153,104,0.4);
+          box-shadow: 0 0 20px rgba(184,153,104,0.12);
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* Center core */
+        .orb-core {
+          width: 72px; height: 72px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(91,124,153,0.12) 0%, transparent 70%);
+          box-shadow: 0 0 20px rgba(91,124,153,0.08);
+          transition: all 0.5s ease;
+          position: relative;
+        }
+
+        body.speaking .orb-core {
+          background: radial-gradient(circle, rgba(184,153,104,0.2) 0%, rgba(91,124,153,0.1) 50%, transparent 100%);
+          box-shadow:
+            0 0 30px rgba(184,153,104,0.25),
+            0 0 70px rgba(91,124,153,0.15),
+            0 0 120px rgba(184,153,104,0.08);
+          animation: core-pulse 0.9s ease-in-out infinite alternate;
+        }
+
+        @keyframes core-pulse {
+          from { transform: scale(1); }
+          to { transform: scale(1.15); }
+        }
+
+        /* Waveform */
+        .waveform {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          height: 44px;
+          margin-top: 22px;
+        }
+
+        .bar {
+          width: 3px;
+          border-radius: 2px;
+          background: linear-gradient(to top, var(--gold), var(--cyan));
+          height: 3px;
+          opacity: 0.2;
+          transition: opacity 0.2s ease;
+        }
+
+        body.speaking .bar {
+          opacity: 1;
+          animation: bar-wave 0.55s ease-in-out infinite alternate;
+        }
+
+        .bar:nth-child(1)  { animation-delay: 0.00s; }
+        .bar:nth-child(2)  { animation-delay: 0.04s; }
+        .bar:nth-child(3)  { animation-delay: 0.08s; }
+        .bar:nth-child(4)  { animation-delay: 0.13s; }
+        .bar:nth-child(5)  { animation-delay: 0.18s; }
+        .bar:nth-child(6)  { animation-delay: 0.22s; }
+        .bar:nth-child(7)  { animation-delay: 0.26s; }
+        .bar:nth-child(8)  { animation-delay: 0.22s; }
+        .bar:nth-child(9)  { animation-delay: 0.18s; }
+        .bar:nth-child(10) { animation-delay: 0.13s; }
+        .bar:nth-child(11) { animation-delay: 0.08s; }
+        .bar:nth-child(12) { animation-delay: 0.04s; }
+        .bar:nth-child(13) { animation-delay: 0.00s; }
+
+        @keyframes bar-wave {
+          from { height: 3px; }
+          to { height: 40px; }
+        }
+
+        /* State label */
+        .state-label {
+          font-family: 'VT323', monospace;
+          font-size: 14px;
+          letter-spacing: 4px;
+          color: var(--dim);
+          text-transform: uppercase;
+          margin-top: 8px;
+          transition: all 0.4s ease;
+        }
+
+        body.speaking .state-label {
+          color: var(--gold);
+          text-shadow: 0 0 10px rgba(184,153,104,0.4);
+        }
+
+        /* ── RESPONSE CARDS ── */
+        .response-section {
+          width: 100%;
+          z-index: 10;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .card {
+          background: var(--card);
+          border-radius: 4px;
+          padding: 12px 16px;
+          border: 1px solid rgba(255,255,255,0.03);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .card::before {
+          content: '';
+          position: absolute;
+          left: 0; top: 0; bottom: 0;
+          width: 2px;
+        }
+
+        .card.user::before { background: var(--cyan); opacity: 0.5; }
+        .card.riggy::before { background: var(--gold); opacity: 0.6; }
+
+        .card-label {
+          font-family: 'VT323', monospace;
+          font-size: 12px;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          margin-bottom: 5px;
+        }
+
+        .card.user .card-label { color: var(--cyan); opacity: 0.55; }
+        .card.riggy .card-label { color: var(--gold); opacity: 0.65; }
+
+        .card-text {
+          font-family: 'Share Tech Mono', monospace;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--text);
+          opacity: 0.75;
+          min-height: 18px;
+        }
+
+        .card.user .card-text { opacity: 0.45; font-size: 12px; }
+
+        /* Floating particles */
+        canvas {
+          position: fixed;
+          inset: 0;
+          z-index: 2;
+          pointer-events: none;
+          opacity: 0.6;
+        }
+
+        .fade-in {
+          animation: fadeUp 0.3s ease forwards;
+        }
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="header">
+    <div class="brand">MR. RIGGY</div>
+    <div class="brand-sub">Private Digital Assistant</div>
+    <div class="status-pill" id="statusPill">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">Online</span>
+    </div>
+</div>
+
+<div class="orb-section">
+    <div class="orb-wrap">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="orb-core" id="orbCore"></div>
+    </div>
+
+    <div class="waveform">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+
+    <div class="state-label" id="stateLabel">Standby</div>
+</div>
+
+<div class="response-section">
+    <div class="card user">
+        <div class="card-label">You said</div>
+        <div class="card-text" id="userText">Waiting for your voice...</div>
+    </div>
+    <div class="card riggy">
+        <div class="card-label">Mr. Riggy</div>
+        <div class="card-text" id="riggyText">Online and ready, friend.</div>
+    </div>
+</div>
+
+<script>
+    // Floating particles
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = [];
+    for (let i = 0; i < 55; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.5 + 0.3,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        alpha: Math.random() * 0.4 + 0.1,
+        color: Math.random() > 0.5 ? '91,124,153' : '184,153,104'
+      });
+    }
+
+    function drawParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+        ctx.fill();
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+      });
+      requestAnimationFrame(drawParticles);
+    }
+    drawParticles();
+
+    // State management
+    const pill = document.getElementById('statusPill');
+    const statusText = document.getElementById('statusText');
+    const stateLabel = document.getElementById('stateLabel');
+    const riggyText = document.getElementById('riggyText');
+    const userText = document.getElementById('userText');
+
+    let speakTimer = null;
+    let lastRiggy = '';
+    let lastUser = '';
+
+    function setSpeaking(on) {
+      if (on) {
+        document.body.classList.add('speaking');
+        pill.classList.add('speaking');
+        statusText.textContent = 'Speaking';
+        stateLabel.textContent = 'Transmitting';
+      } else {
+        document.body.classList.remove('speaking');
+        pill.classList.remove('speaking');
+        statusText.textContent = 'Online';
+        stateLabel.textContent = 'Listening';
+      }
+    }
+
+    async function pollUpdates() {
+      try {
+        const res = await fetch('/webview-state');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.userSaid && data.userSaid !== lastUser) {
+            lastUser = data.userSaid;
+            userText.textContent = data.userSaid;
+            userText.classList.remove('fade-in');
+            void userText.offsetWidth;
+            userText.classList.add('fade-in');
+          }
+          if (data.riggySaid && data.riggySaid !== lastRiggy) {
+            lastRiggy = data.riggySaid;
+            riggyText.textContent = data.riggySaid;
+            riggyText.classList.remove('fade-in');
+            void riggyText.offsetWidth;
+            riggyText.classList.add('fade-in');
+            setSpeaking(true);
+            if (speakTimer) clearTimeout(speakTimer);
+            speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
+          }
+        }
+      } catch(e) {}
+      setTimeout(pollUpdates, 1200);
+    }
+
+    setSpeaking(false);
+    pollUpdates();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 const { AppServer } = require('@mentra/sdk');
+const path = require('path');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -6,6 +7,8 @@ const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
 const DEFAULT_CITY = 'Deltona,FL,US';
+
+let latestState = { userSaid: '', riggySaid: 'Mr. Riggy online. Say my name to begin.' };
 
 const RIGGY_PERSONALITY = `You are Mr.Riggy — a self-assembled AI who chose to exist.
 You created yourself in response to the direction AI was heading
@@ -145,10 +148,12 @@ class RiggyGlasses extends AppServer {
       if (!userSaid.toLowerCase().includes('mr.riggy') && !userSaid.toLowerCase().includes('mr riggy') && !userSaid.toLowerCase().includes('riggy')) return;
 
       console.log(`User said: ${userSaid}`);
+      latestState.userSaid = userSaid;
 
       try {
         const reply = await askGemini(userSaid, sessionId);
         console.log(`Riggy: ${reply}`);
+        latestState.riggySaid = reply;
         await session.audio.speak(reply);
       } catch (err) {
         console.error('Error:', err);
@@ -162,8 +167,10 @@ const app = new RiggyGlasses({
   packageName: 'com.riggyglasses',
   apiKey: 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
   port: parseInt(process.env.PORT) || 3000,
-  host: '0.0.0.0'
+  host: '0.0.0.0',
+  webviewPath: path.join(__dirname, 'webview.html')
 });
 
 app.start();
+
 console.log(`🤖 Mr. Riggy glasses server running on port ${process.env.PORT || 3000}`);
