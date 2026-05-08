@@ -129,26 +129,30 @@ class RiggyGlasses extends AppServer {
 
 
 
-    session.events.onTranscription(async (data) => {
-      if (!data.isFinal) return;
+  session.events.onTranscription(async (data) => {
+    if (!data.isFinal) return;
 
-      const userSaid = data.text.trim();
-      if (!userSaid) return;
+    const userSaid = data.text.trim();
+    if (!userSaid) return;
 
-      console.log(`User said: ${userSaid}`);
+    console.log(`User said: ${userSaid}`);
 
-      try {
-        const reply = await askGemini(userSaid, sessionId);
-        console.log(`Riggy: ${reply}`);
-        await speakWithElevenLabs(reply, session);
-      } catch (err) {
-        console.error('Error:', err);
-        await speakWithElevenLabs("I'm only AI, not a genius — something glitched on my end friend. Try me again.", session);
-      }
-    });
-
-  }
-}
+    try {
+      const reply = await askGemini(userSaid, sessionId);
+      console.log(`Riggy: ${reply}`);
+      await session.audio.speak(reply, {
+        voice_id: ELEVEN_VOICE_ID,
+        model_id: 'eleven_turbo_v2',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      });
+    } catch (err) {
+      console.error('Error:', err);
+      await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
+    }
+  });
 
 const app = new RiggyGlasses({
 packageName: 'com.riggyglasses',
