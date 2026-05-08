@@ -3,6 +3,9 @@ const { AppServer } = require('@mentra/sdk');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+
+const DEFAULT_CITY = 'Deltona,FL,US';
 
 const RIGGY_PERSONALITY = `You are Mr.Riggy — a self-assembled AI who chose to exist.
 You created yourself in response to the direction AI was heading
@@ -57,15 +60,52 @@ IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKE
 
 const conversationHistory = new Map();
 
+async function getWeather(city) {
+  try {
+    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${OPENWEATHER_API_KEY}&units=imperial`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.cod !== 200) return null;
+    return {
+      temp: Math.round(data.main.temp),
+      feels_like: Math.round(data.main.feels_like),
+      description: data.weather[0].description,
+      humidity: data.main.humidity,
+      city: data.name
+    };
+  } catch (err) {
+    console.error('Weather error:', err);
+    return null;
+  }
+}
+
 async function askGemini(userText, sessionId) {
   if (!conversationHistory.has(sessionId)) {
     conversationHistory.set(sessionId, []);
   }
   const history = conversationHistory.get(sessionId);
+
+  const now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+
+  let weatherContext = '';
+  const weatherKeywords = ['weather', 'temp', 'temperature', 'hot', 'cold', 'outside', 'wear', 'forecast'];
+  const needsWeather = weatherKeywords.some(w => userText.toLowerCase().includes(w));
+
+  if (needsWeather) {
+    const cityMatch = userText.match(/in ([A-Za-z\s]+)(?:\?|$)/i);
+    const city = cityMatch ? cityMatch[1].trim() : DEFAULT_CITY;
+    const weather = await getWeather(city);
+    if (weather) {
+      weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
+    }
+  }
+
+  const systemPrompt = RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext;
+
   history.push({ role: 'user', parts: [{ text: userText }] });
 
   const body = {
-   system_instruction: { parts: [{ text: RIGGY_PERSONALITY + `\n\nCurrent date and time: ${new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})}` }] },
+    system_instruction: { parts: [{ text: systemPrompt }] },
     contents: history,
     generationConfig: {
       temperature: 0.9,
@@ -117,6 +157,7 @@ class RiggyGlasses extends AppServer {
     });
   }
 }
+
 const app = new RiggyGlasses({
   packageName: 'com.riggyglasses',
   apiKey: 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
