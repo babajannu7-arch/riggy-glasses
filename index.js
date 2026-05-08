@@ -147,10 +147,10 @@ class RiggyGlasses extends AppServer {
       }
     });
 
-    session.events.onSessionEnd(() => {
-      console.log(`Session ended: ${sessionId}`);
-      conversationHistory.delete(sessionId);
-    });
+   session.onSessionEnd(() => {
+     console.log(`Session ended: ${sessionId}`);
+     conversationHistory.delete(sessionId);
+   });
   }
 }
 
