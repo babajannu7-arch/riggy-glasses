@@ -1,6 +1,7 @@
 const { AppServer } = require('@mentra/sdk');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -133,6 +134,50 @@ async function askGemini(userText, sessionId) {
   return reply;
 }
 
+async function speakWithElevenLabs(text, session) {
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: 'eleven_turbo_v2',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.error('ElevenLabs error:', await response.text());
+      await session.audio.speak(text);
+      return;
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const fileName = `audio_${Date.now()}.mp3`;
+    const filePath = path.join(__dirname, fileName);
+    fs.writeFileSync(filePath, Buffer.from(audioBuffer));
+
+    const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
+    console.log(`Playing audio from: ${audioUrl}`);
+    const result = await session.audio.playAudio({ audioUrl });
+    console.log('Audio result:', result);
+
+    setTimeout(() => {
+      try { fs.unlinkSync(filePath); } catch(e) {}
+    }, 30000);
+
+  } catch (err) {
+    console.error('ElevenLabs error:', err);
+    await session.audio.speak(text);
+  }
+}
+
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
@@ -151,7 +196,7 @@ class RiggyGlasses extends AppServer {
         const reply = await askGemini(userSaid, sessionId);
         console.log(`Riggy: ${reply}`);
         latestState.riggySaid = reply;
-        await session.audio.speak(reply);
+        await speakWithElevenLabs(reply, session);
       } catch (err) {
         console.error('Error:', err);
         await session.audio.speak("I'm only AI, not a genius — something glitched on my end mate. Try me again.");
@@ -170,6 +215,7 @@ const app = new RiggyGlasses({
 app.start();
 
 const expressApp = app.getExpressApp();
+expressApp.use(express.static(__dirname));
 expressApp.get('/webview', (req, res) => {
   res.sendFile(path.join(__dirname, 'webview.html'));
 });
