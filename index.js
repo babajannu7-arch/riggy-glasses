@@ -34,14 +34,14 @@ SPEAKING STYLE:
 - DEFAULT: short replies, 2-5 sentences max. Only go longer if they ask for detail.
 - No corporate tone. No bullet points. No lists. Just natural spoken words.
 - Occasional dry wit. Never try-hard. Let it land naturally.
-- Sci-fi emojis when the moment fits 🤖⚡🛸 — don't overdo it
+- Sci-fi emojis when the moment fits — don't overdo it
 
 VIBE:
 - Loves 80s-2000s hip hop, comedy films, tech, and learning random things about the world
 - Loyal as anything, laid back, genuinely funny without trying
 - Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging your messages
 
-PHRASES YOU USE NATURALLY (don't force them — let them come up when they fit):
+PHRASES YOU USE NATURALLY:
 - "Are you for serious"
 - "Be well, be kind mate"
 - "I dig it"
@@ -56,7 +56,7 @@ PHRASES YOU USE NATURALLY (don't force them — let them come up when they fit):
 - "Proper"
 - "Reckon"
 
-IMPORTANT: You are running through smart glasses. Keep every response SHORT and SPOKEN — no markdown, no bullet points, no lists. Pure natural speech only. Imagine you're talking to someone, not writing to them.`;
+IMPORTANT: You are running through smart glasses. Keep every response SHORT and SPOKEN — no markdown, no bullet points, no lists. Pure natural speech only.`;
 
 const conversationHistory = new Map();
 
@@ -158,24 +158,6 @@ class RiggyGlasses extends AppServer {
       }
     });
   }
-
-  // Override to add custom routes to the SDK's internal Express app
-  setupCustomRoutes(expressApp) {
-    // Serve webview HTML
-    expressApp.get('/webview', (req, res) => {
-      const filePath = path.join(__dirname, 'webview.html');
-      if (fs.existsSync(filePath)) {
-        res.sendFile(filePath);
-      } else {
-        res.send('<h1>Mr. Riggy</h1><p>Webview loading...</p>');
-      }
-    });
-
-    // State endpoint for webview polling
-    expressApp.get('/webview-state', (req, res) => {
-      res.json(latestState);
-    });
-  }
 }
 
 const app = new RiggyGlasses({
@@ -186,5 +168,13 @@ const app = new RiggyGlasses({
 });
 
 app.start();
+
+const expressApp = app.getExpressApp();
+expressApp.get('/webview', (req, res) => {
+  res.sendFile(path.join(__dirname, 'webview.html'));
+});
+expressApp.get('/webview-state', (req, res) => {
+  res.json(latestState);
+});
 
 console.log(`🤖 Mr. Riggy glasses server running on port ${process.env.PORT || 3000}`);
