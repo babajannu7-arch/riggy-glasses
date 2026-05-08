@@ -102,6 +102,7 @@ class RiggyGlasses extends AppServer {
 
       const userSaid = data.text.trim();
       if (!userSaid) return;
+      if (!userSaid.toLowerCase().includes('mr.riggy') && !userSaid.toLowerCase().includes('mr riggy') && !userSaid.toLowerCase().includes('riggy')) return;
 
       console.log(`User said: ${userSaid}`);
 
@@ -116,7 +117,6 @@ class RiggyGlasses extends AppServer {
     });
   }
 }
-
 const app = new RiggyGlasses({
   packageName: 'com.riggyglasses',
   apiKey: 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
