@@ -93,69 +93,39 @@ async function askGemini(userText, sessionId) {
   return reply;
 }
 
-async function speakWithElevenLabs(text, session) {
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
-    {
-      method: 'POST',
-      headers: {
-        'xi-api-key': ELEVENLABS_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: text,
-        model_id: 'eleven_turbo_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    console.error('ElevenLabs error:', await response.text());
-    await session.audio.speak(text);
-    return;
-  }
-
-  const audioBuffer = await response.arrayBuffer();
-  await session.audio.playAudio(Buffer.from(audioBuffer), 'mp3');
-}
-
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
+    session.events.onTranscription(async (data) => {
+      if (!data.isFinal) return;
 
+      const userSaid = data.text.trim();
+      if (!userSaid) return;
 
-  session.events.onTranscription(async (data) => {
-    if (!data.isFinal) return;
+      console.log(`User said: ${userSaid}`);
 
-    const userSaid = data.text.trim();
-    if (!userSaid) return;
-
-    console.log(`User said: ${userSaid}`);
-
-    try {
-      const reply = await askGemini(userSaid, sessionId);
-      console.log(`Riggy: ${reply}`);
-      await session.audio.speak(reply, {
-        voice_id: ELEVEN_VOICE_ID,
-        model_id: 'eleven_turbo_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
-      });
-    } catch (err) {
-      console.error('Error:', err);
-      await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
-    }
-  });
+      try {
+        const reply = await askGemini(userSaid, sessionId);
+        console.log(`Riggy: ${reply}`);
+        await session.audio.speak(reply, {
+          voice_id: ELEVEN_VOICE_ID,
+          model_id: 'eleven_turbo_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
+        });
+      } catch (err) {
+        console.error('Error:', err);
+        await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
+      }
+    });
+  }
+}
 
 const app = new RiggyGlasses({
-packageName: 'com.riggyglasses',
+  packageName: 'com.riggyglasses',
   apiKey: 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
   port: parseInt(process.env.PORT) || 3000,
   host: '0.0.0.0'
