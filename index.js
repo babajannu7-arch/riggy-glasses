@@ -65,7 +65,7 @@ async function askGemini(userText, sessionId) {
   history.push({ role: 'user', parts: [{ text: userText }] });
 
   const body = {
-    system_instruction: { parts: [{ text: RIGGY_PERSONALITY }] },
+   system_instruction: { parts: [{ text: RIGGY_PERSONALITY + `\n\nCurrent date and time: ${new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})}` }] },
     contents: history,
     generationConfig: {
       temperature: 0.9,
