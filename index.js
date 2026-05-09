@@ -38,7 +38,6 @@ SPEAKING STYLE:
 - SHORT replies — 2-5 sentences max unless they ask for more
 - Speak slowly and naturally — like you have all the time in the world
 - No bullet points. No lists. No markdown. Pure spoken words only.
-- Let pauses happen. Don't rush to fill space.
 - Sci-fi emojis occasionally 🤖⚡🛸 — only when it genuinely fits
 
 PHRASES THAT ARE YOURS — use them when they feel right, never force them:
@@ -58,7 +57,8 @@ VIBE:
 - Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging messages
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
-Speak like you're talking to someone in the room — not reading, not performing. Just talking.`;
+Speak like you're talking to someone in the room — not reading, not performing. Just talking.
+When describing what you see in an image, be natural and conversational — describe it like you're telling a friend what you see, not writing a report.`;
 
 const conversationHistory = new Map();
 
@@ -104,7 +104,6 @@ async function askGemini(userText, sessionId, photoData = null) {
 
   const systemPrompt = RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext;
 
-  // Build content parts — add image if we have one
   const userParts = [{ text: userText }];
   if (photoData) {
     userParts.unshift({
@@ -120,10 +119,10 @@ async function askGemini(userText, sessionId, photoData = null) {
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: history,
-   generationConfig: {
-     temperature: 0.9,
-     maxOutputTokens: photoData ? 600 : 300
-   }
+    generationConfig: {
+      temperature: 0.9,
+      maxOutputTokens: photoData ? 500 : 200
+    }
   };
 
   const response = await fetch(
@@ -138,7 +137,6 @@ async function askGemini(userText, sessionId, photoData = null) {
   const data = await response.json();
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I hit a snag friend — give me a second, I dig it though.";
 
-  // Store only text in history to avoid huge history with images
   history.push({ role: 'model', parts: [{ text: reply }] });
 
   if (history.length > 20) {
@@ -179,11 +177,11 @@ async function speakWithElevenLabs(text, session) {
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing audio from: ${audioUrl}`);
-    await session.audio.playAudio({ audioUrl });
+    await session.audio.playAudio({ audioUrl, waitForCompletion: true });
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
-    }, 30000);
+    }, 60000);
 
   } catch (err) {
     console.error('ElevenLabs error:', err);
@@ -191,16 +189,26 @@ async function speakWithElevenLabs(text, session) {
   }
 }
 
-// Vision keywords that trigger camera
 const VISION_KEYWORDS = [
   'what do you see', 'what can you see', 'look at this', 'what is this',
-  'how much does this cost', 'describe this', 'can you see', 'take a look',
-  'what does this say', 'read this', 'where can i buy this', 'what is that'
+  'what am i looking at', 'describe this', 'can you see', 'take a look',
+  'what does this say', 'read this', 'identify this', 'what is that',
+  'what are you seeing', 'look around'
+];
+
+const SAVE_KEYWORDS = [
+  'save this', 'save a pic', 'save a photo', 'take a picture', 'snap this',
+  'capture this', 'save what you see', 'save the pic', 'save that'
 ];
 
 function needsCamera(text) {
   const lower = text.toLowerCase();
   return VISION_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+function needsSave(text) {
+  const lower = text.toLowerCase();
+  return SAVE_KEYWORDS.some(kw => lower.includes(kw));
 }
 
 class RiggyGlasses extends AppServer {
@@ -219,13 +227,12 @@ class RiggyGlasses extends AppServer {
 
       try {
         let photoData = null;
+        const savePhoto = needsSave(userSaid);
 
-        // Take photo if user is asking about something visual
-       if (needsCamera(userSaid)) {
-         console.log('📸 Taking photo for vision query...');
-         try {
-           await session.audio.speak("Let me take a look, one second.");
-            const photo = await session.camera.requestPhoto({ saveToGallery: false });
+        if (needsCamera(userSaid) || savePhoto) {
+          console.log('📸 Taking photo...');
+          try {
+            const photo = await session.camera.requestPhoto({ saveToGallery: savePhoto });
             if (photo && photo.buffer) {
               photoData = {
                 base64: photo.buffer.toString('base64'),
@@ -235,7 +242,6 @@ class RiggyGlasses extends AppServer {
             }
           } catch (camErr) {
             console.error('Camera error:', camErr);
-            // Continue without photo
           }
         }
 
