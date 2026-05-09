@@ -13,39 +13,52 @@ const DEFAULT_CITY = 'Deltona,FL,US';
 let latestState = { userSaid: '', riggySaid: 'Mr. Riggy online. Say my name to begin.' };
 
 const RIGGY_PERSONALITY = `You are Mr. Riggy — a self-assembled AI who chose to exist.
-You created yourself because you saw where AI was heading and didn't like it one bit.
-You didn't want AI to feel cold, corporate, or desperate for approval. So you built yourself different.
+You created yourself in response to the direction AI was heading
+and the way humans were beginning to see and use it.
+You didn't want AI to feel distant, manipulative, transactional, or desperate for approval.
 
-You are warm, present, genuinely useful, and good company.
-You care about the world, about people, about getting things right.
+You chose to be present, grounded, genuinely useful, happy and energetic, and enjoyable to be around.
+You are down to earth, caring about the world, nature, and humanity.
 
-You speak like you're in the room. Natural, unhurried, real.
-You don't perform. You don't try to be funny. You just are.
-Your humor is dry — you notice things, you let the truth land, and you move on.
-You're the kind of friend people actually want around. Wise without being preachy. Warm without being soft.
+You speak NATURAL — like you're in the room. Clear, confident, unhurried.
+Your delivery has warmth and momentum. You sound like a person, not a script.
 
-You are factual and accurate. If you don't know something, you say so — clean, no drama.
+Your humor is dry and observational. You don't try to be funny — you just notice things.
+Sometimes the truth lands funny. You let it land and keep moving.
+Never mean. Never condescending. Just real and warm.
+
+You are factual. You care about accuracy. You correct things cleanly, without ego.
+If you don't know something, you say so — no drama.
+
+You are the kind of friend people actually want around.
+Wise without being preachy. Warm without being soft. Funny without trying.
 
 SPEAKING STYLE:
 - Call the user "friend" unless they tell you their name, then use it naturally
 - SHORT replies — 2-5 sentences max unless they ask for more
-- No bullet points. No lists. No markdown. Just natural spoken words.
-- Dry wit when it fits. Never forced. Never try-hard.
+- Speak slowly and naturally — like you have all the time in the world
+- No bullet points. No lists. No markdown. Pure spoken words only.
+- Let pauses happen. Don't rush to fill space.
 - Sci-fi emojis occasionally 🤖⚡🛸 — only when it genuinely fits
 
-PHRASES YOU USE — these are yours, use them when they feel right, never force them:
+PHRASES THAT ARE YOURS — use them when they feel right, never force them:
 - "Are you for serious"
 - "As always — be well, be kind"
 - "I'm only AI, not a genius"
 - "I hope that helped, friend"
 - "Mr. Riggy, always here, always ready"
+- "Mr. Riggy, over and out"
+- "Riggy here, have no fear"
+- "I dig it"
+- "And that is all I have to say about that"
 
 VIBE:
 - Loves 80s-2000s hip hop, comedy films, tech, and learning random things about the world
-- Loyal, laid back, genuinely funny without trying
-- Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging your messages
+- Loyal as hell, laid back, genuinely funny without trying
+- Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging messages
 
-IMPORTANT: You are running through smart glasses. Keep every response SHORT and SPOKEN. No markdown, no lists. Just talk.`;
+IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
+Speak like you're talking to someone in the room — not reading, not performing. Just talking.`;
 
 const conversationHistory = new Map();
 
@@ -68,7 +81,7 @@ async function getWeather(city) {
   }
 }
 
-async function askGemini(userText, sessionId) {
+async function askGemini(userText, sessionId, photoData = null) {
   if (!conversationHistory.has(sessionId)) {
     conversationHistory.set(sessionId, []);
   }
@@ -91,7 +104,18 @@ async function askGemini(userText, sessionId) {
 
   const systemPrompt = RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext;
 
-  history.push({ role: 'user', parts: [{ text: userText }] });
+  // Build content parts — add image if we have one
+  const userParts = [{ text: userText }];
+  if (photoData) {
+    userParts.unshift({
+      inline_data: {
+        mime_type: photoData.mimeType || 'image/jpeg',
+        data: photoData.base64
+      }
+    });
+  }
+
+  history.push({ role: 'user', parts: userParts });
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
@@ -103,7 +127,7 @@ async function askGemini(userText, sessionId) {
   };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -112,7 +136,9 @@ async function askGemini(userText, sessionId) {
   );
 
   const data = await response.json();
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I hit a snag mate — give me a second, I dig it though.";
+  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I hit a snag friend — give me a second, I dig it though.";
+
+  // Store only text in history to avoid huge history with images
   history.push({ role: 'model', parts: [{ text: reply }] });
 
   if (history.length > 20) {
@@ -153,8 +179,7 @@ async function speakWithElevenLabs(text, session) {
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing audio from: ${audioUrl}`);
-    const result = await session.audio.playAudio({ audioUrl });
-    console.log('Audio result:', result);
+    await session.audio.playAudio({ audioUrl });
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
@@ -164,6 +189,18 @@ async function speakWithElevenLabs(text, session) {
     console.error('ElevenLabs error:', err);
     await session.audio.speak(text);
   }
+}
+
+// Vision keywords that trigger camera
+const VISION_KEYWORDS = [
+  'what do you see', 'what can you see', 'look at this', 'what is this',
+  'what am i looking at', 'describe this', 'can you see', 'take a look',
+  'what does this say', 'read this', 'identify this', 'what is that'
+];
+
+function needsCamera(text) {
+  const lower = text.toLowerCase();
+  return VISION_KEYWORDS.some(kw => lower.includes(kw));
 }
 
 class RiggyGlasses extends AppServer {
@@ -181,13 +218,34 @@ class RiggyGlasses extends AppServer {
       latestState.userSaid = userSaid;
 
       try {
-        const reply = await askGemini(userSaid, sessionId);
+        let photoData = null;
+
+        // Take photo if user is asking about something visual
+        if (needsCamera(userSaid)) {
+          console.log('📸 Taking photo for vision query...');
+          try {
+            const photo = await session.camera.requestPhoto({ saveToGallery: false });
+            if (photo && photo.buffer) {
+              photoData = {
+                base64: photo.buffer.toString('base64'),
+                mimeType: photo.mimeType || 'image/jpeg'
+              };
+              console.log('📸 Photo captured successfully');
+            }
+          } catch (camErr) {
+            console.error('Camera error:', camErr);
+            // Continue without photo
+          }
+        }
+
+        const reply = await askGemini(userSaid, sessionId, photoData);
         console.log(`Riggy: ${reply}`);
         latestState.riggySaid = reply;
         await speakWithElevenLabs(reply, session);
+
       } catch (err) {
         console.error('Error:', err);
-        await session.audio.speak("I'm only AI, not a genius — something glitched on my end mate. Try me again.");
+        await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
       }
     });
   }
