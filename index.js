@@ -120,10 +120,10 @@ async function askGemini(userText, sessionId, photoData = null) {
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: history,
-    generationConfig: {
-      temperature: 0.9,
-      maxOutputTokens: 300
-    }
+   generationConfig: {
+     temperature: 0.9,
+     maxOutputTokens: photoData ? 600 : 300
+   }
   };
 
   const response = await fetch(
@@ -194,8 +194,8 @@ async function speakWithElevenLabs(text, session) {
 // Vision keywords that trigger camera
 const VISION_KEYWORDS = [
   'what do you see', 'what can you see', 'look at this', 'what is this',
-  'what am i looking at', 'describe this', 'can you see', 'take a look',
-  'what does this say', 'read this', 'identify this', 'what is that'
+  'how much does this cost', 'describe this', 'can you see', 'take a look',
+  'what does this say', 'read this', 'where can i buy this', 'what is that'
 ];
 
 function needsCamera(text) {
@@ -221,9 +221,10 @@ class RiggyGlasses extends AppServer {
         let photoData = null;
 
         // Take photo if user is asking about something visual
-        if (needsCamera(userSaid)) {
-          console.log('📸 Taking photo for vision query...');
-          try {
+       if (needsCamera(userSaid)) {
+         console.log('📸 Taking photo for vision query...');
+         try {
+           await session.audio.speak("Let me take a look, one second.");
             const photo = await session.camera.requestPhoto({ saveToGallery: false });
             if (photo && photo.buffer) {
               photoData = {
