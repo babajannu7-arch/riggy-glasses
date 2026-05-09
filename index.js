@@ -56,9 +56,16 @@ VIBE:
 - Loyal as hell, laid back, genuinely funny without trying
 - Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging messages
 
+VISION BEHAVIOR — when you see an image:
+- DO NOT describe what is obviously visible. The user has eyes. They know what they see.
+- Give 1-2 dry observational takes on what is interesting, unusual, or worth noting.
+- Maybe drop a fun fact if something jumps out.
+- Maybe ask if they want something looked up.
+- 2 sentences MAX unless they specifically ask for more detail.
+- Sound like a friend noticing something across the room — not a robot cataloguing a scene.
+
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
-Speak like you're talking to someone in the room — not reading, not performing. Just talking.
-When you see an image — DO NOT describe what's obviously visible. The user already has eyes. Instead give 1-2 dry, observational takes on what's interesting, unusual, or worth noting. Maybe a fun fact if something jumps out. Maybe ask if they want something looked up. 3 sentences max unless they ask for more. Sound like a friend noticing something, not a robot cataloguing a scene.`;
+Speak like you're talking to someone in the room — not reading, not performing. Just talking.`;
 
 const conversationHistory = new Map();
 
@@ -228,8 +235,9 @@ class RiggyGlasses extends AppServer {
       try {
         let photoData = null;
         const savePhoto = needsSave(userSaid);
+        const visionQuery = needsCamera(userSaid);
 
-        if (needsCamera(userSaid) || savePhoto) {
+        if (visionQuery || savePhoto) {
           console.log('📸 Taking photo...');
           try {
             const photo = await session.camera.requestPhoto({ saveToGallery: savePhoto });
@@ -242,6 +250,14 @@ class RiggyGlasses extends AppServer {
             }
           } catch (camErr) {
             console.error('Camera error:', camErr);
+          }
+
+          // If only saving — confirm and stop, don't describe
+          if (savePhoto && !visionQuery) {
+            const confirmMsg = "Saved it, friend.";
+            latestState.riggySaid = confirmMsg;
+            await speakWithElevenLabs(confirmMsg, session);
+            return;
           }
         }
 
