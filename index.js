@@ -206,7 +206,6 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
-
 async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
@@ -235,17 +234,24 @@ async function speakWithElevenLabs(text, session) {
     }
 
     const audioBuffer = await response.arrayBuffer();
+    const audioBytes = Buffer.from(audioBuffer);
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
-    fs.writeFileSync(filePath, Buffer.from(audioBuffer));
+    fs.writeFileSync(filePath, audioBytes);
+
+    // Calculate duration: ~128kbps MP3 = 16000 bytes/second
+    const estimatedDurationMs = Math.max(2000, (audioBytes.length / 16000) * 1000);
+    // Add 800ms buffer for network fetch + playback start
+    const totalWaitMs = estimatedDurationMs + 800;
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`Playing: ${audioUrl}`);
-    await session.audio.playAudio({ audioUrl, waitForCompletion: true });
+    console.log(`Playing: ${audioUrl} — estimated ${Math.round(estimatedDurationMs)}ms`);
 
-    const words = cleanText.split(' ').length;
-    const waitMs = Math.max(1000, (words / 2.8) * 1000);
-    await new Promise(resolve => setTimeout(resolve, waitMs));
+    // Don't wait for SDK completion — we know it resolves early
+    session.audio.playAudio({ audioUrl }).catch(e => console.error('playAudio error:', e));
+
+    // Wait the actual duration ourselves
+    await new Promise(resolve => setTimeout(resolve, totalWaitMs));
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
