@@ -238,11 +238,24 @@ class RiggyGlasses extends AppServer {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
     let liveMode = false;
+    let isRiggySpeaking = false;
 
     // Reset state on new session
     latestState.userSaid = '';
     latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
     latestState.liveMode = false;
+
+    // Wrapper that sets speaking flag with cooldown
+    const speakSafe = async (text) => {
+      isRiggySpeaking = true;
+      try {
+        await speakWithElevenLabs(text, session);
+      } finally {
+        // 2 second cooldown after speaking to catch delayed transcriptions
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        isRiggySpeaking = false;
+      }
+    };
 
     const handleInput = async (userSaid) => {
       if (!userSaid) return;
@@ -254,8 +267,8 @@ class RiggyGlasses extends AppServer {
       if (wantsLiveOn(userSaid) && !liveMode) {
         liveMode = true;
         latestState.liveMode = true;
-        console.log('🔴 Live mode ON via voice');
-        await speakWithElevenLabs("Live mode on. I'm here, just talk.", session);
+        console.log('🔴 Live mode ON');
+        await speakSafe("Live mode on. I'm here, just talk.");
         latestState.riggySaid = "Live mode on. I'm here, just talk.";
         return;
       }
@@ -263,8 +276,8 @@ class RiggyGlasses extends AppServer {
       if (wantsLiveOff(userSaid) && liveMode) {
         liveMode = false;
         latestState.liveMode = false;
-        console.log('⚫ Live mode OFF via voice');
-        await speakWithElevenLabs("Going quiet. Say my name when you need me.", session);
+        console.log('⚫ Live mode OFF');
+        await speakSafe("Going quiet. Say my name when you need me.");
         latestState.riggySaid = "Going quiet. Say my name when you need me.";
         return;
       }
@@ -290,16 +303,15 @@ class RiggyGlasses extends AppServer {
           }
 
           if (savePhoto && !visionQuery) {
-            const confirmMsg = "Saved it, friend.";
-            latestState.riggySaid = confirmMsg;
-            await speakWithElevenLabs(confirmMsg, session);
+            await speakSafe("Saved it, friend.");
+            latestState.riggySaid = "Saved it, friend.";
             return;
           }
         }
 
         const reply = await askGemini(userSaid, sessionId, photoData);
         console.log(`Riggy: ${reply}`);
-        await speakWithElevenLabs(reply, session);
+        await speakSafe(reply);
         latestState.riggySaid = reply;
 
       } catch (err) {
@@ -308,15 +320,15 @@ class RiggyGlasses extends AppServer {
       }
     };
 
-    // Webview live toggle — sync session liveMode
-    session._toggleLive = () => {
+    // Webview live toggle
+    session._toggleLive = async () => {
       liveMode = !liveMode;
       latestState.liveMode = liveMode;
       if (liveMode) {
-        speakWithElevenLabs("Live mode on. I'm here, just talk.", session);
+        await speakSafe("Live mode on. I'm here, just talk.");
         latestState.riggySaid = "Live mode on. I'm here, just talk.";
       } else {
-        speakWithElevenLabs("Going quiet. Say my name when you need me.", session);
+        await speakSafe("Going quiet. Say my name when you need me.");
         latestState.riggySaid = "Going quiet. Say my name when you need me.";
       }
       return liveMode;
@@ -324,6 +336,13 @@ class RiggyGlasses extends AppServer {
 
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
+
+      // Block input while Riggy is speaking or in cooldown
+      if (isRiggySpeaking) {
+        console.log('🔇 Ignoring transcription — Riggy is speaking');
+        return;
+      }
+
       const userSaid = data.text.trim();
       if (!userSaid) return;
 
@@ -361,18 +380,16 @@ expressApp.get('/webview-state', (req, res) => {
   res.json(latestState);
 });
 
-expressApp.post('/toggle-live', (req, res) => {
-  // Find active session and toggle
+expressApp.post('/toggle-live', async (req, res) => {
   const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
   if (sessions && sessions.length > 0) {
     const session = sessions[0];
     if (session._toggleLive) {
-      const live = session._toggleLive();
+      const live = await session._toggleLive();
       res.json({ live });
       return;
     }
   }
-  // Fallback — toggle state directly
   latestState.liveMode = !latestState.liveMode;
   res.json({ live: latestState.liveMode });
 });
