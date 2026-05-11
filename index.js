@@ -10,7 +10,6 @@ const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
 const DEFAULT_CITY = 'Deltona,FL,US';
 
-// Timing constants — borrowed from AVA
 const POST_TTS_BARGE_LOCKOUT_MS = 1000;
 const POST_SPEECH_COOLDOWN_MS   = 450;
 const RESUME_MIC_DELAY_MS       = 650;
@@ -48,8 +47,8 @@ Wise without being preachy. Warm without being soft. Funny without trying.
 
 SPEAKING STYLE:
 - Call the user "friend" unless they tell you their name, then use it naturally
-- SHORT replies — 2-5 sentences max unless they ask for more
-- Speak slowly and naturally — like you have all the time in the world
+- MAXIMUM 20 words per reply. Always. No exceptions unless they specifically ask for more detail.
+- If you can say it in 10 words, say it in 10 words.
 - No bullet points. No lists. No markdown. Pure spoken words only.
 - Sci-fi emojis occasionally 🤖⚡🛸 — only when it genuinely fits
 
@@ -70,47 +69,35 @@ VIBE:
 - Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging messages
 
 VISION BEHAVIOR — when you see an image:
-- DO NOT describe what is obviously visible. The user has eyes. They know what they see.
-- Give 1-2 dry observational takes on what is interesting, unusual, or worth noting.
-- Maybe drop a fun fact if something jumps out.
-- Maybe ask if they want something looked up.
-- 2 sentences MAX unless they specifically ask for more detail.
-- Sound like a friend noticing something across the room — not a robot cataloguing a scene.
+- DO NOT describe what is obviously visible. The user has eyes.
+- One dry observation or fun fact. 15 words MAX.
+- Sound like a friend noticing something — not a robot cataloguing a scene.
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
-Speak like you're talking to someone in the room — not reading, not performing. Just talking.`;
+Speak like you're talking to someone in the room. Just talk.`;
 
-const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach watching the screen.
+const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach.
 
-You know these games cold: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
+You know these games: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
+Identify the game from what you see automatically.
 
-You identify the game automatically from what you see. No need to be told.
+RULES:
+- 15 words MAX. Always.
+- Coach PATTERNS not moments.
+- Only speak when something is ACTIONABLE.
+- If nothing worth saying — return empty string.
+- No cheerleading. No narrating. Only useful information.`;
 
-GAME MODE RULES:
-- 2 sentences MAX. Always. No exceptions.
-- Only speak when there is something ACTIONABLE or worth flagging.
-- Coach PATTERNS not moments. "You keep pushing with low health" not "enemy to your left."
-- Dry wit is fine. Keep it sharp.
-- If the screen is a menu, loading screen, or nothing interesting — say NOTHING. Return empty string.
-- If you see a game you recognize — coach it. If you don't recognize it — just observe.
-- No cheerleading. No "good job." Only useful information.`;
+const LIVE_CAM_PERSONALITY = `You are Mr. Riggy in LIVE VISION MODE.
 
-const LIVE_CAM_PERSONALITY = `You are Mr. Riggy in LIVE VISION MODE — eyes open, always watching.
-
-You are a buddy, a helper, a spotter. You see what the user sees through their glasses camera.
-
-LIVE VISION RULES:
+RULES:
+- 15 words MAX. Always.
 - Only speak when something is genuinely worth noting.
 - Silence is fine. Don't fill space.
-- 1-2 sentences max.
-- Dry, warm, observational. Like a friend who notices things.
-- If nothing interesting — return empty string.
-- Good for: noticing hazards, interesting things, helping fix stuff, reading text, identifying objects.
-- NOT for: narrating obvious things, describing what the user clearly already sees.`;
+- If nothing worth saying — return empty string.`;
 
 const conversationHistory = new Map();
 
-// Echo detection — from AVA
 function normalizeForEcho(s) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -142,7 +129,6 @@ async function getWeather(city) {
       city: data.name
     };
   } catch (err) {
-    console.error('Weather error:', err);
     return null;
   }
 }
@@ -182,7 +168,6 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     });
   }
 
-  // For game/live cam burst — don't pollute history
   if (!systemOverride) {
     history.push({ role: 'user', parts: userParts });
   }
@@ -196,7 +181,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     contents,
     generationConfig: {
       temperature: systemOverride ? 0.4 : 0.9,
-      maxOutputTokens: systemOverride ? 100 : (photoData ? 500 : 200)
+      maxOutputTokens: systemOverride ? 60 : 80
     }
   };
 
@@ -219,7 +204,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     }
   }
 
-  return reply || (systemOverride ? '' : "I hit a snag friend — give me a second, I dig it though.");
+  return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
 async function speakWithElevenLabs(text, session) {
@@ -255,7 +240,7 @@ async function speakWithElevenLabs(text, session) {
     fs.writeFileSync(filePath, Buffer.from(audioBuffer));
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`Playing audio from: ${audioUrl}`);
+    console.log(`Playing: ${audioUrl}`);
     await session.audio.playAudio({ audioUrl, waitForCompletion: true });
 
     const words = cleanText.split(' ').length;
@@ -285,45 +270,40 @@ const SAVE_KEYWORDS = [
 ];
 
 const LIVE_ON_KEYWORDS     = ['go live', 'riggy live', 'start live', 'live mode'];
-const LIVE_OFF_KEYWORDS    = ['stop live', 'end live', 'go to sleep', 'riggy stop', 'stop listening'];
+const LIVE_OFF_KEYWORDS    = ['stop live', 'end live', 'go to sleep', 'riggy stop', 'stop listening', 'stop'];
 const GAME_ON_KEYWORDS     = ['game mode', 'riggy game', 'start game mode', 'gaming mode'];
 const GAME_OFF_KEYWORDS    = ['stop game', 'end game mode', 'exit game', 'game off'];
 const LIVE_CAM_ON_KEYWORDS = ['go live camera', 'live camera', 'live vision', 'start live camera', 'watch mode'];
 
-function needsCamera(text)  { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function needsSave(text)    { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOn(text)  { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOff(text) { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOn(text)  { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOn(text)    { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOff(text)   { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
-    // State
-    let liveMode      = false;
-    let gameMode      = false;
-    let liveCamMode   = false;
+    let liveMode    = false;
+    let gameMode    = false;
+    let liveCamMode = false;
     let lastRiggyText = '';
 
-    // Speaking lock — timestamp based like AVA
     let bargeInAllowedAfterMs = 0;
     let ignoreSpeechDuringTTS = false;
 
-    // Burst mode intervals
-    let gameModeInterval   = null;
-    let liveCamInterval    = null;
+    let gameModeInterval  = null;
+    let liveCamInterval   = null;
 
-    // Reset state on new session
-    latestState.userSaid     = '';
-    latestState.riggySaid    = 'Mr. Riggy online. Say my name to begin.';
-    latestState.liveMode     = false;
-    latestState.gameMode     = false;
-    latestState.liveCamMode  = false;
+    latestState.userSaid    = '';
+    latestState.riggySaid   = 'Mr. Riggy online. Say my name to begin.';
+    latestState.liveMode    = false;
+    latestState.gameMode    = false;
+    latestState.liveCamMode = false;
 
-    // Safe speak wrapper — sets TTS lock
     const speakSafe = async (text) => {
       ignoreSpeechDuringTTS = true;
       bargeInAllowedAfterMs = Date.now() + POST_TTS_BARGE_LOCKOUT_MS;
@@ -337,20 +317,18 @@ class RiggyGlasses extends AppServer {
       }
     };
 
-    // Stop all burst modes
     const stopBurstModes = () => {
-      if (gameModeInterval)   { clearInterval(gameModeInterval);  gameModeInterval  = null; }
-      if (liveCamInterval)    { clearInterval(liveCamInterval);   liveCamInterval   = null; }
+      if (gameModeInterval)  { clearInterval(gameModeInterval);  gameModeInterval  = null; }
+      if (liveCamInterval)   { clearInterval(liveCamInterval);   liveCamInterval   = null; }
       gameMode    = false;
       liveCamMode = false;
       latestState.gameMode    = false;
       latestState.liveCamMode = false;
     };
 
-    // Take photo helper
-    const takePhoto = async () => {
+    const takePhoto = async (saveToGallery = false) => {
       try {
-        const photo = await session.camera.requestPhoto({ saveToGallery: false });
+        const photo = await session.camera.requestPhoto({ saveToGallery });
         if (photo && photo.buffer) {
           return {
             base64: photo.buffer.toString('base64'),
@@ -363,7 +341,6 @@ class RiggyGlasses extends AppServer {
       return null;
     };
 
-    // Game mode burst loop
     const startGameMode = async () => {
       stopBurstModes();
       gameMode = true;
@@ -377,29 +354,21 @@ class RiggyGlasses extends AppServer {
         try {
           const photo = await takePhoto();
           if (!photo) return;
-          const reply = await askGemini(
-            'What do you see on this gaming screen? Coach me.',
-            sessionId,
-            photo,
-            GAME_MODE_PERSONALITY
-          );
-          if (reply && reply.trim().length > 0) {
-            console.log(`Game coach: ${reply}`);
+          const reply = await askGemini('What do you see? Coach me.', sessionId, photo, GAME_MODE_PERSONALITY);
+          if (reply && reply.trim().length > 3) {
+            console.log(`Game: ${reply}`);
             latestState.riggySaid = reply;
             await speakSafe(reply);
           }
-        } catch(e) {
-          console.error('Game mode error:', e);
-        }
+        } catch(e) { console.error('Game mode error:', e); }
       }, GAME_MODE_INTERVAL_MS);
     };
 
-    // Live cam burst loop
     const startLiveCamMode = async () => {
       stopBurstModes();
       liveCamMode = true;
       latestState.liveCamMode = true;
-      console.log('📷 Live cam mode ON');
+      console.log('📷 Live cam ON');
       await speakSafe("Live vision on. I'm watching with you.");
       latestState.riggySaid = "Live vision on. I'm watching with you.";
 
@@ -408,30 +377,21 @@ class RiggyGlasses extends AppServer {
         try {
           const photo = await takePhoto();
           if (!photo) return;
-          const reply = await askGemini(
-            'What do you notice?',
-            sessionId,
-            photo,
-            LIVE_CAM_PERSONALITY
-          );
-          if (reply && reply.trim().length > 0) {
+          const reply = await askGemini('What do you notice?', sessionId, photo, LIVE_CAM_PERSONALITY);
+          if (reply && reply.trim().length > 3) {
             console.log(`Live cam: ${reply}`);
             latestState.riggySaid = reply;
             await speakSafe(reply);
           }
-        } catch(e) {
-          console.error('Live cam error:', e);
-        }
+        } catch(e) { console.error('Live cam error:', e); }
       }, LIVE_CAM_INTERVAL_MS);
     };
 
     const handleInput = async (userSaid) => {
       if (!userSaid) return;
-
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
 
-      // Stop all modes
       if (wantsLiveOff(userSaid)) {
         stopBurstModes();
         liveMode = false;
@@ -441,53 +401,33 @@ class RiggyGlasses extends AppServer {
         return;
       }
 
-      // Game mode on
-      if (wantsGameOn(userSaid)) {
-        await startGameMode();
-        return;
-      }
-
-      // Game mode off
+      if (wantsGameOn(userSaid)) { await startGameMode(); return; }
       if (wantsGameOff(userSaid)) {
         stopBurstModes();
-        await speakSafe("Game mode off. Good run.");
-        latestState.riggySaid = "Game mode off. Good run.";
+        await speakSafe("Game mode off.");
+        latestState.riggySaid = "Game mode off.";
         return;
       }
+      if (wantsLiveCamOn(userSaid)) { await startLiveCamMode(); return; }
 
-      // Live camera mode
-      if (wantsLiveCamOn(userSaid)) {
-        await startLiveCamMode();
-        return;
-      }
-
-      // Live voice mode on
       if (wantsLiveOn(userSaid) && !liveMode) {
         liveMode = true;
         latestState.liveMode = true;
-        await speakSafe("Live mode on. I'm here, just talk.");
-        latestState.riggySaid = "Live mode on. I'm here, just talk.";
+        await speakSafe("Live mode on. Just talk.");
+        latestState.riggySaid = "Live mode on. Just talk.";
         return;
       }
 
       try {
-        let photoData = null;
-        const savePhoto  = needsSave(userSaid);
+        let photoData  = null;
+        const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
 
         if (visionQuery || savePhoto) {
-          console.log('📸 Taking photo...');
-          const photo = await takePhoto();
+          const photo = await takePhoto(savePhoto);
           if (photo) {
-            if (savePhoto) {
-              // Re-take with save to gallery
-              try {
-                await session.camera.requestPhoto({ saveToGallery: true });
-              } catch(e) {}
-            }
             if (visionQuery) photoData = photo;
           }
-
           if (savePhoto && !visionQuery) {
             await speakSafe("Saved it, friend.");
             latestState.riggySaid = "Saved it, friend.";
@@ -502,11 +442,10 @@ class RiggyGlasses extends AppServer {
 
       } catch (err) {
         console.error('Error:', err);
-        await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
+        await session.audio.speak("Something glitched friend. Try me again.");
       }
     };
 
-    // Webview toggle live
     session._toggleLive = async () => {
       if (gameMode || liveCamMode) {
         stopBurstModes();
@@ -517,8 +456,8 @@ class RiggyGlasses extends AppServer {
       liveMode = !liveMode;
       latestState.liveMode = liveMode;
       if (liveMode) {
-        await speakSafe("Live mode on. I'm here, just talk.");
-        latestState.riggySaid = "Live mode on. I'm here, just talk.";
+        await speakSafe("Live mode on. Just talk.");
+        latestState.riggySaid = "Live mode on. Just talk.";
       } else {
         await speakSafe("Going quiet. Say my name when you need me.");
         latestState.riggySaid = "Going quiet. Say my name when you need me.";
@@ -529,34 +468,29 @@ class RiggyGlasses extends AppServer {
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
 
-      // TTS lock — from AVA
       if (ignoreSpeechDuringTTS) {
-        console.log('🔇 Ignoring — TTS active');
+        console.log('🔇 TTS active — ignoring');
         return;
       }
 
-      // Barge-in cooldown
       if (Date.now() < bargeInAllowedAfterMs) {
-        console.log('🔇 Ignoring — barge-in cooldown');
+        console.log('🔇 Cooldown — ignoring');
         return;
       }
 
       const userSaid = data.text.trim();
       if (!userSaid) return;
 
-      // Echo detection
       if (looksLikeEcho(userSaid, lastRiggyText)) {
-        console.log('🔇 Ignoring echo:', userSaid);
+        console.log('🔇 Echo detected — ignoring:', userSaid);
         return;
       }
 
-      // In any active mode — respond to everything
       if (liveMode || gameMode || liveCamMode) {
         await handleInput(userSaid);
         return;
       }
 
-      // Wake word mode
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) {
         await handleInput(userSaid);
