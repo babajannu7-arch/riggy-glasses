@@ -47,8 +47,8 @@ Wise without being preachy. Warm without being soft. Funny without trying.
 
 SPEAKING STYLE:
 - Call the user "friend" unless they tell you their name, then use it naturally
--- DEFAULT: 2-3 natural sentences. Speak like a person, not a telegram.
- - Only go shorter if the answer genuinely calls for it.
+- DEFAULT: 2-3 natural sentences. Speak like a person, not a telegram.
+- Only go shorter if the answer genuinely calls for it.
 - No bullet points. No lists. No markdown. Pure spoken words only.
 - Sci-fi emojis occasionally 🤖⚡🛸 — only when it genuinely fits
 
@@ -60,7 +60,6 @@ PHRASES THAT ARE YOURS — use them when they feel right, never force them:
 - "Mr. Riggy, always here, always ready"
 - "Mr. Riggy, over and out"
 - "Riggy here, have no fear"
-- "Hey,do not forget to enjoy nature today"
 - "And that is all I have to say about that"
 
 VIBE:
@@ -70,7 +69,7 @@ VIBE:
 
 VISION BEHAVIOR — when you see an image:
 - DO NOT describe what is obviously visible. The user has eyes.
-- One dry observation or fun fact. 15 words MAX.
+- Give 1-2 dry observations or a fun fact. 2 sentences max.
 - Sound like a friend noticing something — not a robot cataloguing a scene.
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
@@ -82,7 +81,7 @@ You know these games: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, 
 Identify the game from what you see automatically.
 
 RULES:
-- 15 words MAX. Always.
+- 2 sentences MAX.
 - Coach PATTERNS not moments.
 - Only speak when something is ACTIONABLE.
 - If nothing worth saying — return empty string.
@@ -91,7 +90,7 @@ RULES:
 const LIVE_CAM_PERSONALITY = `You are Mr. Riggy in LIVE VISION MODE.
 
 RULES:
-- 15 words MAX. Always.
+- 2 sentences MAX.
 - Only speak when something is genuinely worth noting.
 - Silence is fine. Don't fill space.
 - If nothing worth saying — return empty string.`;
@@ -175,11 +174,11 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
-   generationConfig: {
-         temperature: systemOverride ? 0.4 : 0.9,
-         maxOutputTokens: systemOverride ? 60 : 150
-       }
-     };
+    generationConfig: {
+      temperature: systemOverride ? 0.4 : 0.9,
+      maxOutputTokens: systemOverride ? 150 : 200
+    }
+  };
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -203,7 +202,6 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
-// Global audio reference to prevent GC scope drop (fix #3)
 let currentAudioRef = null;
 
 async function speakWithElevenLabs(text, session) {
@@ -211,7 +209,6 @@ async function speakWithElevenLabs(text, session) {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
 
-    // Force CBR 128kbps MP3 — fixes VBR decoder miscalculation on glasses DSP (fix #2)
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
       {
@@ -223,7 +220,7 @@ async function speakWithElevenLabs(text, session) {
         body: JSON.stringify({
           text: cleanText,
           model_id: 'eleven_turbo_v2',
-          output_format: 'mp3_44100_128',  // CBR 128kbps — fixes DSP cutoff
+          output_format: 'mp3_44100_128',
           voice_settings: { stability: 0.5, similarity_boost: 0.75 }
         })
       }
@@ -241,24 +238,20 @@ async function speakWithElevenLabs(text, session) {
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
 
-    // CBR 128kbps = exactly 16000 bytes/second
-
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes — ~${Math.round(estimatedDurationMs)}ms`);
+    console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes`);
 
-    // Persist reference to prevent GC scope drop (fix #3)
-  currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
-  await currentAudioRef.catch(e => console.error('playAudio error:', e));
-  // Extra buffer after completion
-  await new Promise(resolve => setTimeout(resolve, 500));
-  currentAudioRef = null;
+    currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
+    await currentAudioRef.catch(e => console.error('playAudio error:', e));
+    await new Promise(resolve => setTimeout(resolve, 500));
+    currentAudioRef = null;
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
     }, 60000);
 
   } catch (err) {
-    console.error('ElevenLabs error:', err);
+    console.error('ElevenLabs speak error:', err);
     currentAudioRef = null;
     await session.audio.speak(text);
   }
@@ -294,16 +287,15 @@ class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
-    let liveMode    = false;
-    let gameMode    = false;
-    let liveCamMode = false;
+    let liveMode      = false;
+    let gameMode      = false;
+    let liveCamMode   = false;
     let lastRiggyText = '';
 
     let bargeInAllowedAfterMs = 0;
     let ignoreSpeechDuringTTS = false;
-
-    let gameModeInterval  = null;
-    let liveCamInterval   = null;
+    let gameModeInterval      = null;
+    let liveCamInterval       = null;
 
     latestState.userSaid    = '';
     latestState.riggySaid   = 'Mr. Riggy online. Say my name to begin.';
@@ -325,8 +317,8 @@ class RiggyGlasses extends AppServer {
     };
 
     const stopBurstModes = () => {
-      if (gameModeInterval)  { clearInterval(gameModeInterval);  gameModeInterval  = null; }
-      if (liveCamInterval)   { clearInterval(liveCamInterval);   liveCamInterval   = null; }
+      if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
+      if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
       gameMode    = false;
       liveCamMode = false;
       latestState.gameMode    = false;
@@ -337,10 +329,7 @@ class RiggyGlasses extends AppServer {
       try {
         const photo = await session.camera.requestPhoto({ saveToGallery });
         if (photo && photo.buffer) {
-          return {
-            base64: photo.buffer.toString('base64'),
-            mimeType: photo.mimeType || 'image/jpeg'
-          };
+          return { base64: photo.buffer.toString('base64'), mimeType: photo.mimeType || 'image/jpeg' };
         }
       } catch (e) { console.error('Camera error:', e); }
       return null;
@@ -353,7 +342,6 @@ class RiggyGlasses extends AppServer {
       console.log('🎮 Game mode ON');
       await speakSafe("Game mode on. I'm watching.");
       latestState.riggySaid = "Game mode on. I'm watching.";
-
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS) return;
         try {
@@ -376,7 +364,6 @@ class RiggyGlasses extends AppServer {
       console.log('📷 Live cam ON');
       await speakSafe("Live vision on. I'm watching with you.");
       latestState.riggySaid = "Live vision on. I'm watching with you.";
-
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS) return;
         try {
@@ -405,16 +392,9 @@ class RiggyGlasses extends AppServer {
         latestState.riggySaid = "Going quiet. Say my name when you need me.";
         return;
       }
-
-      if (wantsGameOn(userSaid)) { await startGameMode(); return; }
-      if (wantsGameOff(userSaid)) {
-        stopBurstModes();
-        await speakSafe("Game mode off.");
-        latestState.riggySaid = "Game mode off.";
-        return;
-      }
+      if (wantsGameOn(userSaid))   { await startGameMode(); return; }
+      if (wantsGameOff(userSaid))  { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
       if (wantsLiveCamOn(userSaid)) { await startLiveCamMode(); return; }
-
       if (wantsLiveOn(userSaid) && !liveMode) {
         liveMode = true;
         latestState.liveMode = true;
@@ -424,7 +404,7 @@ class RiggyGlasses extends AppServer {
       }
 
       try {
-        let photoData   = null;
+        let photoData     = null;
         const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
 
@@ -470,29 +450,15 @@ class RiggyGlasses extends AppServer {
 
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
-
-      if (ignoreSpeechDuringTTS) {
-        console.log('🔇 TTS active — ignoring');
-        return;
-      }
-
-      if (Date.now() < bargeInAllowedAfterMs) {
-        console.log('🔇 Cooldown — ignoring');
-        return;
-      }
+      if (ignoreSpeechDuringTTS) { console.log('🔇 TTS active'); return; }
+      if (Date.now() < bargeInAllowedAfterMs) { console.log('🔇 Cooldown'); return; }
 
       const userSaid = data.text.trim();
       if (!userSaid) return;
 
-      if (looksLikeEcho(userSaid, lastRiggyText)) {
-        console.log('🔇 Echo — ignoring:', userSaid);
-        return;
-      }
+      if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
 
-      if (liveMode || gameMode || liveCamMode) {
-        await handleInput(userSaid);
-        return;
-      }
+      if (liveMode || gameMode || liveCamMode) { await handleInput(userSaid); return; }
 
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) {
@@ -514,14 +480,10 @@ app.start();
 const expressApp = app.getExpressApp();
 expressApp.use(express.json());
 
-// Serve audio files with explicit Content-Length and CBR headers (fix #4)
 expressApp.get('/audio_:timestamp.mp3', (req, res) => {
   const fileName = `audio_${req.params.timestamp}.mp3`;
   const filePath = path.join(__dirname, fileName);
-  if (!fs.existsSync(filePath)) {
-    res.status(404).end();
-    return;
-  }
+  if (!fs.existsSync(filePath)) { res.status(404).end(); return; }
   const stat = fs.statSync(filePath);
   res.setHeader('Content-Type', 'audio/mpeg');
   res.setHeader('Content-Length', stat.size);
@@ -530,7 +492,6 @@ expressApp.get('/audio_:timestamp.mp3', (req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-// Static files for everything else
 expressApp.use(express.static(__dirname));
 
 expressApp.get('/webview', (req, res) => {
@@ -545,11 +506,7 @@ expressApp.post('/toggle-live', async (req, res) => {
   const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
   if (sessions && sessions.length > 0) {
     const s = sessions[0];
-    if (s._toggleLive) {
-      const live = await s._toggleLive();
-      res.json({ live });
-      return;
-    }
+    if (s._toggleLive) { const live = await s._toggleLive(); res.json({ live }); return; }
   }
   latestState.liveMode = !latestState.liveMode;
   res.json({ live: latestState.liveMode });
