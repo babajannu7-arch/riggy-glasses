@@ -175,10 +175,11 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: {
-      temperature: systemOverride ? 0.4 : 0.9,
-  maxOutputTokens: systemOverride ? 60 : 150
-  };
+   generationConfig: {
+         temperature: systemOverride ? 0.4 : 0.9,
+         maxOutputTokens: systemOverride ? 60 : 150
+       }
+     };
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
