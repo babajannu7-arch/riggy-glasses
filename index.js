@@ -242,19 +242,16 @@ async function speakWithElevenLabs(text, session) {
     fs.writeFileSync(filePath, audioBytes);
 
     // CBR 128kbps = exactly 16000 bytes/second
-    const estimatedDurationMs = Math.max(2000, (audioBytes.length / 16000) * 1000);
-    const totalWaitMs = estimatedDurationMs + 1000; // 1s buffer for fetch + start
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes — ~${Math.round(estimatedDurationMs)}ms`);
 
     // Persist reference to prevent GC scope drop (fix #3)
-    currentAudioRef = session.audio.playAudio({ audioUrl });
-    currentAudioRef.catch(e => console.error('playAudio error:', e));
-
-    // Wait the actual duration — don't trust SDK completion event
-    await new Promise(resolve => setTimeout(resolve, totalWaitMs));
-    currentAudioRef = null;
+  currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
+  await currentAudioRef.catch(e => console.error('playAudio error:', e));
+  // Extra buffer after completion
+  await new Promise(resolve => setTimeout(resolve, 500));
+  currentAudioRef = null;
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
