@@ -9,15 +9,20 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-          --bg: #0C0E10;
-          --card: #13171A;
-          --surface: #1E2226;
-          --cyan: #5B7C99;
-          --gold: #B89968;
-          --silver: #7A8490;
-          --green: #3DBA6F;
-          --text: #CDD0CC;
-          --dim: #4A5058;
+          --bg:        #2B2D2F;
+          --panel:     #2B2D2F;
+          --card:      #1A1D20;
+          --border:    #2E3235;
+          --border2:   #1E2428;
+          --sand:      #C4B697;
+          --sand-dim:  #7A6E57;
+          --silver:    #B8BEC4;
+          --silver-dim:#6E7478;
+          --slate:     #3D5060;
+          --slate-dim: #3D5060;
+          --text:      #A8ADB2;
+          --green:     #5EA87A;
+          --red:       #CC4444;
         }
 
         html, body {
@@ -34,10 +39,9 @@
           align-items: center;
           padding: 44px 22px 28px;
           position: relative;
-          gap: 0;
         }
 
-        /* Scanline overlay — retro feel */
+        /* Scanline retro overlay */
         body::before {
           content: '';
           position: fixed;
@@ -46,19 +50,19 @@
             0deg,
             transparent,
             transparent 2px,
-            rgba(0,0,0,0.08) 2px,
-            rgba(0,0,0,0.08) 4px
+            rgba(0,0,0,0.06) 2px,
+            rgba(0,0,0,0.06) 4px
           );
           pointer-events: none;
           z-index: 50;
         }
 
-        /* Subtle vignette */
+        /* Vignette */
         body::after {
           content: '';
           position: fixed;
           inset: 0;
-          background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+          background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.4) 100%);
           pointer-events: none;
           z-index: 1;
         }
@@ -66,45 +70,45 @@
         /* Corner brackets */
         .corner {
           position: fixed;
-          width: 22px; height: 22px;
-          z-index: 20; opacity: 0.35;
-          transition: opacity 0.3s;
+          width: 20px; height: 20px;
+          z-index: 20; opacity: 0.3;
+          transition: opacity 0.4s;
         }
-        .corner-tl { top: 14px; left: 14px; border-top: 1px solid var(--gold); border-left: 1px solid var(--gold); }
-        .corner-tr { top: 14px; right: 14px; border-top: 1px solid var(--gold); border-right: 1px solid var(--gold); }
-        .corner-bl { bottom: 14px; left: 14px; border-bottom: 1px solid var(--gold); border-left: 1px solid var(--gold); }
-        .corner-br { bottom: 14px; right: 14px; border-bottom: 1px solid var(--gold); border-right: 1px solid var(--gold); }
+        .corner-tl { top: 14px; left: 14px; border-top: 1px solid var(--sand); border-left: 1px solid var(--sand); }
+        .corner-tr { top: 14px; right: 14px; border-top: 1px solid var(--sand); border-right: 1px solid var(--sand); }
+        .corner-bl { bottom: 14px; left: 14px; border-bottom: 1px solid var(--sand); border-left: 1px solid var(--sand); }
+        .corner-br { bottom: 14px; right: 14px; border-bottom: 1px solid var(--sand); border-right: 1px solid var(--sand); }
+        body.speaking .corner { opacity: 0.6; }
+        body.live .corner { opacity: 0.5; border-color: var(--green); }
 
-        body.speaking .corner { opacity: 0.7; }
-
-        /* ── HEADER ── */
+        /* HEADER */
         .header {
           width: 100%;
           display: flex;
           flex-direction: column;
           align-items: center;
           z-index: 10;
-          margin-bottom: 4px;
+          margin-bottom: 6px;
         }
 
         .brand {
           font-family: 'Orbitron', sans-serif;
           font-weight: 900;
-          font-size: 28px;
+          font-size: 26px;
           letter-spacing: 10px;
-          color: var(--text);
+          color: var(--silver);
           text-align: center;
-          text-shadow: 0 0 30px rgba(91,124,153,0.3);
+          text-shadow: 0 0 20px rgba(61,80,96,0.5);
         }
 
         .brand-sub {
           font-family: 'VT323', monospace;
-          font-size: 15px;
+          font-size: 14px;
           letter-spacing: 5px;
-          color: var(--silver);
-          opacity: 0.55;
+          color: var(--sand-dim);
+          opacity: 0.7;
           text-align: center;
-          margin-top: 3px;
+          margin-top: 2px;
           text-transform: uppercase;
         }
 
@@ -113,39 +117,45 @@
           display: flex;
           align-items: center;
           gap: 8px;
-          background: rgba(61,186,111,0.08);
-          border: 1px solid rgba(61,186,111,0.2);
+          background: rgba(94,168,122,0.08);
+          border: 1px solid rgba(94,168,122,0.2);
           border-radius: 30px;
-          padding: 6px 14px;
-          margin-top: 12px;
+          padding: 5px 14px;
+          margin-top: 10px;
           transition: all 0.4s ease;
         }
-
         .status-pill.speaking {
-          background: rgba(184,153,104,0.08);
-          border-color: rgba(184,153,104,0.25);
+          background: rgba(196,182,151,0.08);
+          border-color: rgba(196,182,151,0.25);
+        }
+        .status-pill.live {
+          background: rgba(94,168,122,0.12);
+          border-color: rgba(94,168,122,0.4);
         }
 
         .status-dot {
-          width: 9px; height: 9px;
+          width: 8px; height: 8px;
           border-radius: 50%;
           background: var(--green);
-          box-shadow: 0 0 8px var(--green), 0 0 16px var(--green);
+          box-shadow: 0 0 8px var(--green);
           animation: dot-breathe 2s ease-in-out infinite;
           transition: all 0.4s ease;
         }
-
         .status-pill.speaking .status-dot {
-          background: var(--gold);
-          box-shadow: 0 0 8px var(--gold), 0 0 16px var(--gold);
+          background: var(--sand);
+          box-shadow: 0 0 8px var(--sand);
           animation: dot-flash 0.5s ease-in-out infinite alternate;
+        }
+        .status-pill.live .status-dot {
+          background: var(--green);
+          box-shadow: 0 0 12px var(--green), 0 0 24px var(--green);
+          animation: dot-flash 0.8s ease-in-out infinite alternate;
         }
 
         @keyframes dot-breathe {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.2); }
         }
-
         @keyframes dot-flash {
           from { opacity: 0.7; transform: scale(1); }
           to { opacity: 1; transform: scale(1.3); }
@@ -153,18 +163,16 @@
 
         .status-text {
           font-family: 'VT323', monospace;
-          font-size: 16px;
+          font-size: 15px;
           letter-spacing: 3px;
           color: var(--green);
           text-transform: uppercase;
           transition: color 0.4s ease;
         }
+        .status-pill.speaking .status-text { color: var(--sand); }
+        .status-pill.live .status-text { color: var(--green); }
 
-        .status-pill.speaking .status-text {
-          color: var(--gold);
-        }
-
-        /* ── ORB SECTION ── */
+        /* ORB SECTION */
         .orb-section {
           flex: 1;
           display: flex;
@@ -178,65 +186,68 @@
 
         .orb-wrap {
           position: relative;
-          width: 230px; height: 230px;
+          width: 220px; height: 220px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
-        /* Rings */
         .ring {
           position: absolute;
           border-radius: 50%;
         }
 
         .ring-1 {
-          width: 230px; height: 230px;
-          border: 1px solid rgba(91,124,153,0.2);
+          width: 220px; height: 220px;
+          border: 1px solid rgba(61,80,96,0.35);
           animation: spin 20s linear infinite;
-          transition: border-color 0.5s ease, box-shadow 0.5s ease;
+          transition: border-color 0.5s, box-shadow 0.5s;
         }
         .ring-1::before {
           content: '';
           position: absolute;
           top: -4px; left: 50%;
           width: 8px; height: 8px;
-          background: var(--cyan);
+          background: var(--slate);
           border-radius: 50%;
-          box-shadow: 0 0 12px var(--cyan), 0 0 24px var(--cyan);
+          box-shadow: 0 0 10px var(--slate), 0 0 20px var(--slate);
           transform: translateX(-50%);
         }
 
         .ring-2 {
-          width: 175px; height: 175px;
-          border: 1px solid rgba(184,153,104,0.15);
+          width: 168px; height: 168px;
+          border: 1px solid rgba(196,182,151,0.2);
           animation: spin 13s linear infinite reverse;
-          transition: border-color 0.5s ease;
+          transition: border-color 0.5s;
         }
         .ring-2::before {
           content: '';
           position: absolute;
           bottom: -3px; left: 50%;
           width: 6px; height: 6px;
-          background: var(--gold);
+          background: var(--sand);
           border-radius: 50%;
-          box-shadow: 0 0 10px var(--gold), 0 0 20px var(--gold);
+          box-shadow: 0 0 8px var(--sand), 0 0 16px var(--sand);
           transform: translateX(-50%);
         }
 
         .ring-3 {
-          width: 125px; height: 125px;
-          border: 1px solid rgba(91,124,153,0.08);
+          width: 118px; height: 118px;
+          border: 1px solid rgba(184,190,196,0.1);
           animation: spin 9s linear infinite;
         }
 
         body.speaking .ring-1 {
-          border-color: rgba(91,124,153,0.55);
-          box-shadow: 0 0 25px rgba(91,124,153,0.15), inset 0 0 25px rgba(91,124,153,0.05);
+          border-color: rgba(61,80,96,0.6);
+          box-shadow: 0 0 20px rgba(61,80,96,0.15);
         }
         body.speaking .ring-2 {
-          border-color: rgba(184,153,104,0.4);
-          box-shadow: 0 0 20px rgba(184,153,104,0.12);
+          border-color: rgba(196,182,151,0.45);
+          box-shadow: 0 0 15px rgba(196,182,151,0.1);
+        }
+        body.live .ring-1 {
+          border-color: rgba(94,168,122,0.4);
+          box-shadow: 0 0 20px rgba(94,168,122,0.1);
         }
 
         @keyframes spin {
@@ -244,152 +255,173 @@
           to { transform: rotate(360deg); }
         }
 
-        /* Center core */
         .orb-core {
-          width: 72px; height: 72px;
+          width: 68px; height: 68px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(91,124,153,0.12) 0%, transparent 70%);
-          box-shadow: 0 0 20px rgba(91,124,153,0.08);
+          background: radial-gradient(circle, rgba(61,80,96,0.15) 0%, transparent 70%);
+          box-shadow: 0 0 20px rgba(61,80,96,0.1);
           transition: all 0.5s ease;
-          position: relative;
         }
-
         body.speaking .orb-core {
-          background: radial-gradient(circle, rgba(184,153,104,0.2) 0%, rgba(91,124,153,0.1) 50%, transparent 100%);
-          box-shadow:
-            0 0 30px rgba(184,153,104,0.25),
-            0 0 70px rgba(91,124,153,0.15),
-            0 0 120px rgba(184,153,104,0.08);
+          background: radial-gradient(circle, rgba(196,182,151,0.2) 0%, rgba(61,80,96,0.1) 50%, transparent 100%);
+          box-shadow: 0 0 30px rgba(196,182,151,0.2), 0 0 60px rgba(61,80,96,0.1);
           animation: core-pulse 0.9s ease-in-out infinite alternate;
+        }
+        body.live .orb-core {
+          background: radial-gradient(circle, rgba(94,168,122,0.2) 0%, rgba(61,80,96,0.1) 50%, transparent 100%);
+          box-shadow: 0 0 30px rgba(94,168,122,0.2);
+          animation: core-pulse 1.5s ease-in-out infinite alternate;
         }
 
         @keyframes core-pulse {
           from { transform: scale(1); }
-          to { transform: scale(1.15); }
+          to { transform: scale(1.12); }
         }
 
-        /* Waveform */
-        .waveform {
+        /* VOICE WAVE — replaces particles */
+        .voice-wave {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 3px;
-          height: 44px;
-          margin-top: 22px;
+          gap: 4px;
+          height: 48px;
+          margin-top: 20px;
+          width: 200px;
         }
 
         .bar {
           width: 3px;
-          border-radius: 2px;
-          background: linear-gradient(to top, var(--gold), var(--cyan));
-          height: 3px;
-          opacity: 0.2;
-          transition: opacity 0.2s ease;
+          border-radius: 3px;
+          background: linear-gradient(to top, var(--sand-dim), var(--slate));
+          height: 4px;
+          opacity: 0.25;
+          transition: opacity 0.3s ease;
         }
 
         body.speaking .bar {
           opacity: 1;
-          animation: bar-wave 0.55s ease-in-out infinite alternate;
+          background: linear-gradient(to top, var(--sand), var(--silver));
+          animation: bar-wave 0.5s ease-in-out infinite alternate;
+        }
+
+        body.live .bar {
+          opacity: 0.6;
+          background: linear-gradient(to top, var(--green), var(--slate));
+          animation: bar-idle 2s ease-in-out infinite alternate;
         }
 
         .bar:nth-child(1)  { animation-delay: 0.00s; }
         .bar:nth-child(2)  { animation-delay: 0.04s; }
         .bar:nth-child(3)  { animation-delay: 0.08s; }
-        .bar:nth-child(4)  { animation-delay: 0.13s; }
-        .bar:nth-child(5)  { animation-delay: 0.18s; }
-        .bar:nth-child(6)  { animation-delay: 0.22s; }
-        .bar:nth-child(7)  { animation-delay: 0.26s; }
-        .bar:nth-child(8)  { animation-delay: 0.22s; }
-        .bar:nth-child(9)  { animation-delay: 0.18s; }
-        .bar:nth-child(10) { animation-delay: 0.13s; }
+        .bar:nth-child(4)  { animation-delay: 0.12s; }
+        .bar:nth-child(5)  { animation-delay: 0.16s; }
+        .bar:nth-child(6)  { animation-delay: 0.20s; }
+        .bar:nth-child(7)  { animation-delay: 0.24s; }
+        .bar:nth-child(8)  { animation-delay: 0.20s; }
+        .bar:nth-child(9)  { animation-delay: 0.16s; }
+        .bar:nth-child(10) { animation-delay: 0.12s; }
         .bar:nth-child(11) { animation-delay: 0.08s; }
         .bar:nth-child(12) { animation-delay: 0.04s; }
         .bar:nth-child(13) { animation-delay: 0.00s; }
 
         @keyframes bar-wave {
-          from { height: 3px; }
-          to { height: 40px; }
+          from { height: 4px; }
+          to { height: 42px; }
         }
 
-        /* State label */
+        @keyframes bar-idle {
+          from { height: 4px; }
+          to { height: 12px; }
+        }
+
         .state-label {
           font-family: 'VT323', monospace;
-          font-size: 14px;
+          font-size: 13px;
           letter-spacing: 4px;
-          color: var(--dim);
+          color: var(--slate-dim);
           text-transform: uppercase;
           margin-top: 8px;
           transition: all 0.4s ease;
         }
+        body.speaking .state-label { color: var(--sand); text-shadow: 0 0 8px rgba(196,182,151,0.3); }
+        body.live .state-label { color: var(--green); text-shadow: 0 0 8px rgba(94,168,122,0.3); }
 
-        body.speaking .state-label {
-          color: var(--gold);
-          text-shadow: 0 0 10px rgba(184,153,104,0.4);
+        /* LIVE BUTTON */
+        .live-btn {
+          margin-top: 14px;
+          padding: 10px 28px;
+          font-family: 'VT323', monospace;
+          font-size: 16px;
+          letter-spacing: 4px;
+          text-transform: uppercase;
+          border-radius: 30px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          z-index: 10;
+          border: 1px solid rgba(94,168,122,0.3);
+          background: rgba(94,168,122,0.08);
+          color: var(--green);
+        }
+        .live-btn:active { transform: scale(0.96); }
+        .live-btn.active {
+          background: rgba(94,168,122,0.15);
+          border-color: rgba(94,168,122,0.6);
+          box-shadow: 0 0 16px rgba(94,168,122,0.2);
+          color: var(--green);
         }
 
-        /* ── RESPONSE CARDS ── */
+        /* RESPONSE CARDS */
         .response-section {
           width: 100%;
           z-index: 10;
           display: flex;
           flex-direction: column;
           gap: 8px;
+          margin-top: 14px;
         }
 
         .card {
           background: var(--card);
           border-radius: 4px;
-          padding: 12px 16px;
-          border: 1px solid rgba(255,255,255,0.03);
+          padding: 11px 15px;
+          border: 1px solid var(--border);
           position: relative;
           overflow: hidden;
         }
-
         .card::before {
           content: '';
           position: absolute;
           left: 0; top: 0; bottom: 0;
           width: 2px;
         }
-
-        .card.user::before { background: var(--cyan); opacity: 0.5; }
-        .card.riggy::before { background: var(--gold); opacity: 0.6; }
+        .card.user::before { background: var(--slate); opacity: 0.6; }
+        .card.riggy::before { background: var(--sand); opacity: 0.7; }
 
         .card-label {
           font-family: 'VT323', monospace;
-          font-size: 12px;
+          font-size: 11px;
           letter-spacing: 3px;
           text-transform: uppercase;
-          margin-bottom: 5px;
+          margin-bottom: 4px;
         }
-
-        .card.user .card-label { color: var(--cyan); opacity: 0.55; }
-        .card.riggy .card-label { color: var(--gold); opacity: 0.65; }
+        .card.user .card-label { color: var(--silver-dim); }
+        .card.riggy .card-label { color: var(--sand-dim); }
 
         .card-text {
           font-family: 'Share Tech Mono', monospace;
           font-size: 13px;
           line-height: 1.5;
           color: var(--text);
-          opacity: 0.75;
+          opacity: 0.8;
           min-height: 18px;
+          max-height: 80px;
+          overflow-y: auto;
         }
-
         .card.user .card-text { opacity: 0.45; font-size: 12px; }
-
-        /* Floating particles */
-        canvas {
-          position: fixed;
-          inset: 0;
-          z-index: 2;
-          pointer-events: none;
-          opacity: 0.6;
-        }
 
         .fade-in {
           animation: fadeUp 0.3s ease forwards;
         }
-
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
@@ -397,8 +429,6 @@
     </style>
 </head>
 <body>
-
-<canvas id="particles"></canvas>
 
 <div class="corner corner-tl"></div>
 <div class="corner corner-tr"></div>
@@ -409,7 +439,7 @@
     <div class="brand">MR. RIGGY</div>
     <div class="brand-sub">Private Digital Assistant</div>
     <div class="status-pill" id="statusPill">
-        <div class="status-dot" id="statusDot"></div>
+        <div class="status-dot"></div>
         <span class="status-text" id="statusText">Online</span>
     </div>
 </div>
@@ -419,10 +449,10 @@
         <div class="ring ring-1"></div>
         <div class="ring ring-2"></div>
         <div class="ring ring-3"></div>
-        <div class="orb-core" id="orbCore"></div>
+        <div class="orb-core"></div>
     </div>
 
-    <div class="waveform">
+    <div class="voice-wave">
         <div class="bar"></div><div class="bar"></div><div class="bar"></div>
         <div class="bar"></div><div class="bar"></div><div class="bar"></div>
         <div class="bar"></div><div class="bar"></div><div class="bar"></div>
@@ -431,6 +461,8 @@
     </div>
 
     <div class="state-label" id="stateLabel">Standby</div>
+
+    <button class="live-btn" id="liveBtn" onclick="toggleLive()">Go Live</button>
 </div>
 
 <div class="response-section">
@@ -445,55 +477,50 @@
 </div>
 
 <script>
-    // Floating particles
-    const canvas = document.getElementById('particles');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const particles = [];
-    for (let i = 0; i < 55; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 1.5 + 0.3,
-        vx: (Math.random() - 0.5) * 0.25,
-        vy: (Math.random() - 0.5) * 0.25,
-        alpha: Math.random() * 0.4 + 0.1,
-        color: Math.random() > 0.5 ? '91,124,153' : '184,153,104'
-      });
-    }
-
-    function drawParticles() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
-        ctx.fill();
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-      });
-      requestAnimationFrame(drawParticles);
-    }
-    drawParticles();
-
-    // State management
     const pill = document.getElementById('statusPill');
     const statusText = document.getElementById('statusText');
     const stateLabel = document.getElementById('stateLabel');
     const riggyText = document.getElementById('riggyText');
     const userText = document.getElementById('userText');
+    const liveBtn = document.getElementById('liveBtn');
 
     let speakTimer = null;
     let lastRiggy = '';
     let lastUser = '';
+    let isLive = false;
+    let lastLiveState = false;
+
+    async function toggleLive() {
+      try {
+        const res = await fetch('/toggle-live', { method: 'POST' });
+        const data = await res.json();
+        isLive = data.live;
+        updateLiveUI();
+      } catch(e) {}
+    }
+
+    function updateLiveUI() {
+      if (isLive) {
+        document.body.classList.add('live');
+        document.body.classList.remove('speaking');
+        pill.classList.add('live');
+        pill.classList.remove('speaking');
+        statusText.textContent = 'Live';
+        stateLabel.textContent = 'Listening Live';
+        liveBtn.textContent = 'Stop Live';
+        liveBtn.classList.add('active');
+      } else {
+        document.body.classList.remove('live');
+        pill.classList.remove('live');
+        statusText.textContent = 'Online';
+        stateLabel.textContent = 'Standby';
+        liveBtn.textContent = 'Go Live';
+        liveBtn.classList.remove('active');
+      }
+    }
 
     function setSpeaking(on) {
+      if (isLive) return;
       if (on) {
         document.body.classList.add('speaking');
         pill.classList.add('speaking');
@@ -512,6 +539,13 @@
         const res = await fetch('/webview-state');
         if (res.ok) {
           const data = await res.json();
+
+          // Sync live state from server
+          if (data.liveMode !== undefined && data.liveMode !== isLive) {
+            isLive = data.liveMode;
+            updateLiveUI();
+          }
+
           if (data.userSaid && data.userSaid !== lastUser) {
             lastUser = data.userSaid;
             userText.textContent = data.userSaid;
@@ -525,9 +559,11 @@
             riggyText.classList.remove('fade-in');
             void riggyText.offsetWidth;
             riggyText.classList.add('fade-in');
-            setSpeaking(true);
-            if (speakTimer) clearTimeout(speakTimer);
-            speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
+            if (!isLive) {
+              setSpeaking(true);
+              if (speakTimer) clearTimeout(speakTimer);
+              speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
+            }
           }
         }
       } catch(e) {}
