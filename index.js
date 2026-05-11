@@ -298,29 +298,28 @@ class RiggyGlasses extends AppServer {
     };
 
     // Button press handler
-    session.events.onButtonPress(async (data) => {
-      console.log(`Button pressed: ${data.buttonId} - ${data.pressType}`);
+  session.events.onButtonPress(async (data) => {
+    console.log(`Button pressed: ${data.buttonId} - ${data.pressType}`);
 
-      if (data.pressType === 'double') {
-        // Double tap — toggle live mode
-        liveMode = !liveMode;
-        tapActive = false;
-        if (liveMode) {
-          console.log('🔴 Live mode ON');
-          latestState.riggySaid = 'Live mode on. Just talk.';
-          await speakWithElevenLabs("Live mode on. I'm here, just talk.", session);
-          latestState.riggySaid = "Live mode on. I'm here, just talk.";
-        } else {
-          console.log('⚫ Live mode OFF');
-          await speakWithElevenLabs("Alright, going quiet. Double tap when you need me.", session);
-          latestState.riggySaid = "Alright, going quiet. Double tap when you need me.";
-        }
-      } else if (data.pressType === 'single' && !liveMode) {
-        // Single tap — activate for one response
-        tapActive = true;
-        console.log('👆 Tap wake — listening for one response');
+    if (data.pressType === 'long_press') {
+      // Long press — toggle live mode
+      liveMode = !liveMode;
+      tapActive = false;
+      if (liveMode) {
+        console.log('🔴 Live mode ON');
+        await speakWithElevenLabs("Live mode on. I'm here, just talk.", session);
+        latestState.riggySaid = "Live mode on. I'm here, just talk.";
+      } else {
+        console.log('⚫ Live mode OFF');
+        await speakWithElevenLabs("Going quiet. Long press when you need me back.", session);
+        latestState.riggySaid = "Going quiet. Long press when you need me back.";
       }
-    });
+    } else if (data.pressType === 'short' && !liveMode) {
+      // Short press — wake for one response
+      tapActive = true;
+      console.log('👆 Short press wake — listening');
+    }
+  });
 
     // Transcription handler
     session.events.onTranscription(async (data) => {
