@@ -128,9 +128,7 @@ async function getWeather(city) {
       humidity: data.main.humidity,
       city: data.name
     };
-  } catch (err) {
-    return null;
-  }
+  } catch (err) { return null; }
 }
 
 async function askGemini(userText, sessionId, photoData = null, systemOverride = null) {
@@ -172,9 +170,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     history.push({ role: 'user', parts: userParts });
   }
 
-  const contents = systemOverride
-    ? [{ role: 'user', parts: userParts }]
-    : history;
+  const contents = systemOverride ? [{ role: 'user', parts: userParts }] : history;
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
@@ -206,11 +202,16 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
+
+// Global audio reference to prevent GC scope drop (fix #3)
+let currentAudioRef = null;
+
 async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
 
+    // Force CBR 128kbps MP3 — fixes VBR decoder miscalculation on glasses DSP (fix #2)
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
       {
@@ -222,6 +223,7 @@ async function speakWithElevenLabs(text, session) {
         body: JSON.stringify({
           text: cleanText,
           model_id: 'eleven_turbo_v2',
+          output_format: 'mp3_44100_128',  // CBR 128kbps — fixes DSP cutoff
           voice_settings: { stability: 0.5, similarity_boost: 0.75 }
         })
       }
@@ -239,19 +241,20 @@ async function speakWithElevenLabs(text, session) {
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
 
-    // Calculate duration: ~128kbps MP3 = 16000 bytes/second
+    // CBR 128kbps = exactly 16000 bytes/second
     const estimatedDurationMs = Math.max(2000, (audioBytes.length / 16000) * 1000);
-    // Add 800ms buffer for network fetch + playback start
-    const totalWaitMs = estimatedDurationMs + 800;
+    const totalWaitMs = estimatedDurationMs + 1000; // 1s buffer for fetch + start
 
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`Playing: ${audioUrl} — estimated ${Math.round(estimatedDurationMs)}ms`);
+    console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes — ~${Math.round(estimatedDurationMs)}ms`);
 
-    // Don't wait for SDK completion — we know it resolves early
-    session.audio.playAudio({ audioUrl }).catch(e => console.error('playAudio error:', e));
+    // Persist reference to prevent GC scope drop (fix #3)
+    currentAudioRef = session.audio.playAudio({ audioUrl });
+    currentAudioRef.catch(e => console.error('playAudio error:', e));
 
-    // Wait the actual duration ourselves
+    // Wait the actual duration — don't trust SDK completion event
     await new Promise(resolve => setTimeout(resolve, totalWaitMs));
+    currentAudioRef = null;
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
@@ -259,6 +262,7 @@ async function speakWithElevenLabs(text, session) {
 
   } catch (err) {
     console.error('ElevenLabs error:', err);
+    currentAudioRef = null;
     await session.audio.speak(text);
   }
 }
@@ -341,9 +345,7 @@ class RiggyGlasses extends AppServer {
             mimeType: photo.mimeType || 'image/jpeg'
           };
         }
-      } catch (e) {
-        console.error('Camera error:', e);
-      }
+      } catch (e) { console.error('Camera error:', e); }
       return null;
     };
 
@@ -425,15 +427,13 @@ class RiggyGlasses extends AppServer {
       }
 
       try {
-        let photoData  = null;
+        let photoData   = null;
         const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
 
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
-          if (photo) {
-            if (visionQuery) photoData = photo;
-          }
+          if (photo && visionQuery) photoData = photo;
           if (savePhoto && !visionQuery) {
             await speakSafe("Saved it, friend.");
             latestState.riggySaid = "Saved it, friend.";
@@ -488,7 +488,7 @@ class RiggyGlasses extends AppServer {
       if (!userSaid) return;
 
       if (looksLikeEcho(userSaid, lastRiggyText)) {
-        console.log('🔇 Echo detected — ignoring:', userSaid);
+        console.log('🔇 Echo — ignoring:', userSaid);
         return;
       }
 
@@ -515,8 +515,26 @@ const app = new RiggyGlasses({
 app.start();
 
 const expressApp = app.getExpressApp();
-expressApp.use(express.static(__dirname));
 expressApp.use(express.json());
+
+// Serve audio files with explicit Content-Length and CBR headers (fix #4)
+expressApp.get('/audio_:timestamp.mp3', (req, res) => {
+  const fileName = `audio_${req.params.timestamp}.mp3`;
+  const filePath = path.join(__dirname, fileName);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).end();
+    return;
+  }
+  const stat = fs.statSync(filePath);
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Length', stat.size);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'no-cache');
+  fs.createReadStream(filePath).pipe(res);
+});
+
+// Static files for everything else
+expressApp.use(express.static(__dirname));
 
 expressApp.get('/webview', (req, res) => {
   res.sendFile(path.join(__dirname, 'webview.html'));
