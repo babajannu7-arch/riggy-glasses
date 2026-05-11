@@ -155,6 +155,7 @@ async function askGemini(userText, sessionId, photoData = null) {
 
 async function speakWithElevenLabs(text, session) {
   try {
+    const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
       {
@@ -164,7 +165,7 @@ async function speakWithElevenLabs(text, session) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          text: text,
+          text: cleanText,
           model_id: 'eleven_turbo_v2',
           voice_settings: { stability: 0.5, similarity_boost: 0.75 }
         })
@@ -185,6 +186,11 @@ async function speakWithElevenLabs(text, session) {
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing audio from: ${audioUrl}`);
     await session.audio.playAudio({ audioUrl, waitForCompletion: true });
+
+    // Manual wait based on word count as backup
+    const words = cleanText.split(' ').length;
+    const waitMs = Math.max(1500, (words / 2.5) * 1000);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
@@ -208,29 +214,44 @@ const SAVE_KEYWORDS = [
   'capture this', 'save what you see', 'save the pic', 'save that'
 ];
 
+const LIVE_STOP_KEYWORDS = [
+  'stop live', 'go to sleep', 'riggy stop', 'stop listening', 'end live'
+];
+
 function needsCamera(text) {
-  const lower = text.toLowerCase();
-  return VISION_KEYWORDS.some(kw => lower.includes(kw));
+  return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
 }
 
 function needsSave(text) {
-  const lower = text.toLowerCase();
-  return SAVE_KEYWORDS.some(kw => lower.includes(kw));
+  return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
+}
+
+function wantsStopLive(text) {
+  return LIVE_STOP_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
 }
 
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
-    session.events.onTranscription(async (data) => {
-      if (!data.isFinal) return;
+    // Per-session live mode state
+    let liveMode = false;
+    let tapActive = false;
 
-      const userSaid = data.text.trim();
+    const handleInput = async (userSaid) => {
       if (!userSaid) return;
-      if (!userSaid.toLowerCase().includes('mr.riggy') && !userSaid.toLowerCase().includes('mr riggy') && !userSaid.toLowerCase().includes('riggy')) return;
 
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
+
+      // Check if user wants to stop live mode
+      if (liveMode && wantsStopLive(userSaid)) {
+        liveMode = false;
+        latestState.riggySaid = 'Live mode off. Tap to wake me.';
+        await speakWithElevenLabs("Alright, going quiet. Double tap when you need me back.", session);
+        latestState.riggySaid = "Alright, going quiet. Double tap when you need me back.";
+        return;
+      }
 
       try {
         let photoData = null;
@@ -240,7 +261,7 @@ class RiggyGlasses extends AppServer {
         if (visionQuery || savePhoto) {
           console.log('📸 Taking photo...');
           try {
-            const photo = await session.camera.requestPhoto({ saveToGallery: savePhoto });
+            const photo = await session.camera.requestPhoto({ saveToGallery: true });
             if (photo && photo.buffer) {
               photoData = {
                 base64: photo.buffer.toString('base64'),
@@ -252,7 +273,6 @@ class RiggyGlasses extends AppServer {
             console.error('Camera error:', camErr);
           }
 
-          // If only saving — confirm and stop, don't describe
           if (savePhoto && !visionQuery) {
             const confirmMsg = "Saved it, friend.";
             latestState.riggySaid = confirmMsg;
@@ -263,12 +283,69 @@ class RiggyGlasses extends AppServer {
 
         const reply = await askGemini(userSaid, sessionId, photoData);
         console.log(`Riggy: ${reply}`);
-        latestState.riggySaid = reply;
         await speakWithElevenLabs(reply, session);
+        latestState.riggySaid = reply;
+
+        // After responding in tap mode, reset tap
+        if (tapActive && !liveMode) {
+          tapActive = false;
+        }
 
       } catch (err) {
         console.error('Error:', err);
         await session.audio.speak("I'm only AI, not a genius — something glitched on my end friend. Try me again.");
+      }
+    };
+
+    // Button press handler
+    session.events.onButtonPress(async (data) => {
+      console.log(`Button pressed: ${data.buttonId} - ${data.pressType}`);
+
+      if (data.pressType === 'double') {
+        // Double tap — toggle live mode
+        liveMode = !liveMode;
+        tapActive = false;
+        if (liveMode) {
+          console.log('🔴 Live mode ON');
+          latestState.riggySaid = 'Live mode on. Just talk.';
+          await speakWithElevenLabs("Live mode on. I'm here, just talk.", session);
+          latestState.riggySaid = "Live mode on. I'm here, just talk.";
+        } else {
+          console.log('⚫ Live mode OFF');
+          await speakWithElevenLabs("Alright, going quiet. Double tap when you need me.", session);
+          latestState.riggySaid = "Alright, going quiet. Double tap when you need me.";
+        }
+      } else if (data.pressType === 'single' && !liveMode) {
+        // Single tap — activate for one response
+        tapActive = true;
+        console.log('👆 Tap wake — listening for one response');
+      }
+    });
+
+    // Transcription handler
+    session.events.onTranscription(async (data) => {
+      if (!data.isFinal) return;
+
+      const userSaid = data.text.trim();
+      if (!userSaid) return;
+
+      // In live mode — respond to everything
+      if (liveMode) {
+        await handleInput(userSaid);
+        return;
+      }
+
+      // In tap mode — respond to next thing said after tap
+      if (tapActive) {
+        tapActive = false;
+        await handleInput(userSaid);
+        return;
+      }
+
+      // Wake word mode — respond only if name mentioned
+      const lower = userSaid.toLowerCase();
+      if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) {
+        await handleInput(userSaid);
       }
     });
   }
