@@ -97,6 +97,119 @@ RULES:
 
 const conversationHistory = new Map();
 
+// ── Reminder store ────────────────────────────────────────────────────────────
+// { id, label, fireAtMs, timerId, sessionSpeak }
+const reminders = new Map();
+let reminderIdCounter = 1;
+
+function parseReminderTime(text) {
+  const lower = text.toLowerCase();
+  const now = new Date();
+  const result = new Date(now);
+
+  // In X minutes
+  const minuteMatch = lower.match(/in (\d+)\s*min/);
+  if (minuteMatch) {
+    result.setMinutes(result.getMinutes() + parseInt(minuteMatch[1]));
+    return result.getTime();
+  }
+
+  // In X hours
+  const hourMatch = lower.match(/in (\d+)\s*hour/);
+  if (hourMatch) {
+    result.setHours(result.getHours() + parseInt(hourMatch[1]));
+    return result.getTime();
+  }
+
+  // At X:XX am/pm or X am/pm
+  const timeMatch = lower.match(/at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1]);
+    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    const meridiem = timeMatch[3];
+
+    if (meridiem === 'pm' && hours < 12) hours += 12;
+    if (meridiem === 'am' && hours === 12) hours = 0;
+
+    result.setHours(hours, minutes, 0, 0);
+
+    // If time already passed today, set for tomorrow
+    if (result.getTime() <= now.getTime()) {
+      result.setDate(result.getDate() + 1);
+    }
+
+    return result.getTime();
+  }
+
+  // Tonight / this evening
+  if (lower.includes('tonight') || lower.includes('this evening')) {
+    result.setHours(20, 0, 0, 0);
+    if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1);
+    return result.getTime();
+  }
+
+  // Tomorrow morning
+  if (lower.includes('tomorrow morning')) {
+    result.setDate(result.getDate() + 1);
+    result.setHours(9, 0, 0, 0);
+    return result.getTime();
+  }
+
+  // Tomorrow
+  if (lower.includes('tomorrow')) {
+    result.setDate(result.getDate() + 1);
+    result.setHours(9, 0, 0, 0);
+    return result.getTime();
+  }
+
+  return null;
+}
+
+function parseReminderLabel(text) {
+  const lower = text.toLowerCase();
+  // Remove trigger phrases
+  let label = text
+    .replace(/remind me (to|about|at|in)/gi, '')
+    .replace(/set a reminder (to|about|for)/gi, '')
+    .replace(/remind me/gi, '')
+    // Remove time phrases
+    .replace(/in \d+ (minutes?|hours?)/gi, '')
+    .replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
+    .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '')
+    .replace(/\briggy\b/gi, '')
+    .trim()
+    .replace(/^[,.\s]+|[,.\s]+$/g, '')
+    .trim();
+
+  return label || 'something';
+}
+
+function formatTimeUntil(ms) {
+  const diff = ms - Date.now();
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return `in ${mins} minute${mins !== 1 ? 's' : ''}`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  if (rem === 0) return `in ${hours} hour${hours !== 1 ? 's' : ''}`;
+  return `in ${hours} hour${hours !== 1 ? 's' : ''} and ${rem} minute${rem !== 1 ? 's' : ''}`;
+}
+
+function isReminderRequest(text) {
+  const lower = text.toLowerCase();
+  return lower.includes('remind me') || lower.includes('set a reminder') || lower.includes('set reminder');
+}
+
+function isListRemindersRequest(text) {
+  const lower = text.toLowerCase();
+  return (lower.includes('reminder') && (lower.includes('list') || lower.includes('what') || lower.includes('show') || lower.includes('my'))) ||
+    lower.includes('what reminders') || lower.includes('my reminders') || lower.includes('show reminders');
+}
+
+function isCancelRemindersRequest(text) {
+  const lower = text.toLowerCase();
+  return (lower.includes('cancel') || lower.includes('clear') || lower.includes('delete')) && lower.includes('reminder');
+}
+
 function normalizeForEcho(s) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -135,7 +248,6 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     conversationHistory.set(sessionId, []);
   }
   const history = conversationHistory.get(sessionId);
-
   const now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
 
   let weatherContext = '';
@@ -165,9 +277,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     });
   }
 
-  if (!systemOverride) {
-    history.push({ role: 'user', parts: userParts });
-  }
+  if (!systemOverride) history.push({ role: 'user', parts: userParts });
 
   const contents = systemOverride ? [{ role: 'user', parts: userParts }] : history;
 
@@ -194,9 +304,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 
   if (!systemOverride) {
     history.push({ role: 'model', parts: [{ text: reply || 'I hit a snag friend.' }] });
-    if (history.length > 20) {
-      conversationHistory.set(sessionId, history.slice(-20));
-    }
+    if (history.length > 20) conversationHistory.set(sessionId, history.slice(-20));
   }
 
   return reply || (systemOverride ? '' : "I hit a snag friend.");
@@ -241,10 +349,15 @@ async function speakWithElevenLabs(text, session) {
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes`);
 
-    currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
-    await currentAudioRef.catch(e => console.error('playAudio error:', e));
-    await new Promise(resolve => setTimeout(resolve, 500));
-    currentAudioRef = null;
+    try {
+      currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
+      await currentAudioRef;
+    } catch (e) {
+      console.error('playAudio error:', e);
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      currentAudioRef = null;
+    }
 
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch(e) {}
@@ -263,12 +376,10 @@ const VISION_KEYWORDS = [
   'what does this say', 'read this', 'identify this', 'what is that',
   'what are you seeing', 'look around'
 ];
-
 const SAVE_KEYWORDS = [
   'save this', 'save a pic', 'save a photo', 'take a picture', 'snap this',
   'capture this', 'save what you see', 'save the pic', 'save that'
 ];
-
 const LIVE_ON_KEYWORDS     = ['go live', 'riggy live', 'start live', 'live mode'];
 const LIVE_OFF_KEYWORDS    = ['stop live', 'end live', 'go to sleep', 'riggy stop', 'stop listening', 'stop'];
 const GAME_ON_KEYWORDS     = ['game mode', 'riggy game', 'start game mode', 'gaming mode'];
@@ -294,6 +405,7 @@ class RiggyGlasses extends AppServer {
 
     let bargeInAllowedAfterMs = 0;
     let ignoreSpeechDuringTTS = false;
+    let isProcessing          = false;
     let gameModeInterval      = null;
     let liveCamInterval       = null;
 
@@ -314,6 +426,21 @@ class RiggyGlasses extends AppServer {
         bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
         lastRiggyText = text;
       }
+    };
+
+    // Set a reminder
+    const setReminder = (label, fireAtMs) => {
+      const id = reminderIdCounter++;
+      const delay = fireAtMs - Date.now();
+      const timerId = setTimeout(async () => {
+        console.log(`🔔 Reminder firing: ${label}`);
+        reminders.delete(id);
+        const msg = `Hey friend — reminder: ${label}.`;
+        latestState.riggySaid = msg;
+        await speakSafe(msg);
+      }, delay);
+      reminders.set(id, { id, label, fireAtMs, timerId });
+      return id;
     };
 
     const stopBurstModes = () => {
@@ -340,20 +467,26 @@ class RiggyGlasses extends AppServer {
       gameMode = true;
       latestState.gameMode = true;
       console.log('🎮 Game mode ON');
-      await speakSafe("Game mode on. I'm watching.");
+      isProcessing = true;
+      try {
+        await speakSafe("Game mode on. I'm watching.");
+      } finally {
+        isProcessing = false;
+      }
       latestState.riggySaid = "Game mode on. I'm watching.";
       gameModeInterval = setInterval(async () => {
-        if (!gameMode || ignoreSpeechDuringTTS) return;
+        if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
+        isProcessing = true;
         try {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini('What do you see? Coach me.', sessionId, photo, GAME_MODE_PERSONALITY);
           if (reply && reply.trim().length > 3) {
-            console.log(`Game: ${reply}`);
             latestState.riggySaid = reply;
             await speakSafe(reply);
           }
         } catch(e) { console.error('Game mode error:', e); }
+        finally { isProcessing = false; }
       }, GAME_MODE_INTERVAL_MS);
     };
 
@@ -362,48 +495,97 @@ class RiggyGlasses extends AppServer {
       liveCamMode = true;
       latestState.liveCamMode = true;
       console.log('📷 Live cam ON');
-      await speakSafe("Live vision on. I'm watching with you.");
+      isProcessing = true;
+      try {
+        await speakSafe("Live vision on. I'm watching with you.");
+      } finally {
+        isProcessing = false;
+      }
       latestState.riggySaid = "Live vision on. I'm watching with you.";
       liveCamInterval = setInterval(async () => {
-        if (!liveCamMode || ignoreSpeechDuringTTS) return;
+        if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
+        isProcessing = true;
         try {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini('What do you notice?', sessionId, photo, LIVE_CAM_PERSONALITY);
           if (reply && reply.trim().length > 3) {
-            console.log(`Live cam: ${reply}`);
             latestState.riggySaid = reply;
             await speakSafe(reply);
           }
         } catch(e) { console.error('Live cam error:', e); }
+        finally { isProcessing = false; }
       }, LIVE_CAM_INTERVAL_MS);
     };
 
     const handleInput = async (userSaid) => {
-      if (!userSaid) return;
+      if (!userSaid || isProcessing) return;
+
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
-
-      if (wantsLiveOff(userSaid)) {
-        stopBurstModes();
-        liveMode = false;
-        latestState.liveMode = false;
-        await speakSafe("Going quiet. Say my name when you need me.");
-        latestState.riggySaid = "Going quiet. Say my name when you need me.";
-        return;
-      }
-      if (wantsGameOn(userSaid))   { await startGameMode(); return; }
-      if (wantsGameOff(userSaid))  { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
-      if (wantsLiveCamOn(userSaid)) { await startLiveCamMode(); return; }
-      if (wantsLiveOn(userSaid) && !liveMode) {
-        liveMode = true;
-        latestState.liveMode = true;
-        await speakSafe("Live mode on. Just talk.");
-        latestState.riggySaid = "Live mode on. Just talk.";
-        return;
-      }
+      isProcessing = true;
 
       try {
+        // Stop all modes
+        if (wantsLiveOff(userSaid)) {
+          stopBurstModes();
+          liveMode = false;
+          latestState.liveMode = false;
+          await speakSafe("Going quiet. Say my name when you need me.");
+          latestState.riggySaid = "Going quiet. Say my name when you need me.";
+          return;
+        }
+
+        // Reminder — list
+        if (isListRemindersRequest(userSaid)) {
+          if (reminders.size === 0) {
+            await speakSafe("No reminders set, friend.");
+            latestState.riggySaid = "No reminders set, friend.";
+          } else {
+            const list = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ');
+            const msg = `You've got ${reminders.size} reminder${reminders.size !== 1 ? 's' : ''}: ${list}.`;
+            await speakSafe(msg);
+            latestState.riggySaid = msg;
+          }
+          return;
+        }
+
+        // Reminder — cancel
+        if (isCancelRemindersRequest(userSaid)) {
+          reminders.forEach(r => clearTimeout(r.timerId));
+          reminders.clear();
+          await speakSafe("All reminders cleared, friend.");
+          latestState.riggySaid = "All reminders cleared, friend.";
+          return;
+        }
+
+        // Reminder — set
+        if (isReminderRequest(userSaid)) {
+          const fireAtMs = parseReminderTime(userSaid);
+          if (!fireAtMs) {
+            await speakSafe("I didn't catch the time on that. Try saying remind me in 2 hours or remind me at 3pm.");
+            latestState.riggySaid = "I didn't catch the time. Try: remind me in 2 hours or at 3pm.";
+            return;
+          }
+          const label = parseReminderLabel(userSaid);
+          setReminder(label, fireAtMs);
+          const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
+          await speakSafe(confirmation);
+          latestState.riggySaid = confirmation;
+          return;
+        }
+
+        if (wantsGameOn(userSaid))   { isProcessing = false; await startGameMode(); return; }
+        if (wantsGameOff(userSaid))  { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        if (wantsLiveCamOn(userSaid)) { isProcessing = false; await startLiveCamMode(); return; }
+        if (wantsLiveOn(userSaid) && !liveMode) {
+          liveMode = true;
+          latestState.liveMode = true;
+          await speakSafe("Live mode on. Just talk.");
+          latestState.riggySaid = "Live mode on. Just talk.";
+          return;
+        }
+
         let photoData     = null;
         const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
@@ -426,6 +608,8 @@ class RiggyGlasses extends AppServer {
       } catch (err) {
         console.error('Error:', err);
         await session.audio.speak("Something glitched friend. Try me again.");
+      } finally {
+        isProcessing = false;
       }
     };
 
@@ -450,7 +634,7 @@ class RiggyGlasses extends AppServer {
 
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
-      if (ignoreSpeechDuringTTS) { console.log('🔇 TTS active'); return; }
+      if (ignoreSpeechDuringTTS || isProcessing) { console.log('🔇 Busy'); return; }
       if (Date.now() < bargeInAllowedAfterMs) { console.log('🔇 Cooldown'); return; }
 
       const userSaid = data.text.trim();
