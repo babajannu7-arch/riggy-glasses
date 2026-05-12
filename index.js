@@ -2,7 +2,6 @@ const { AppServer } = require('@mentra/sdk');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const https = require('https');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -12,6 +11,24 @@ const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
 const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
 const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
 const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
+
+const CONTACTS = {
+  'dan': process.env.CONTACT_DAN,
+  'eyeris': process.env.CONTACT_EYERIS,
+  'iris': process.env.CONTACT_EYERIS,
+  'mom': process.env.CONTACT_MOM,
+  'moms': process.env.CONTACT_MOMS,
+  'mama': process.env.CONTACT_MOM,
+  'mother': process.env.CONTACT_MOM,
+  'shane': process.env.CONTACT_SHANE,
+  'syer': process.env.CONTACT_SYER,
+  'sire': process.env.CONTACT_SYER,
+  'wife': process.env.CONTACT_WIFE,
+  'sheba': process.env.CONTACT_WIFE,
+};
 
 const DEFAULT_CITY = 'Deltona,FL,US';
 const POST_TTS_BARGE_LOCKOUT_MS = 1000;
@@ -96,6 +113,77 @@ RULES:
 - Silence is fine. Don't fill space.
 - If nothing worth saying — return empty string.`;
 
+// ── Twilio ────────────────────────────────────────────────────────────────────
+async function twilioCall(toNumber, customMessage = null) {
+  try {
+    const spokenMessage = customMessage
+      ? `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to tell you: ${customMessage}`
+      : `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to let you know to give him a call when you get a moment.`;
+
+    const twiml = `<Response><Say voice="alice">${spokenMessage}</Say></Response>`;
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`;
+    const body = new URLSearchParams({
+      To: toNumber,
+      From: TWILIO_PHONE_NUMBER,
+      Twiml: twiml
+    });
+    const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    const data = await res.json();
+    if (data.sid) { console.log(`📞 Call initiated: ${data.sid}`); return true; }
+    console.error('Twilio call error:', data);
+    return false;
+  } catch(e) { console.error('Twilio call error:', e); return false; }
+}
+
+async function twilioText(toNumber, message) {
+  try {
+    const fullMessage = `This is Mr. Riggy, Ray's digital assistant. He says: ${message}`;
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
+    const body = new URLSearchParams({
+      To: toNumber,
+      From: TWILIO_PHONE_NUMBER,
+      Body: fullMessage
+    });
+    const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    const data = await res.json();
+    if (data.sid) { console.log(`📱 Text sent: ${data.sid}`); return true; }
+    console.error('Twilio text error:', data);
+    return false;
+  } catch(e) { console.error('Twilio text error:', e); return false; }
+}
+
+function parseCallIntent(text) {
+  const lower = text.toLowerCase();
+  // Match "call [name]" optionally followed by "tell [them] [message]"
+  const match = lower.match(/call\s+(\w+)(?:\s+(?:tell|say|let her know|let him know|and say|and tell)\s+(?:her|him|them)?\s*(.+))?/);
+  if (!match) return null;
+  const name = match[1];
+  const customMessage = match[2] ? match[2].trim() : null;
+  return CONTACTS[name] ? { name, number: CONTACTS[name], customMessage } : null;
+}
+
+function parseTextIntent(text) {
+  const lower = text.toLowerCase();
+  const match = lower.match(/text\s+(\w+)\s+(.*)/);
+  if (!match) return null;
+  const name = match[1];
+  const message = match[2].trim();
+  return CONTACTS[name] ? { name, number: CONTACTS[name], message } : null;
+}
+
+function isCallRequest(text)  { return /\bcall\s+\w+/i.test(text); }
+function isTextRequest(text)  { return /\btext\s+\w+\s+/i.test(text); }
+
 // ── Vertex Memory ─────────────────────────────────────────────────────────────
 let vertexTokenCache = null;
 let vertexTokenExpiry = 0;
@@ -114,23 +202,15 @@ async function getVertexToken() {
   })).toString('base64url');
 
   const sigInput = `${header}.${payload}`;
-
   const pemClean = VERTEX_PRIVATE_KEY
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\\n/g, '')
-    .replace(/\n/g, '')
-    .replace(/\r/g, '')
-    .trim();
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '').replace(/\n/g, '').replace(/\r/g, '').trim();
 
-  const keyBuffer = Buffer.from(pemClean, 'base64');
   const privateKey = `-----BEGIN PRIVATE KEY-----\n${pemClean}\n-----END PRIVATE KEY-----`;
-
   const { createSign } = await import('crypto');
   const sign = createSign('RSA-SHA256');
   sign.update(sigInput);
   const signature = sign.sign(privateKey, 'base64url');
-
   const jwt = `${sigInput}.${signature}`;
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -151,24 +231,15 @@ async function embedText(text) {
     const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/text-embedding-005:predict`;
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        instances: [{ content: text.slice(0, 500) }]
-      })
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instances: [{ content: text.slice(0, 500) }] })
     });
     const data = await res.json();
     const values = data?.predictions?.[0]?.embeddings?.values || data?.predictions?.[0]?.values;
     return values ? Array.from(values) : null;
-  } catch (e) {
-    console.error('Embed error:', e);
-    return null;
-  }
+  } catch (e) { console.error('Embed error:', e); return null; }
 }
 
-// Simple in-memory vector store (persists for session, loads from file on start)
 const MEMORY_FILE = path.join(__dirname, 'riggy_memory.json');
 let memoryStore = [];
 
@@ -182,19 +253,14 @@ function loadMemory() {
 }
 
 function saveMemoryToDisk() {
-  try {
-    fs.writeFileSync(MEMORY_FILE, JSON.stringify(memoryStore, null, 2));
-  } catch(e) { console.error('Memory save error:', e); }
+  try { fs.writeFileSync(MEMORY_FILE, JSON.stringify(memoryStore, null, 2)); }
+  catch(e) { console.error('Memory save error:', e); }
 }
 
 function cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
   let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
+  for (let i = 0; i < a.length; i++) { dot += a[i]*b[i]; normA += a[i]*a[i]; normB += b[i]*b[i]; }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
   return denom === 0 ? 0 : dot / denom;
 }
@@ -202,21 +268,11 @@ function cosineSimilarity(a, b) {
 async function saveMemory(content, type = 'fact') {
   try {
     const embedding = await embedText(content);
-    const memory = {
-      id: Date.now(),
-      content,
-      type,
-      embedding,
-      createdAt: Date.now()
-    };
-    memoryStore.push(memory);
+    memoryStore.push({ id: Date.now(), content, type, embedding, createdAt: Date.now() });
     saveMemoryToDisk();
     console.log(`💾 Memory saved [${type}]: ${content.slice(0, 60)}`);
     return true;
-  } catch(e) {
-    console.error('Save memory error:', e);
-    return false;
-  }
+  } catch(e) { console.error('Save memory error:', e); return false; }
 }
 
 async function recallMemory(query, limit = 3) {
@@ -224,43 +280,29 @@ async function recallMemory(query, limit = 3) {
     if (memoryStore.length === 0) return null;
     const queryEmbed = await embedText(query);
     if (!queryEmbed) return null;
-
     const scored = memoryStore
       .filter(m => m.embedding)
-      .map(m => ({
-        ...m,
-        score: cosineSimilarity(queryEmbed, m.embedding)
-      }))
+      .map(m => ({ ...m, score: cosineSimilarity(queryEmbed, m.embedding) }))
       .filter(m => m.score > 0.65)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
-
     if (scored.length === 0) return null;
     return scored.map(m => `[${m.type}] ${m.content}`).join('\n');
-  } catch(e) {
-    console.error('Recall error:', e);
-    return null;
-  }
+  } catch(e) { console.error('Recall error:', e); return null; }
 }
 
-// Auto-detect memory-worthy content
 function shouldAutoSave(text) {
-  const lower = text.toLowerCase();
   const triggers = [
     /my (wife|husband|partner|girlfriend|boyfriend|mom|dad|mother|father|sister|brother|son|daughter|kid|baby|friend|boss|name) (is|are|was)/i,
     /i (like|love|hate|prefer|always|never|usually)/i,
-    /i('m| am) (a |an )?\w+/i,
     /i work (at|for|in)/i,
     /i live (in|at|near)/i,
     /my (name|number|address|job|car|dog|cat|pet|house|apartment)/i,
-    /remember that/i,
-    /don't forget/i,
-    /important:/i
   ];
-  return triggers.some(t => t.test(lower));
+  return triggers.some(t => t.test(text));
 }
 
-// ── Reminder store ────────────────────────────────────────────────────────────
+// ── Reminders ─────────────────────────────────────────────────────────────────
 const reminders = new Map();
 let reminderIdCounter = 1;
 
@@ -268,13 +310,10 @@ function parseReminderTime(text) {
   const lower = text.toLowerCase();
   const now = new Date();
   const result = new Date(now);
-
   const minuteMatch = lower.match(/in (\d+)\s*min/);
   if (minuteMatch) { result.setMinutes(result.getMinutes() + parseInt(minuteMatch[1])); return result.getTime(); }
-
   const hourMatch = lower.match(/in (\d+)\s*hour/);
   if (hourMatch) { result.setHours(result.getHours() + parseInt(hourMatch[1])); return result.getTime(); }
-
   const timeMatch = lower.match(/at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
   if (timeMatch) {
     let hours = parseInt(timeMatch[1]);
@@ -286,12 +325,7 @@ function parseReminderTime(text) {
     if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1);
     return result.getTime();
   }
-
-  if (lower.includes('tonight') || lower.includes('this evening')) {
-    result.setHours(20, 0, 0, 0);
-    if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1);
-    return result.getTime();
-  }
+  if (lower.includes('tonight') || lower.includes('this evening')) { result.setHours(20, 0, 0, 0); if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1); return result.getTime(); }
   if (lower.includes('tomorrow morning')) { result.setDate(result.getDate() + 1); result.setHours(9, 0, 0, 0); return result.getTime(); }
   if (lower.includes('tomorrow')) { result.setDate(result.getDate() + 1); result.setHours(9, 0, 0, 0); return result.getTime(); }
   return null;
@@ -299,16 +333,10 @@ function parseReminderTime(text) {
 
 function parseReminderLabel(text) {
   return text
-    .replace(/remind me (to|about|at|in)/gi, '')
-    .replace(/set a reminder (to|about|for)/gi, '')
-    .replace(/remind me/gi, '')
-    .replace(/in \d+ (minutes?|hours?)/gi, '')
-    .replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
-    .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '')
-    .replace(/\briggy\b/gi, '')
-    .trim()
-    .replace(/^[,.\s]+|[,.\s]+$/g, '')
-    .trim() || 'something';
+    .replace(/remind me (to|about|at|in)/gi, '').replace(/set a reminder (to|about|for)/gi, '').replace(/remind me/gi, '')
+    .replace(/in \d+ (minutes?|hours?)/gi, '').replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
+    .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '').replace(/\briggy\b/gi, '')
+    .trim().replace(/^[,.\s]+|[,.\s]+$/g, '').trim() || 'something';
 }
 
 function formatTimeUntil(ms) {
@@ -321,44 +349,25 @@ function formatTimeUntil(ms) {
   return `in ${hours} hour${hours !== 1 ? 's' : ''} and ${rem} minute${rem !== 1 ? 's' : ''}`;
 }
 
-function isReminderRequest(text) {
-  const lower = text.toLowerCase();
-  return lower.includes('remind me') || lower.includes('set a reminder') || lower.includes('set reminder');
-}
-function isListRemindersRequest(text) {
-  const lower = text.toLowerCase();
-  return (lower.includes('reminder') && (lower.includes('list') || lower.includes('what') || lower.includes('show') || lower.includes('my'))) || lower.includes('what reminders') || lower.includes('my reminders');
-}
-function isCancelRemindersRequest(text) {
-  const lower = text.toLowerCase();
-  return (lower.includes('cancel') || lower.includes('clear') || lower.includes('delete')) && lower.includes('reminder');
-}
-function isSaveChatRequest(text) {
-  const lower = text.toLowerCase();
-  return (lower.includes('save this chat') || lower.includes('save this conversation') || lower.includes('remember this chat') || lower.includes('remember this conversation') || lower.includes('remember what we talked about'));
-}
-function isExplicitMemoryRequest(text) {
-  const lower = text.toLowerCase();
-  return lower.includes('remember this') || lower.includes('remember that') || lower.includes('save this') && !lower.includes('pic') && !lower.includes('photo');
-}
+function isReminderRequest(text)      { const l = text.toLowerCase(); return l.includes('remind me') || l.includes('set a reminder') || l.includes('set reminder'); }
+function isListRemindersRequest(text) { const l = text.toLowerCase(); return (l.includes('reminder') && (l.includes('list') || l.includes('what') || l.includes('show') || l.includes('my'))) || l.includes('my reminders'); }
+function isCancelRemindersRequest(t)  { const l = t.toLowerCase(); return (l.includes('cancel') || l.includes('clear') || l.includes('delete')) && l.includes('reminder'); }
+function isSaveChatRequest(text)      { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
+function isExplicitMemoryRequest(t)   { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
 
 const conversationHistory = new Map();
 
-function normalizeForEcho(s) {
-  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
+function normalizeForEcho(s) { return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
 
 function looksLikeEcho(transcript, lastRiggyText) {
   const t = normalizeForEcho(transcript);
   const a = normalizeForEcho(lastRiggyText || '');
   if (t.length < 8 || a.length < 8) return false;
-  if (t === a) return true;
-  if (a.includes(t) || t.includes(a)) return true;
+  if (t === a || a.includes(t) || t.includes(a)) return true;
   const tWords = new Set(t.split(' ').filter(w => w.length > 3));
   const aWords = new Set(a.split(' ').filter(w => w.length > 3));
   if (tWords.size === 0 || aWords.size === 0) return false;
-  const intersection = [...tWords].filter(w => aWords.has(w));
-  return intersection.length / Math.min(tWords.size, aWords.size) > 0.7;
+  return [...tWords].filter(w => aWords.has(w)).length / Math.min(tWords.size, aWords.size) > 0.7;
 }
 
 async function getWeather(city) {
@@ -378,30 +387,23 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 
   let weatherContext = '';
   const weatherKeywords = ['weather', 'temp', 'temperature', 'hot', 'cold', 'outside', 'wear', 'forecast'];
-  const needsWeather = weatherKeywords.some(w => userText.toLowerCase().includes(w));
-  if (needsWeather && !systemOverride) {
+  if (weatherKeywords.some(w => userText.toLowerCase().includes(w)) && !systemOverride) {
     const cityMatch = userText.match(/in ([A-Za-z\s]+)(?:\?|$)/i);
     const city = cityMatch ? cityMatch[1].trim() : DEFAULT_CITY;
     const weather = await getWeather(city);
     if (weather) weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
   }
 
-  let memoryBlock = '';
-  if (memoryContext) memoryBlock = `\n\nWHAT YOU REMEMBER (use naturally if relevant):\n${memoryContext}`;
-
-  const systemPrompt = systemOverride
-    ? systemOverride
-    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + memoryBlock;
+  const memoryBlock = memoryContext ? `\n\nWHAT YOU REMEMBER (use naturally if relevant):\n${memoryContext}` : '';
+  const systemPrompt = systemOverride ? systemOverride : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + memoryBlock;
 
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
-
   if (!systemOverride) history.push({ role: 'user', parts: userParts });
-  const contents = systemOverride ? [{ role: 'user', parts: userParts }] : history;
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
-    contents,
+    contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
     generationConfig: { temperature: systemOverride ? 0.4 : 0.9, maxOutputTokens: systemOverride ? 150 : 200 }
   };
 
@@ -412,12 +414,10 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 
   const data = await response.json();
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
   if (!systemOverride) {
     history.push({ role: 'model', parts: [{ text: reply || 'I hit a snag friend.' }] });
     if (history.length > 20) conversationHistory.set(sessionId, history.slice(-20));
   }
-
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
@@ -427,37 +427,23 @@ async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
-
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: cleanText,
-        model_id: 'eleven_turbo_v2',
-        output_format: 'mp3_44100_128',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-      })
+      body: JSON.stringify({ text: cleanText, model_id: 'eleven_turbo_v2', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
     });
-
     if (!response.ok) { console.error('ElevenLabs error:', await response.text()); await session.audio.speak(text); return; }
-
-    const audioBuffer = await response.arrayBuffer();
-    const audioBytes = Buffer.from(audioBuffer);
+    const audioBytes = Buffer.from(await response.arrayBuffer());
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
-
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
     console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes`);
-
-    try {
-      currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
-      await currentAudioRef;
-    } catch (e) { console.error('playAudio error:', e); }
-    finally { await new Promise(resolve => setTimeout(resolve, 500)); currentAudioRef = null; }
-
+    try { currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true }); await currentAudioRef; }
+    catch (e) { console.error('playAudio error:', e); }
+    finally { await new Promise(r => setTimeout(r, 500)); currentAudioRef = null; }
     setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
-  } catch (err) { console.error('ElevenLabs speak error:', err); currentAudioRef = null; await session.audio.speak(text); }
+  } catch (err) { console.error('ElevenLabs error:', err); currentAudioRef = null; await session.audio.speak(text); }
 }
 
 const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around'];
@@ -476,55 +462,36 @@ function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerC
 function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
-// Load memory on startup
 loadMemory();
 
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
-    let liveMode      = false;
-    let gameMode      = false;
-    let liveCamMode   = false;
-    let lastRiggyText = '';
-    let sessionLog    = []; // For full chat save
+    let liveMode = false, gameMode = false, liveCamMode = false;
+    let lastRiggyText = '', sessionLog = [];
+    let bargeInAllowedAfterMs = 0, ignoreSpeechDuringTTS = false, isProcessing = false;
+    let gameModeInterval = null, liveCamInterval = null;
 
-    let bargeInAllowedAfterMs = 0;
-    let ignoreSpeechDuringTTS = false;
-    let isProcessing          = false;
-    let gameModeInterval      = null;
-    let liveCamInterval       = null;
-
-    latestState.userSaid    = '';
-    latestState.riggySaid   = 'Mr. Riggy online. Say my name to begin.';
-    latestState.liveMode    = false;
-    latestState.gameMode    = false;
-    latestState.liveCamMode = false;
+    latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
+    latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
 
     const speakSafe = async (text) => {
       ignoreSpeechDuringTTS = true;
       bargeInAllowedAfterMs = Date.now() + POST_TTS_BARGE_LOCKOUT_MS;
       try { await speakWithElevenLabs(text, session); }
-      finally {
-        await new Promise(resolve => setTimeout(resolve, RESUME_MIC_DELAY_MS));
-        ignoreSpeechDuringTTS = false;
-        bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
-        lastRiggyText = text;
-      }
+      finally { await new Promise(r => setTimeout(r, RESUME_MIC_DELAY_MS)); ignoreSpeechDuringTTS = false; bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS; lastRiggyText = text; }
     };
 
     const setReminder = (label, fireAtMs) => {
       const id = reminderIdCounter++;
-      const delay = fireAtMs - Date.now();
       const timerId = setTimeout(async () => {
-        console.log(`🔔 Reminder: ${label}`);
         reminders.delete(id);
         const msg = `Hey friend — reminder: ${label}.`;
         latestState.riggySaid = msg;
         await speakSafe(msg);
-      }, delay);
+      }, fireAtMs - Date.now());
       reminders.set(id, { id, label, fireAtMs, timerId });
-      return id;
     };
 
     const stopBurstModes = () => {
@@ -581,8 +548,6 @@ class RiggyGlasses extends AppServer {
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
       isProcessing = true;
-
-      // Log to session
       sessionLog.push({ role: 'user', text: userSaid, time: Date.now() });
 
       try {
@@ -592,23 +557,36 @@ class RiggyGlasses extends AppServer {
           latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        // Save full chat
-        if (isSaveChatRequest(userSaid)) {
-          if (sessionLog.length < 2) {
-            await speakSafe("Not much to save yet friend.");
-            latestState.riggySaid = "Not much to save yet friend."; return;
-          }
-          const chatText = sessionLog.map(l => `${l.role === 'user' ? 'Friend' : 'Riggy'}: ${l.text}`).join('\n');
-          await saveMemory(chatText, 'chat');
-          await speakSafe("Got it. This conversation is saved to my memory.");
-          latestState.riggySaid = "Got it. This conversation is saved to my memory."; return;
+        // Call
+        if (isCallRequest(userSaid)) {
+          const intent = parseCallIntent(userSaid);
+          if (!intent) { await speakSafe("I don't have that contact friend."); latestState.riggySaid = "I don't have that contact friend."; return; }
+          const ok = await twilioCall(intent.number, intent.customMessage);
+          const msg = ok ? `Calling ${intent.name} now.` : `Couldn't reach ${intent.name} right now.`;
+          await speakSafe(msg); latestState.riggySaid = msg; return;
         }
 
-        // Explicit memory save
+        // Text
+        if (isTextRequest(userSaid)) {
+          const intent = parseTextIntent(userSaid);
+          if (!intent) { await speakSafe("I don't have that contact or didn't catch the message."); latestState.riggySaid = "I don't have that contact or didn't catch the message."; return; }
+          const ok = await twilioText(intent.number, intent.message);
+          const msg = ok ? `Text sent to ${intent.name}.` : `Couldn't send that text right now.`;
+          await speakSafe(msg); latestState.riggySaid = msg; return;
+        }
+
+        // Save chat
+        if (isSaveChatRequest(userSaid)) {
+          if (sessionLog.length < 2) { await speakSafe("Not much to save yet friend."); latestState.riggySaid = "Not much to save yet friend."; return; }
+          const chatText = sessionLog.map(l => `${l.role === 'user' ? 'Friend' : 'Riggy'}: ${l.text}`).join('\n');
+          await saveMemory(chatText, 'chat');
+          await speakSafe("Got it. This conversation is saved."); latestState.riggySaid = "Got it. This conversation is saved."; return;
+        }
+
+        // Explicit memory
         if (isExplicitMemoryRequest(userSaid)) {
           await saveMemory(userSaid, 'explicit');
-          await speakSafe("Locked in. I'll remember that.");
-          latestState.riggySaid = "Locked in. I'll remember that."; return;
+          await speakSafe("Locked in. I'll remember that."); latestState.riggySaid = "Locked in. I'll remember that."; return;
         }
 
         // Reminders
@@ -620,14 +598,11 @@ class RiggyGlasses extends AppServer {
         }
         if (isCancelRemindersRequest(userSaid)) {
           reminders.forEach(r => clearTimeout(r.timerId)); reminders.clear();
-          await speakSafe("All reminders cleared, friend."); latestState.riggySaid = "All reminders cleared, friend."; return;
+          await speakSafe("All reminders cleared."); latestState.riggySaid = "All reminders cleared."; return;
         }
         if (isReminderRequest(userSaid)) {
           const fireAtMs = parseReminderTime(userSaid);
-          if (!fireAtMs) {
-            await speakSafe("I didn't catch the time. Try: remind me in 2 hours or at 3pm.");
-            latestState.riggySaid = "I didn't catch the time. Try: remind me in 2 hours or at 3pm."; return;
-          }
+          if (!fireAtMs) { await speakSafe("Didn't catch the time. Try: remind me in 2 hours or at 3pm."); latestState.riggySaid = "Didn't catch the time."; return; }
           const label = parseReminderLabel(userSaid);
           setReminder(label, fireAtMs);
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
@@ -642,11 +617,9 @@ class RiggyGlasses extends AppServer {
           await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return;
         }
 
-        // Pull memory context before responding
         const memoryContext = await recallMemory(userSaid);
-
         let photoData = null;
-        const savePhoto   = needsSave(userSaid);
+        const savePhoto = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
@@ -656,15 +629,8 @@ class RiggyGlasses extends AppServer {
 
         const reply = await askGemini(userSaid, sessionId, photoData, null, memoryContext);
         console.log(`Riggy: ${reply}`);
-
-        // Log Riggy response
         sessionLog.push({ role: 'riggy', text: reply, time: Date.now() });
-
-        // Auto save if worthy
-        if (shouldAutoSave(userSaid)) {
-          saveMemory(userSaid, 'auto').catch(() => {});
-        }
-
+        if (shouldAutoSave(userSaid)) saveMemory(userSaid, 'auto').catch(() => {});
         await speakSafe(reply);
         latestState.riggySaid = reply;
 
