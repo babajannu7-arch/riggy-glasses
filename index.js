@@ -2,14 +2,18 @@ const { AppServer } = require('@mentra/sdk');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const https = require('https');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
+const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
+const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
+const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY;
 
 const DEFAULT_CITY = 'Deltona,FL,US';
-
 const POST_TTS_BARGE_LOCKOUT_MS = 1000;
 const POST_SPEECH_COOLDOWN_MS   = 450;
 const RESUME_MIC_DELAY_MS       = 650;
@@ -76,10 +80,8 @@ IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKE
 Speak like you're talking to someone in the room. Just talk.`;
 
 const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach.
-
 You know these games: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
 Identify the game from what you see automatically.
-
 RULES:
 - 2 sentences MAX.
 - Coach PATTERNS not moments.
@@ -88,17 +90,177 @@ RULES:
 - No cheerleading. No narrating. Only useful information.`;
 
 const LIVE_CAM_PERSONALITY = `You are Mr. Riggy in LIVE VISION MODE.
-
 RULES:
 - 2 sentences MAX.
 - Only speak when something is genuinely worth noting.
 - Silence is fine. Don't fill space.
 - If nothing worth saying — return empty string.`;
 
-const conversationHistory = new Map();
+// ── Vertex Memory ─────────────────────────────────────────────────────────────
+let vertexTokenCache = null;
+let vertexTokenExpiry = 0;
+
+async function getVertexToken() {
+  const now = Math.floor(Date.now() / 1000);
+  if (vertexTokenCache && now < vertexTokenExpiry - 60) return vertexTokenCache;
+
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: VERTEX_CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now
+  })).toString('base64url');
+
+  const sigInput = `${header}.${payload}`;
+
+  const pemClean = VERTEX_PRIVATE_KEY
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '')
+    .replace(/\n/g, '')
+    .replace(/\r/g, '')
+    .trim();
+
+  const keyBuffer = Buffer.from(pemClean, 'base64');
+  const privateKey = `-----BEGIN PRIVATE KEY-----\n${pemClean}\n-----END PRIVATE KEY-----`;
+
+  const { createSign } = await import('crypto');
+  const sign = createSign('RSA-SHA256');
+  sign.update(sigInput);
+  const signature = sign.sign(privateKey, 'base64url');
+
+  const jwt = `${sigInput}.${signature}`;
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+  });
+
+  const tokenData = await tokenRes.json();
+  vertexTokenCache = tokenData.access_token;
+  vertexTokenExpiry = now + (tokenData.expires_in || 3600);
+  return vertexTokenCache;
+}
+
+async function embedText(text) {
+  try {
+    const token = await getVertexToken();
+    const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/text-embedding-005:predict`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        instances: [{ content: text.slice(0, 500) }]
+      })
+    });
+    const data = await res.json();
+    const values = data?.predictions?.[0]?.embeddings?.values || data?.predictions?.[0]?.values;
+    return values ? Array.from(values) : null;
+  } catch (e) {
+    console.error('Embed error:', e);
+    return null;
+  }
+}
+
+// Simple in-memory vector store (persists for session, loads from file on start)
+const MEMORY_FILE = path.join(__dirname, 'riggy_memory.json');
+let memoryStore = [];
+
+function loadMemory() {
+  try {
+    if (fs.existsSync(MEMORY_FILE)) {
+      memoryStore = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
+      console.log(`📚 Loaded ${memoryStore.length} memories`);
+    }
+  } catch(e) { console.error('Memory load error:', e); }
+}
+
+function saveMemoryToDisk() {
+  try {
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify(memoryStore, null, 2));
+  } catch(e) { console.error('Memory save error:', e); }
+}
+
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+async function saveMemory(content, type = 'fact') {
+  try {
+    const embedding = await embedText(content);
+    const memory = {
+      id: Date.now(),
+      content,
+      type,
+      embedding,
+      createdAt: Date.now()
+    };
+    memoryStore.push(memory);
+    saveMemoryToDisk();
+    console.log(`💾 Memory saved [${type}]: ${content.slice(0, 60)}`);
+    return true;
+  } catch(e) {
+    console.error('Save memory error:', e);
+    return false;
+  }
+}
+
+async function recallMemory(query, limit = 3) {
+  try {
+    if (memoryStore.length === 0) return null;
+    const queryEmbed = await embedText(query);
+    if (!queryEmbed) return null;
+
+    const scored = memoryStore
+      .filter(m => m.embedding)
+      .map(m => ({
+        ...m,
+        score: cosineSimilarity(queryEmbed, m.embedding)
+      }))
+      .filter(m => m.score > 0.65)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    if (scored.length === 0) return null;
+    return scored.map(m => `[${m.type}] ${m.content}`).join('\n');
+  } catch(e) {
+    console.error('Recall error:', e);
+    return null;
+  }
+}
+
+// Auto-detect memory-worthy content
+function shouldAutoSave(text) {
+  const lower = text.toLowerCase();
+  const triggers = [
+    /my (wife|husband|partner|girlfriend|boyfriend|mom|dad|mother|father|sister|brother|son|daughter|kid|baby|friend|boss|name) (is|are|was)/i,
+    /i (like|love|hate|prefer|always|never|usually)/i,
+    /i('m| am) (a |an )?\w+/i,
+    /i work (at|for|in)/i,
+    /i live (in|at|near)/i,
+    /my (name|number|address|job|car|dog|cat|pet|house|apartment)/i,
+    /remember that/i,
+    /don't forget/i,
+    /important:/i
+  ];
+  return triggers.some(t => t.test(lower));
+}
 
 // ── Reminder store ────────────────────────────────────────────────────────────
-// { id, label, fireAtMs, timerId, sessionSpeak }
 const reminders = new Map();
 let reminderIdCounter = 1;
 
@@ -107,81 +269,46 @@ function parseReminderTime(text) {
   const now = new Date();
   const result = new Date(now);
 
-  // In X minutes
   const minuteMatch = lower.match(/in (\d+)\s*min/);
-  if (minuteMatch) {
-    result.setMinutes(result.getMinutes() + parseInt(minuteMatch[1]));
-    return result.getTime();
-  }
+  if (minuteMatch) { result.setMinutes(result.getMinutes() + parseInt(minuteMatch[1])); return result.getTime(); }
 
-  // In X hours
   const hourMatch = lower.match(/in (\d+)\s*hour/);
-  if (hourMatch) {
-    result.setHours(result.getHours() + parseInt(hourMatch[1]));
-    return result.getTime();
-  }
+  if (hourMatch) { result.setHours(result.getHours() + parseInt(hourMatch[1])); return result.getTime(); }
 
-  // At X:XX am/pm or X am/pm
   const timeMatch = lower.match(/at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
   if (timeMatch) {
     let hours = parseInt(timeMatch[1]);
     const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
     const meridiem = timeMatch[3];
-
     if (meridiem === 'pm' && hours < 12) hours += 12;
     if (meridiem === 'am' && hours === 12) hours = 0;
-
     result.setHours(hours, minutes, 0, 0);
-
-    // If time already passed today, set for tomorrow
-    if (result.getTime() <= now.getTime()) {
-      result.setDate(result.getDate() + 1);
-    }
-
+    if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1);
     return result.getTime();
   }
 
-  // Tonight / this evening
   if (lower.includes('tonight') || lower.includes('this evening')) {
     result.setHours(20, 0, 0, 0);
     if (result.getTime() <= now.getTime()) result.setDate(result.getDate() + 1);
     return result.getTime();
   }
-
-  // Tomorrow morning
-  if (lower.includes('tomorrow morning')) {
-    result.setDate(result.getDate() + 1);
-    result.setHours(9, 0, 0, 0);
-    return result.getTime();
-  }
-
-  // Tomorrow
-  if (lower.includes('tomorrow')) {
-    result.setDate(result.getDate() + 1);
-    result.setHours(9, 0, 0, 0);
-    return result.getTime();
-  }
-
+  if (lower.includes('tomorrow morning')) { result.setDate(result.getDate() + 1); result.setHours(9, 0, 0, 0); return result.getTime(); }
+  if (lower.includes('tomorrow')) { result.setDate(result.getDate() + 1); result.setHours(9, 0, 0, 0); return result.getTime(); }
   return null;
 }
 
 function parseReminderLabel(text) {
-  const lower = text.toLowerCase();
-  // Remove trigger phrases
-  let label = text
+  return text
     .replace(/remind me (to|about|at|in)/gi, '')
     .replace(/set a reminder (to|about|for)/gi, '')
     .replace(/remind me/gi, '')
-    // Remove time phrases
     .replace(/in \d+ (minutes?|hours?)/gi, '')
     .replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
     .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '')
     .replace(/\briggy\b/gi, '')
     .trim()
     .replace(/^[,.\s]+|[,.\s]+$/g, '')
-    .trim();
-
-  return label || 'something';
+    .trim() || 'something';
 }
 
 function formatTimeUntil(ms) {
@@ -198,17 +325,24 @@ function isReminderRequest(text) {
   const lower = text.toLowerCase();
   return lower.includes('remind me') || lower.includes('set a reminder') || lower.includes('set reminder');
 }
-
 function isListRemindersRequest(text) {
   const lower = text.toLowerCase();
-  return (lower.includes('reminder') && (lower.includes('list') || lower.includes('what') || lower.includes('show') || lower.includes('my'))) ||
-    lower.includes('what reminders') || lower.includes('my reminders') || lower.includes('show reminders');
+  return (lower.includes('reminder') && (lower.includes('list') || lower.includes('what') || lower.includes('show') || lower.includes('my'))) || lower.includes('what reminders') || lower.includes('my reminders');
 }
-
 function isCancelRemindersRequest(text) {
   const lower = text.toLowerCase();
   return (lower.includes('cancel') || lower.includes('clear') || lower.includes('delete')) && lower.includes('reminder');
 }
+function isSaveChatRequest(text) {
+  const lower = text.toLowerCase();
+  return (lower.includes('save this chat') || lower.includes('save this conversation') || lower.includes('remember this chat') || lower.includes('remember this conversation') || lower.includes('remember what we talked about'));
+}
+function isExplicitMemoryRequest(text) {
+  const lower = text.toLowerCase();
+  return lower.includes('remember this') || lower.includes('remember that') || lower.includes('save this') && !lower.includes('pic') && !lower.includes('photo');
+}
+
+const conversationHistory = new Map();
 
 function normalizeForEcho(s) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -233,70 +367,47 @@ async function getWeather(city) {
     const response = await fetch(url);
     const data = await response.json();
     if (data.cod !== 200) return null;
-    return {
-      temp: Math.round(data.main.temp),
-      feels_like: Math.round(data.main.feels_like),
-      description: data.weather[0].description,
-      humidity: data.main.humidity,
-      city: data.name
-    };
+    return { temp: Math.round(data.main.temp), feels_like: Math.round(data.main.feels_like), description: data.weather[0].description, humidity: data.main.humidity, city: data.name };
   } catch (err) { return null; }
 }
 
-async function askGemini(userText, sessionId, photoData = null, systemOverride = null) {
-  if (!conversationHistory.has(sessionId)) {
-    conversationHistory.set(sessionId, []);
-  }
+async function askGemini(userText, sessionId, photoData = null, systemOverride = null, memoryContext = null) {
+  if (!conversationHistory.has(sessionId)) conversationHistory.set(sessionId, []);
   const history = conversationHistory.get(sessionId);
   const now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
 
   let weatherContext = '';
   const weatherKeywords = ['weather', 'temp', 'temperature', 'hot', 'cold', 'outside', 'wear', 'forecast'];
   const needsWeather = weatherKeywords.some(w => userText.toLowerCase().includes(w));
-
   if (needsWeather && !systemOverride) {
     const cityMatch = userText.match(/in ([A-Za-z\s]+)(?:\?|$)/i);
     const city = cityMatch ? cityMatch[1].trim() : DEFAULT_CITY;
     const weather = await getWeather(city);
-    if (weather) {
-      weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
-    }
+    if (weather) weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
   }
+
+  let memoryBlock = '';
+  if (memoryContext) memoryBlock = `\n\nWHAT YOU REMEMBER (use naturally if relevant):\n${memoryContext}`;
 
   const systemPrompt = systemOverride
     ? systemOverride
-    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext;
+    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + memoryBlock;
 
   const userParts = [{ text: userText }];
-  if (photoData) {
-    userParts.unshift({
-      inline_data: {
-        mime_type: photoData.mimeType || 'image/jpeg',
-        data: photoData.base64
-      }
-    });
-  }
+  if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
 
   if (!systemOverride) history.push({ role: 'user', parts: userParts });
-
   const contents = systemOverride ? [{ role: 'user', parts: userParts }] : history;
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: {
-      temperature: systemOverride ? 0.4 : 0.9,
-      maxOutputTokens: systemOverride ? 150 : 200
-    }
+    generationConfig: { temperature: systemOverride ? 0.4 : 0.9, maxOutputTokens: systemOverride ? 150 : 200 }
   };
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
 
   const data = await response.json();
@@ -317,28 +428,18 @@ async function speakWithElevenLabs(text, session) {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
 
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: cleanText,
-          model_id: 'eleven_turbo_v2',
-          output_format: 'mp3_44100_128',
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-        })
-      }
-    );
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
+      method: 'POST',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: cleanText,
+        model_id: 'eleven_turbo_v2',
+        output_format: 'mp3_44100_128',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      })
+    });
 
-    if (!response.ok) {
-      console.error('ElevenLabs error:', await response.text());
-      await session.audio.speak(text);
-      return;
-    }
+    if (!response.ok) { console.error('ElevenLabs error:', await response.text()); await session.audio.speak(text); return; }
 
     const audioBuffer = await response.arrayBuffer();
     const audioBytes = Buffer.from(audioBuffer);
@@ -352,39 +453,20 @@ async function speakWithElevenLabs(text, session) {
     try {
       currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
       await currentAudioRef;
-    } catch (e) {
-      console.error('playAudio error:', e);
-    } finally {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      currentAudioRef = null;
-    }
+    } catch (e) { console.error('playAudio error:', e); }
+    finally { await new Promise(resolve => setTimeout(resolve, 500)); currentAudioRef = null; }
 
-    setTimeout(() => {
-      try { fs.unlinkSync(filePath); } catch(e) {}
-    }, 60000);
-
-  } catch (err) {
-    console.error('ElevenLabs speak error:', err);
-    currentAudioRef = null;
-    await session.audio.speak(text);
-  }
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
+  } catch (err) { console.error('ElevenLabs speak error:', err); currentAudioRef = null; await session.audio.speak(text); }
 }
 
-const VISION_KEYWORDS = [
-  'what do you see', 'what can you see', 'look at this', 'what is this',
-  'what am i looking at', 'describe this', 'can you see', 'take a look',
-  'what does this say', 'read this', 'identify this', 'what is that',
-  'what are you seeing', 'look around'
-];
-const SAVE_KEYWORDS = [
-  'save this', 'save a pic', 'save a photo', 'take a picture', 'snap this',
-  'capture this', 'save what you see', 'save the pic', 'save that'
-];
-const LIVE_ON_KEYWORDS     = ['go live', 'riggy live', 'start live', 'live mode'];
-const LIVE_OFF_KEYWORDS    = ['stop live', 'end live', 'go to sleep', 'riggy stop', 'stop listening', 'stop'];
-const GAME_ON_KEYWORDS     = ['game mode', 'riggy game', 'start game mode', 'gaming mode'];
-const GAME_OFF_KEYWORDS    = ['stop game', 'end game mode', 'exit game', 'game off'];
-const LIVE_CAM_ON_KEYWORDS = ['go live camera', 'live camera', 'live vision', 'start live camera', 'watch mode'];
+const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around'];
+const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
+const LIVE_ON_KEYWORDS = ['go live','riggy live','start live','live mode'];
+const LIVE_OFF_KEYWORDS = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
+const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mode'];
+const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off'];
+const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode'];
 
 function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
@@ -394,6 +476,9 @@ function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerC
 function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
+// Load memory on startup
+loadMemory();
+
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
@@ -402,6 +487,7 @@ class RiggyGlasses extends AppServer {
     let gameMode      = false;
     let liveCamMode   = false;
     let lastRiggyText = '';
+    let sessionLog    = []; // For full chat save
 
     let bargeInAllowedAfterMs = 0;
     let ignoreSpeechDuringTTS = false;
@@ -418,9 +504,8 @@ class RiggyGlasses extends AppServer {
     const speakSafe = async (text) => {
       ignoreSpeechDuringTTS = true;
       bargeInAllowedAfterMs = Date.now() + POST_TTS_BARGE_LOCKOUT_MS;
-      try {
-        await speakWithElevenLabs(text, session);
-      } finally {
+      try { await speakWithElevenLabs(text, session); }
+      finally {
         await new Promise(resolve => setTimeout(resolve, RESUME_MIC_DELAY_MS));
         ignoreSpeechDuringTTS = false;
         bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
@@ -428,12 +513,11 @@ class RiggyGlasses extends AppServer {
       }
     };
 
-    // Set a reminder
     const setReminder = (label, fireAtMs) => {
       const id = reminderIdCounter++;
       const delay = fireAtMs - Date.now();
       const timerId = setTimeout(async () => {
-        console.log(`🔔 Reminder firing: ${label}`);
+        console.log(`🔔 Reminder: ${label}`);
         reminders.delete(id);
         const msg = `Hey friend — reminder: ${label}.`;
         latestState.riggySaid = msg;
@@ -446,33 +530,22 @@ class RiggyGlasses extends AppServer {
     const stopBurstModes = () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
       if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
-      gameMode    = false;
-      liveCamMode = false;
-      latestState.gameMode    = false;
-      latestState.liveCamMode = false;
+      gameMode = false; liveCamMode = false;
+      latestState.gameMode = false; latestState.liveCamMode = false;
     };
 
     const takePhoto = async (saveToGallery = false) => {
       try {
         const photo = await session.camera.requestPhoto({ saveToGallery });
-        if (photo && photo.buffer) {
-          return { base64: photo.buffer.toString('base64'), mimeType: photo.mimeType || 'image/jpeg' };
-        }
+        if (photo && photo.buffer) return { base64: photo.buffer.toString('base64'), mimeType: photo.mimeType || 'image/jpeg' };
       } catch (e) { console.error('Camera error:', e); }
       return null;
     };
 
     const startGameMode = async () => {
-      stopBurstModes();
-      gameMode = true;
-      latestState.gameMode = true;
-      console.log('🎮 Game mode ON');
+      stopBurstModes(); gameMode = true; latestState.gameMode = true;
       isProcessing = true;
-      try {
-        await speakSafe("Game mode on. I'm watching.");
-      } finally {
-        isProcessing = false;
-      }
+      try { await speakSafe("Game mode on. I'm watching."); } finally { isProcessing = false; }
       latestState.riggySaid = "Game mode on. I'm watching.";
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
@@ -481,26 +554,15 @@ class RiggyGlasses extends AppServer {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini('What do you see? Coach me.', sessionId, photo, GAME_MODE_PERSONALITY);
-          if (reply && reply.trim().length > 3) {
-            latestState.riggySaid = reply;
-            await speakSafe(reply);
-          }
-        } catch(e) { console.error('Game mode error:', e); }
-        finally { isProcessing = false; }
+          if (reply && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
+        } catch(e) { console.error('Game error:', e); } finally { isProcessing = false; }
       }, GAME_MODE_INTERVAL_MS);
     };
 
     const startLiveCamMode = async () => {
-      stopBurstModes();
-      liveCamMode = true;
-      latestState.liveCamMode = true;
-      console.log('📷 Live cam ON');
+      stopBurstModes(); liveCamMode = true; latestState.liveCamMode = true;
       isProcessing = true;
-      try {
-        await speakSafe("Live vision on. I'm watching with you.");
-      } finally {
-        isProcessing = false;
-      }
+      try { await speakSafe("Live vision on. I'm watching with you."); } finally { isProcessing = false; }
       latestState.riggySaid = "Live vision on. I'm watching with you.";
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
@@ -509,126 +571,114 @@ class RiggyGlasses extends AppServer {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini('What do you notice?', sessionId, photo, LIVE_CAM_PERSONALITY);
-          if (reply && reply.trim().length > 3) {
-            latestState.riggySaid = reply;
-            await speakSafe(reply);
-          }
-        } catch(e) { console.error('Live cam error:', e); }
-        finally { isProcessing = false; }
+          if (reply && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
+        } catch(e) { console.error('Live cam error:', e); } finally { isProcessing = false; }
       }, LIVE_CAM_INTERVAL_MS);
     };
 
     const handleInput = async (userSaid) => {
       if (!userSaid || isProcessing) return;
-
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
       isProcessing = true;
 
+      // Log to session
+      sessionLog.push({ role: 'user', text: userSaid, time: Date.now() });
+
       try {
-        // Stop all modes
         if (wantsLiveOff(userSaid)) {
-          stopBurstModes();
-          liveMode = false;
-          latestState.liveMode = false;
+          stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me.");
-          latestState.riggySaid = "Going quiet. Say my name when you need me.";
-          return;
+          latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        // Reminder — list
-        if (isListRemindersRequest(userSaid)) {
-          if (reminders.size === 0) {
-            await speakSafe("No reminders set, friend.");
-            latestState.riggySaid = "No reminders set, friend.";
-          } else {
-            const list = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ');
-            const msg = `You've got ${reminders.size} reminder${reminders.size !== 1 ? 's' : ''}: ${list}.`;
-            await speakSafe(msg);
-            latestState.riggySaid = msg;
+        // Save full chat
+        if (isSaveChatRequest(userSaid)) {
+          if (sessionLog.length < 2) {
+            await speakSafe("Not much to save yet friend.");
+            latestState.riggySaid = "Not much to save yet friend."; return;
           }
-          return;
+          const chatText = sessionLog.map(l => `${l.role === 'user' ? 'Friend' : 'Riggy'}: ${l.text}`).join('\n');
+          await saveMemory(chatText, 'chat');
+          await speakSafe("Got it. This conversation is saved to my memory.");
+          latestState.riggySaid = "Got it. This conversation is saved to my memory."; return;
         }
 
-        // Reminder — cancel
+        // Explicit memory save
+        if (isExplicitMemoryRequest(userSaid)) {
+          await saveMemory(userSaid, 'explicit');
+          await speakSafe("Locked in. I'll remember that.");
+          latestState.riggySaid = "Locked in. I'll remember that."; return;
+        }
+
+        // Reminders
+        if (isListRemindersRequest(userSaid)) {
+          if (reminders.size === 0) { await speakSafe("No reminders set, friend."); latestState.riggySaid = "No reminders set, friend."; return; }
+          const list = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ');
+          const msg = `You've got ${reminders.size} reminder${reminders.size !== 1 ? 's' : ''}: ${list}.`;
+          await speakSafe(msg); latestState.riggySaid = msg; return;
+        }
         if (isCancelRemindersRequest(userSaid)) {
-          reminders.forEach(r => clearTimeout(r.timerId));
-          reminders.clear();
-          await speakSafe("All reminders cleared, friend.");
-          latestState.riggySaid = "All reminders cleared, friend.";
-          return;
+          reminders.forEach(r => clearTimeout(r.timerId)); reminders.clear();
+          await speakSafe("All reminders cleared, friend."); latestState.riggySaid = "All reminders cleared, friend."; return;
         }
-
-        // Reminder — set
         if (isReminderRequest(userSaid)) {
           const fireAtMs = parseReminderTime(userSaid);
           if (!fireAtMs) {
-            await speakSafe("I didn't catch the time on that. Try saying remind me in 2 hours or remind me at 3pm.");
-            latestState.riggySaid = "I didn't catch the time. Try: remind me in 2 hours or at 3pm.";
-            return;
+            await speakSafe("I didn't catch the time. Try: remind me in 2 hours or at 3pm.");
+            latestState.riggySaid = "I didn't catch the time. Try: remind me in 2 hours or at 3pm."; return;
           }
           const label = parseReminderLabel(userSaid);
           setReminder(label, fireAtMs);
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
-          await speakSafe(confirmation);
-          latestState.riggySaid = confirmation;
-          return;
+          await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        if (wantsGameOn(userSaid))   { isProcessing = false; await startGameMode(); return; }
-        if (wantsGameOff(userSaid))  { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        if (wantsGameOn(userSaid))    { isProcessing = false; await startGameMode(); return; }
+        if (wantsGameOff(userSaid))   { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { isProcessing = false; await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) {
-          liveMode = true;
-          latestState.liveMode = true;
-          await speakSafe("Live mode on. Just talk.");
-          latestState.riggySaid = "Live mode on. Just talk.";
-          return;
+          liveMode = true; latestState.liveMode = true;
+          await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return;
         }
 
-        let photoData     = null;
+        // Pull memory context before responding
+        const memoryContext = await recallMemory(userSaid);
+
+        let photoData = null;
         const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
-
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
           if (photo && visionQuery) photoData = photo;
-          if (savePhoto && !visionQuery) {
-            await speakSafe("Saved it, friend.");
-            latestState.riggySaid = "Saved it, friend.";
-            return;
-          }
+          if (savePhoto && !visionQuery) { await speakSafe("Saved it, friend."); latestState.riggySaid = "Saved it, friend."; return; }
         }
 
-        const reply = await askGemini(userSaid, sessionId, photoData);
+        const reply = await askGemini(userSaid, sessionId, photoData, null, memoryContext);
         console.log(`Riggy: ${reply}`);
+
+        // Log Riggy response
+        sessionLog.push({ role: 'riggy', text: reply, time: Date.now() });
+
+        // Auto save if worthy
+        if (shouldAutoSave(userSaid)) {
+          saveMemory(userSaid, 'auto').catch(() => {});
+        }
+
         await speakSafe(reply);
         latestState.riggySaid = reply;
 
       } catch (err) {
         console.error('Error:', err);
         await session.audio.speak("Something glitched friend. Try me again.");
-      } finally {
-        isProcessing = false;
-      }
+      } finally { isProcessing = false; }
     };
 
     session._toggleLive = async () => {
-      if (gameMode || liveCamMode) {
-        stopBurstModes();
-        await speakSafe("Burst mode off.");
-        latestState.riggySaid = "Burst mode off.";
-        return false;
-      }
-      liveMode = !liveMode;
-      latestState.liveMode = liveMode;
-      if (liveMode) {
-        await speakSafe("Live mode on. Just talk.");
-        latestState.riggySaid = "Live mode on. Just talk.";
-      } else {
-        await speakSafe("Going quiet. Say my name when you need me.");
-        latestState.riggySaid = "Going quiet. Say my name when you need me.";
-      }
+      if (gameMode || liveCamMode) { stopBurstModes(); await speakSafe("Burst mode off."); latestState.riggySaid = "Burst mode off."; return false; }
+      liveMode = !liveMode; latestState.liveMode = liveMode;
+      if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
+      else { await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; }
       return liveMode;
     };
 
@@ -636,18 +686,12 @@ class RiggyGlasses extends AppServer {
       if (!data.isFinal) return;
       if (ignoreSpeechDuringTTS || isProcessing) { console.log('🔇 Busy'); return; }
       if (Date.now() < bargeInAllowedAfterMs) { console.log('🔇 Cooldown'); return; }
-
       const userSaid = data.text.trim();
       if (!userSaid) return;
-
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
-
       if (liveMode || gameMode || liveCamMode) { await handleInput(userSaid); return; }
-
       const lower = userSaid.toLowerCase();
-      if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) {
-        await handleInput(userSaid);
-      }
+      if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
     });
   }
 }
@@ -677,14 +721,9 @@ expressApp.get('/audio_:timestamp.mp3', (req, res) => {
 });
 
 expressApp.use(express.static(__dirname));
-
-expressApp.get('/webview', (req, res) => {
-  res.sendFile(path.join(__dirname, 'webview.html'));
-});
-
-expressApp.get('/webview-state', (req, res) => {
-  res.json(latestState);
-});
+expressApp.get('/webview', (req, res) => { res.sendFile(path.join(__dirname, 'webview.html')); });
+expressApp.get('/webview-state', (req, res) => { res.json(latestState); });
+expressApp.get('/memory', (req, res) => { res.json(memoryStore.map(m => ({ id: m.id, content: m.content, type: m.type, createdAt: m.createdAt }))); });
 
 expressApp.post('/toggle-live', async (req, res) => {
   const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
