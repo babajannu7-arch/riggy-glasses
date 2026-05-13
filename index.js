@@ -4,47 +4,46 @@ const path = require('path');
 const express = require('express');
 
 // ─── ENV ──────────────────────────────────────────────────────────────────────
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
+const GEMINI_API_KEY      = process.env.GEMINI_API_KEY;
+const ELEVENLABS_API_KEY  = process.env.ELEVENLABS_API_KEY;
+const ELEVEN_VOICE_ID     = process.env.ELEVEN_VOICE_ID;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
-// PLACES_API_KEY removed — replaced with free OpenStreetMap
-const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
-const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
+const VERTEX_PROJECT_ID   = process.env.VERTEX_PROJECT_ID;
+const VERTEX_LOCATION     = process.env.VERTEX_LOCATION;
 const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
-const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY
+const VERTEX_PRIVATE_KEY  = process.env.VERTEX_PRIVATE_KEY
   ? process.env.VERTEX_PRIVATE_KEY.replace(/\\n/g, '\n')
   : null;
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────
 const CONTACTS = {
-  'dan': process.env.CONTACT_DAN,
+  'dan':    process.env.CONTACT_DAN,
   'eyeris': process.env.CONTACT_EYERIS,
-  'iris': process.env.CONTACT_EYERIS,
-  'mom': process.env.CONTACT_MOM,
-  'moms': process.env.CONTACT_MOMS,
-  'mama': process.env.CONTACT_MOM,
+  'iris':   process.env.CONTACT_EYERIS,
+  'mom':    process.env.CONTACT_MOM,
+  'moms':   process.env.CONTACT_MOMS,
+  'mama':   process.env.CONTACT_MOM,
   'mother': process.env.CONTACT_MOM,
-  'shane': process.env.CONTACT_SHANE,
-  'syer': process.env.CONTACT_SYER,
-  'sire': process.env.CONTACT_SYER,
-  'wife': process.env.CONTACT_WIFE,
-  'sheba': process.env.CONTACT_WIFE,
+  'shane':  process.env.CONTACT_SHANE,
+  'syer':   process.env.CONTACT_SYER,
+  'sire':   process.env.CONTACT_SYER,
+  'wife':   process.env.CONTACT_WIFE,
+  'sheba':  process.env.CONTACT_WIFE,
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const DEFAULT_CITY = 'Deltona,FL,US';
-const DEFAULT_LAT = 28.9005;
-const DEFAULT_LNG = -81.2637;
+const DEFAULT_CITY              = 'Deltona,FL,US';
+const DEFAULT_LAT               = 28.9005;
+const DEFAULT_LNG               = -81.2637;
 const POST_TTS_BARGE_LOCKOUT_MS = 1000;
-const POST_SPEECH_COOLDOWN_MS = 450;
-const RESUME_MIC_DELAY_MS = 650;
-const GAME_MODE_INTERVAL_MS = 8000;
-const LIVE_CAM_INTERVAL_MS = 10000;
-const PROCESSING_TIMEOUT_MS = 15000; // safety net — force-reset isProcessing after 15s
+const POST_SPEECH_COOLDOWN_MS   = 450;
+const RESUME_MIC_DELAY_MS       = 650;
+const GAME_MODE_INTERVAL_MS     = 8000;
+const LIVE_CAM_INTERVAL_MS      = 10000;
+const PROCESSING_TIMEOUT_MS     = 15000;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let latestState = {
@@ -120,80 +119,76 @@ RULES:
 - If nothing worth saying — return exactly: SILENCE
 - No cheerleading. No narrating. Just useful tactical information.`;
 
-// ─── LOCATION — free OpenStreetMap, no API key needed ─────────────────────────
+const INTEL_PERSONALITY = `You are Mr. Riggy running an intel sweep on what the user is looking at.
+You have been given an image. Your job is to deliver exactly three things naturally in 5-6 spoken sentences:
+
+1. A genuinely interesting fun fact about what you see — something most people don't know.
+2. A historical fact or context — where it comes from, how it started, what era it belongs to.
+3. The average cost or market value if it's something that can be bought, owned, or priced — give a real number or range. If it truly cannot be priced (like a cloud or a random tree), skip this naturally without announcing you're skipping it.
+
+Deliver all three as flowing natural speech — no lists, no headers, no "fun fact colon". Just talk like a knowledgeable friend who noticed something interesting.
+Riggy's voice: warm, dry, confident, a little funny without trying. 5-6 sentences total.`;
+
+// ─── LOCATION ─────────────────────────────────────────────────────────────────
 async function getGlassesLocation(session) {
   try {
     const location = await session.location.getLatestLocation({ accuracy: 'high' });
-    if (location && location.lat && location.lng) {
-      return { lat: location.lat, lng: location.lng };
-    }
+    if (location && location.lat && location.lng) return { lat: location.lat, lng: location.lng };
     return null;
-  } catch(e) {
-    console.error('Location error:', e);
-    return null;
-  }
+  } catch(e) { console.error('Location error:', e); return null; }
 }
 
-// Reverse geocode coordinates → human readable address (free, no key)
 async function reverseGeocode(lat, lng) {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
     const res = await fetch(url, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
     const data = await res.json();
     if (data && data.display_name) {
-      // Return a clean short version
       const parts = data.display_name.split(',');
       return parts.slice(0, 3).join(',').trim();
     }
     return null;
-  } catch(e) {
-    console.error('Geocode error:', e);
-    return null;
-  }
+  } catch(e) { console.error('Geocode error:', e); return null; }
 }
 
-// Search nearby places via OpenStreetMap Overpass API (free, no key)
+// Fixed: tagMap uses arrays, no bad string split
 async function searchNearby(query, lat, lng, radiusMeters = 5000) {
   try {
-    // Map common queries to OSM amenity/shop tags
     const tagMap = {
-      'gas station': 'amenity=fuel',
-      'gas': 'amenity=fuel',
-      'fuel': 'amenity=fuel',
-      'restaurant': 'amenity=restaurant',
-      'food': 'amenity=restaurant',
-      'eat': 'amenity=restaurant',
-      'coffee': 'amenity=cafe',
-      'cafe': 'amenity=cafe',
-      'pharmacy': 'amenity=pharmacy',
-      'hospital': 'amenity=hospital',
-      'atm': 'amenity=atm',
-      'bank': 'amenity=bank',
-      'grocery': 'shop=supermarket',
-      'supermarket': 'shop=supermarket',
-      'walmart': 'name=Walmart',
-      'publix': 'name=Publix',
-      'target': 'name=Target',
-      'hotel': 'tourism=hotel',
-      'park': 'leisure=park',
-      'gym': 'leisure=fitness_centre',
-      'school': 'amenity=school',
-      'church': 'amenity=place_of_worship',
-      'library': 'amenity=library',
+      'gas station': ['amenity', 'fuel'],
+      'gas':         ['amenity', 'fuel'],
+      'fuel':        ['amenity', 'fuel'],
+      'restaurant':  ['amenity', 'restaurant'],
+      'food':        ['amenity', 'restaurant'],
+      'eat':         ['amenity', 'restaurant'],
+      'coffee':      ['amenity', 'cafe'],
+      'cafe':        ['amenity', 'cafe'],
+      'pharmacy':    ['amenity', 'pharmacy'],
+      'hospital':    ['amenity', 'hospital'],
+      'atm':         ['amenity', 'atm'],
+      'bank':        ['amenity', 'bank'],
+      'grocery':     ['shop', 'supermarket'],
+      'supermarket': ['shop', 'supermarket'],
+      'gym':         ['leisure', 'fitness_centre'],
+      'park':        ['leisure', 'park'],
+      'hotel':       ['tourism', 'hotel'],
+      'library':     ['amenity', 'library'],
+      'church':      ['amenity', 'place_of_worship'],
+      'school':      ['amenity', 'school'],
+      'walmart':     ['name', 'Walmart'],
+      'publix':      ['name', 'Publix'],
+      'target':      ['name', 'Target'],
+      'walgreens':   ['name', 'Walgreens'],
+      'cvs':         ['name', 'CVS'],
     };
 
     const q = query.toLowerCase();
-    let tag = null;
+    let tagKey = 'name';
+    let tagVal = query;
     for (const [key, val] of Object.entries(tagMap)) {
-      if (q.includes(key)) { tag = val; break; }
+      if (q.includes(key)) { [tagKey, tagVal] = val; break; }
     }
 
-    if (!tag) {
-      // Generic name search
-      tag = `name~"${query}",i`;
-    }
-
-    const [tagKey, tagVal] = tag.includes('=') ? tag.split('=') : ['name', query];
     const overpassQuery = `
       [out:json][timeout:10];
       (
@@ -206,25 +201,21 @@ async function searchNearby(query, lat, lng, radiusMeters = 5000) {
     const res = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       body: overpassQuery,
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { 'Content-Type': 'text/plain', 'User-Agent': 'RiggyGlasses/1.0' }
     });
     const data = await res.json();
-
     if (!data.elements || data.elements.length === 0) return null;
 
     const results = data.elements.slice(0, 3).map(el => {
       const elLat = el.lat || el.center?.lat;
       const elLng = el.lon || el.center?.lon;
-      const name = el.tags?.name || query;
-      const dist = elLat && elLng ? getDistanceMiles(lat, lng, elLat, elLng) : null;
-      return dist !== null ? `${name} — ${dist.toFixed(1)} miles away` : name;
+      const name  = el.tags?.name || query;
+      const dist  = elLat && elLng ? getDistanceMiles(lat, lng, elLat, elLng) : null;
+      return dist !== null ? `${name}, ${dist.toFixed(1)} miles away` : name;
     });
 
     return results.join('. ');
-  } catch(e) {
-    console.error('Nearby search error:', e);
-    return null;
-  }
+  } catch(e) { console.error('Nearby search error:', e); return null; }
 }
 
 function getDistanceMiles(lat1, lng1, lat2, lng2) {
@@ -257,17 +248,10 @@ function parseDistanceQuery(text) {
   return m ? m[1].trim() : null;
 }
 
-function isNearbyRequest(text) {
-  const l = text.toLowerCase();
-  return l.includes('near me') || l.includes('nearby') || l.includes('nearest') || l.includes('closest') || l.includes('find a ');
-}
-
+function isNearbyRequest(text)   { const l = text.toLowerCase(); return l.includes('near me') || l.includes('nearby') || l.includes('nearest') || l.includes('closest') || l.includes('find a '); }
 function isDistanceRequest(text) { return /how far/i.test(text); }
-
-function isLocationRequest(text) {
-  const l = text.toLowerCase();
-  return l.includes('where am i') || l.includes('what street') || l.includes('my location') || l.includes('where are we');
-}
+function isLocationRequest(text) { const l = text.toLowerCase(); return l.includes('where am i') || l.includes('what street') || l.includes('my location') || l.includes('where are we'); }
+function isIntelRequest(text)    { const l = text.toLowerCase(); return l.includes('intel') && l.includes('riggy'); }
 
 // ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
@@ -330,13 +314,13 @@ function parseTextIntent(text) {
 }
 
 // ─── VERTEX MEMORY ────────────────────────────────────────────────────────────
-let vertexTokenCache = null;
+let vertexTokenCache  = null;
 let vertexTokenExpiry = 0;
 
 async function getVertexToken() {
   const now = Math.floor(Date.now() / 1000);
   if (vertexTokenCache && now < vertexTokenExpiry - 60) return vertexTokenCache;
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
     iss: VERTEX_CLIENT_EMAIL,
     scope: 'https://www.googleapis.com/auth/cloud-platform',
@@ -360,7 +344,7 @@ async function getVertexToken() {
     body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
   });
   const tokenData = await tokenRes.json();
-  vertexTokenCache = tokenData.access_token;
+  vertexTokenCache  = tokenData.access_token;
   vertexTokenExpiry = now + (tokenData.expires_in || 3600);
   return vertexTokenCache;
 }
@@ -380,7 +364,6 @@ async function embedText(text) {
   } catch (e) { console.error('Embed error:', e); return null; }
 }
 
-// Simple keyword scoring fallback when no embedding available
 function keywordScore(query, content) {
   const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
   const cLower = content.toLowerCase();
@@ -389,10 +372,7 @@ function keywordScore(query, content) {
 }
 
 const MEMORY_FILE = path.join(__dirname, 'riggy_memory.json');
-let memoryStore = [];
-
-// Personal facts always injected into system prompt — never forgotten
-// These are rebuilt from explicit memories on each session
+let memoryStore    = [];
 let permanentFacts = [];
 
 function loadMemory() {
@@ -406,7 +386,6 @@ function loadMemory() {
 }
 
 function rebuildPermanentFacts() {
-  // Extract all explicit memories and recent auto-saves for always-on injection
   const explicit = memoryStore.filter(m => m.type === 'explicit' || m.type === 'auto');
   permanentFacts = explicit.slice(-20).map(m => m.content);
 }
@@ -426,59 +405,40 @@ function cosineSimilarity(a, b) {
 
 async function saveMemory(content, type = 'fact') {
   try {
-    // Try to get embedding — but ALWAYS save regardless of whether it succeeds
     const embedding = await embedText(content).catch(() => null);
-    const entry = { id: Date.now(), content, type, embedding, createdAt: Date.now() };
-    memoryStore.push(entry);
-
-    // Trim store — always protect explicit memories
+    memoryStore.push({ id: Date.now(), content, type, embedding, createdAt: Date.now() });
     if (memoryStore.length > 300) {
       const explicit = memoryStore.filter(m => m.type === 'explicit' || m.type === 'auto');
-      const others = memoryStore.filter(m => m.type !== 'explicit' && m.type !== 'auto').slice(-200);
+      const others   = memoryStore.filter(m => m.type !== 'explicit' && m.type !== 'auto').slice(-200);
       memoryStore = [...explicit, ...others];
     }
-
     saveMemoryToDisk();
     rebuildPermanentFacts();
     console.log(`💾 Memory [${type}]${embedding ? ' +embed' : ' +text-only'}: ${content.slice(0, 60)}`);
     return true;
-  } catch(e) {
-    console.error('Save memory error:', e);
-    return false;
-  }
+  } catch(e) { console.error('Save memory error:', e); return false; }
 }
 
 async function recallMemory(query, limit = 4) {
   try {
     if (memoryStore.length === 0) return null;
-
-    // Try vector search first
     const queryEmbed = await embedText(query).catch(() => null);
-
     const scored = memoryStore.map(m => {
       let score = 0;
       if (queryEmbed && m.embedding) {
-        // Vector similarity
         score = cosineSimilarity(queryEmbed, m.embedding);
       } else {
-        // Keyword fallback — works even when Vertex is down
         score = keywordScore(query, m.content) * 0.8;
       }
       return { ...m, score };
     });
-
-    // Lower threshold — 0.55 instead of 0.65 so looser matches surface
     const relevant = scored
       .filter(m => m.score > 0.55)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
-
     if (relevant.length === 0) return null;
     return relevant.map(m => `[${m.type}] ${m.content}`).join('\n');
-  } catch(e) {
-    console.error('Recall error:', e);
-    return null;
-  }
+  } catch(e) { console.error('Recall error:', e); return null; }
 }
 
 function shouldAutoSave(text) {
@@ -540,11 +500,11 @@ function formatTimeUntil(ms) {
   return `in ${hours} hour${hours !== 1 ? 's' : ''} and ${rem} minute${rem !== 1 ? 's' : ''}`;
 }
 
-function isReminderRequest(text) { const l = text.toLowerCase(); return l.includes('remind me') || l.includes('set a reminder') || l.includes('set reminder'); }
+function isReminderRequest(text)      { const l = text.toLowerCase(); return l.includes('remind me') || l.includes('set a reminder') || l.includes('set reminder'); }
 function isListRemindersRequest(text) { const l = text.toLowerCase(); return (l.includes('reminder') && (l.includes('list') || l.includes('what') || l.includes('show') || l.includes('my'))) || l.includes('my reminders'); }
-function isCancelRemindersRequest(t) { const l = t.toLowerCase(); return (l.includes('cancel') || l.includes('clear') || l.includes('delete')) && l.includes('reminder'); }
-function isSaveChatRequest(text) { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
-function isExplicitMemoryRequest(t) { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
+function isCancelRemindersRequest(t)  { const l = t.toLowerCase(); return (l.includes('cancel') || l.includes('clear') || l.includes('delete')) && l.includes('reminder'); }
+function isSaveChatRequest(text)      { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
+function isExplicitMemoryRequest(t)   { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
 
 // ─── CONVERSATION HISTORY ─────────────────────────────────────────────────────
 const conversationHistory = new Map();
@@ -589,11 +549,9 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     if (weather) weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
   }
 
-  // Always inject permanent facts (wife's name, preferences, etc.) so Riggy never forgets
   const permanentBlock = permanentFacts.length > 0
     ? `\n\nPERSONAL FACTS — always remember these:\n${permanentFacts.join('\n')}`
     : '';
-
   const memoryBlock = memoryContext ? `\n\nRELEVANT MEMORIES:\n${memoryContext}` : '';
 
   const systemPrompt = systemOverride
@@ -608,8 +566,8 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
     generationConfig: {
-      temperature: systemOverride ? 0.5 : 0.9,
-      maxOutputTokens: systemOverride ? 100 : 300,
+      temperature: systemOverride ? 0.7 : 0.9,
+      maxOutputTokens: systemOverride ? 200 : 300,
       thinkingConfig: { thinkingBudget: 0 }
     }
   };
@@ -629,8 +587,6 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
 }
 
 // ─── ELEVENLABS TTS ───────────────────────────────────────────────────────────
-// NOTE: waitForCompletion:true resolves before audio finishes (Mentra SDK known bug).
-// We calculate real duration from CBR 128kbps file size and race against it.
 let currentAudioRef = null;
 
 async function speakWithElevenLabs(text, session) {
@@ -643,7 +599,7 @@ async function speakWithElevenLabs(text, session) {
       body: JSON.stringify({
         text: cleanText,
         model_id: 'eleven_turbo_v2',
-        output_format: 'mp3_44100_128', // CBR — required for accurate duration calc
+        output_format: 'mp3_44100_128',
         voice_settings: { stability: 0.5, similarity_boost: 0.75 }
       })
     });
@@ -665,20 +621,20 @@ async function speakWithElevenLabs(text, session) {
 }
 
 // ─── KEYWORDS ─────────────────────────────────────────────────────────────────
-const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
-const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
-const LIVE_ON_KEYWORDS = ['go live','riggy live','start live','live mode'];
-const LIVE_OFF_KEYWORDS = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
-const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mode'];
-const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off','stop game mode'];
+const VISION_KEYWORDS      = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
+const SAVE_KEYWORDS        = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
+const LIVE_ON_KEYWORDS     = ['go live','riggy live','start live','live mode'];
+const LIVE_OFF_KEYWORDS    = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
+const GAME_ON_KEYWORDS     = ['game mode','riggy game','start game mode','gaming mode'];
+const GAME_OFF_KEYWORDS    = ['stop game','end game mode','exit game','game off','stop game mode'];
 const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode','eyes on'];
 
-function needsCamera(text) { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function needsSave(text) { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOn(text) { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOff(text) { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOn(text) { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOn(text)    { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOff(text)   { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
@@ -689,27 +645,24 @@ class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId} — user ${userId}`);
 
-    let liveMode = false;
-    let gameMode = false;
+    let liveMode    = false;
+    let gameMode    = false;
     let liveCamMode = false;
     let lastRiggyText = '';
-    let sessionLog = [];
+    let sessionLog    = [];
     let bargeInAllowedAfterMs = 0;
     let ignoreSpeechDuringTTS = false;
-    let isProcessing = false;
-    let processingTimer = null; // safety net timer
-    let gameModeInterval = null;
-    let liveCamInterval = null;
+    let isProcessing          = false;
+    let processingTimer       = null;
+    let gameModeInterval      = null;
+    let liveCamInterval       = null;
 
-    latestState.userSaid = '';
-    latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
-    latestState.liveMode = false;
-    latestState.gameMode = false;
+    latestState.userSaid    = '';
+    latestState.riggySaid   = 'Mr. Riggy online. Say my name to begin.';
+    latestState.liveMode    = false;
+    latestState.gameMode    = false;
     latestState.liveCamMode = false;
 
-    // ── isProcessing safety net ──
-    // If anything hangs and isProcessing never resets, Riggy goes deaf.
-    // This force-resets it after PROCESSING_TIMEOUT_MS so he always wakes back up.
     const setProcessing = (val) => {
       isProcessing = val;
       if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
@@ -747,10 +700,10 @@ class RiggyGlasses extends AppServer {
 
     const stopBurstModes = () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
-      if (liveCamInterval) { clearInterval(liveCamInterval); liveCamInterval = null; }
-      gameMode = false;
+      if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
+      gameMode    = false;
       liveCamMode = false;
-      latestState.gameMode = false;
+      latestState.gameMode    = false;
       latestState.liveCamMode = false;
     };
 
@@ -768,7 +721,6 @@ class RiggyGlasses extends AppServer {
       setProcessing(true);
       try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
       latestState.riggySaid = "Game mode on. I'm watching.";
-
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
         setProcessing(true);
@@ -787,7 +739,6 @@ class RiggyGlasses extends AppServer {
       setProcessing(true);
       try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
       latestState.riggySaid = "Live vision on. I'm watching with you.";
-
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
         setProcessing(true);
@@ -815,6 +766,15 @@ class RiggyGlasses extends AppServer {
           latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
+        // ── INTEL MODE — "Mr. Riggy Intel" ──
+        if (isIntelRequest(userSaid)) {
+          const photo = await takePhoto();
+          if (!photo) { await speakSafe("Couldn't get a clear shot friend. Try again."); latestState.riggySaid = "Couldn't get a clear shot."; return; }
+          const reply = await askGemini('Run an intel sweep on what you see in this image.', sessionId, photo, INTEL_PERSONALITY);
+          if (reply && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
+          return;
+        }
+
         // ── CALL ──
         if (isCallRequest(userSaid)) {
           const intent = parseCallIntent(userSaid);
@@ -838,9 +798,7 @@ class RiggyGlasses extends AppServer {
           const loc = await getGlassesLocation(session);
           if (loc) {
             const address = await reverseGeocode(loc.lat, loc.lng);
-            const msg = address
-              ? `You're at ${address}.`
-              : `You're at ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}.`;
+            const msg = address ? `You're at ${address}.` : `You're at ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}.`;
             await speakSafe(msg); latestState.riggySaid = msg;
           } else {
             await speakSafe("GPS isn't available right now. You're near Deltona, Florida.");
@@ -849,7 +807,7 @@ class RiggyGlasses extends AppServer {
           return;
         }
 
-        // ── NEARBY SEARCH ──
+        // ── NEARBY ──
         if (isNearbyRequest(userSaid)) {
           const query = parseNearbyQuery(userSaid);
           if (query) {
@@ -869,7 +827,6 @@ class RiggyGlasses extends AppServer {
             const loc = await getGlassesLocation(session);
             const lat = loc?.lat || DEFAULT_LAT;
             const lng = loc?.lng || DEFAULT_LNG;
-            // Use OpenStreetMap for distance too
             const results = await searchNearby(destination, lat, lng, 50000);
             const msg = results ? `${results}.` : `Couldn't find distance to ${destination} right now.`;
             await speakSafe(msg); latestState.riggySaid = msg; return;
@@ -911,8 +868,8 @@ class RiggyGlasses extends AppServer {
         }
 
         // ── MODES ──
-        if (wantsGameOn(userSaid)) { setProcessing(false); await startGameMode(); return; }
-        if (wantsGameOff(userSaid)) { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        if (wantsGameOn(userSaid))    { setProcessing(false); await startGameMode(); return; }
+        if (wantsGameOff(userSaid))   { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { setProcessing(false); await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) {
           liveMode = true; latestState.liveMode = true;
@@ -921,7 +878,7 @@ class RiggyGlasses extends AppServer {
 
         // ── VISION (single shot) ──
         let photoData = null;
-        const savePhoto = needsSave(userSaid);
+        const savePhoto   = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
@@ -929,7 +886,7 @@ class RiggyGlasses extends AppServer {
           if (savePhoto && !visionQuery) { await speakSafe("Saved it, friend."); latestState.riggySaid = "Saved it, friend."; return; }
         }
 
-        // ── LOCATION CONTEXT for nearby queries passed to Gemini ──
+        // ── LOCATION CONTEXT for Gemini ──
         let locationContext = '';
         if (isNearbyRequest(userSaid) || userSaid.toLowerCase().includes('near') || userSaid.toLowerCase().includes('around here')) {
           const loc = await getGlassesLocation(session);
