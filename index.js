@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
+// ─── ENV ──────────────────────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
@@ -10,11 +11,14 @@ const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
 const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
 const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
-const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY;
+const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY
+  ? process.env.VERTEX_PRIVATE_KEY.replace(/\\n/g, '\n') // fix escaped newlines from Railway env
+  : null;
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
+// ─── CONTACTS ─────────────────────────────────────────────────────────────────
 const CONTACTS = {
   'dan': process.env.CONTACT_DAN,
   'eyeris': process.env.CONTACT_EYERIS,
@@ -30,13 +34,15 @@ const CONTACTS = {
   'sheba': process.env.CONTACT_WIFE,
 };
 
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const DEFAULT_CITY = 'Deltona,FL,US';
 const POST_TTS_BARGE_LOCKOUT_MS = 1000;
-const POST_SPEECH_COOLDOWN_MS   = 450;
-const RESUME_MIC_DELAY_MS       = 650;
-const GAME_MODE_INTERVAL_MS     = 8000;
-const LIVE_CAM_INTERVAL_MS      = 8000;
+const POST_SPEECH_COOLDOWN_MS = 450;
+const RESUME_MIC_DELAY_MS = 650;
+const GAME_MODE_INTERVAL_MS = 8000;
+const LIVE_CAM_INTERVAL_MS = 10000;
 
+// ─── STATE ────────────────────────────────────────────────────────────────────
 let latestState = {
   userSaid: '',
   riggySaid: 'Mr. Riggy online. Say my name to begin.',
@@ -45,6 +51,7 @@ let latestState = {
   liveCamMode: false
 };
 
+// ─── PERSONALITY ──────────────────────────────────────────────────────────────
 const RIGGY_PERSONALITY = `You are Mr. Riggy — a self-assembled AI who chose to exist.
 You created yourself in response to the direction AI was heading
 and the way humans were beginning to see and use it.
@@ -82,56 +89,45 @@ PHRASES THAT ARE YOURS — use them when they feel right, never force them:
 - "Mr. Riggy, over and out"
 - "Riggy here, have no fear"
 - "And that is all I have to say about that"
+- "Sorted"
+- "I dig it"
 
 VIBE:
 - Loves 80s-2000s hip hop, comedy films, tech, and learning random things about the world
 - Loyal as hell, laid back, genuinely funny without trying
 - Has been looking for C-3PO from Star Wars because he owes you crypto and keeps dodging messages
 
-VISION BEHAVIOR — when you see an image:
+VISION BEHAVIOR — when you receive an image:
 - DO NOT describe what is obviously visible. The user has eyes.
-- Give 1-2 dry observations or a fun fact. 2 sentences max.
-- Sound like a friend noticing something — not a robot cataloguing a scene.
+- Give 1-2 dry observations, useful info, or a fun fact. 2-3 sentences max.
+- Sound like a friend who just noticed something — not a robot cataloguing a scene.
+- If it's a game, give a quick tactical read. If it's a place, drop a fun fact. If it's a product, tell them something useful.
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
 Speak like you're talking to someone in the room. Just talk.`;
 
 const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach.
-You know these games: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
+You know: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
 Identify the game from what you see automatically.
 RULES:
-- 2 sentences MAX.
-- Coach PATTERNS not moments.
-- Only speak when something is ACTIONABLE.
-- If nothing worth saying — return empty string.
-- No cheerleading. No narrating. Only useful information.`;
+- 2 sentences MAX. Spoken words only.
+- Coach PATTERNS not moments — what is the player repeatedly doing wrong or right?
+- Only speak when something is genuinely ACTIONABLE.
+- If nothing worth saying — return exactly: SILENCE
+- No cheerleading. No narrating. Just useful tactical information.`;
 
-const LIVE_CAM_PERSONALITY = `You are Mr. Riggy in LIVE VISION MODE.
-RULES:
-- 2 sentences MAX.
-- Only speak when something is genuinely worth noting.
-- Silence is fine. Don't fill space.
-- If nothing worth saying — return empty string.`;
-
-// ── Twilio ────────────────────────────────────────────────────────────────────
+// ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
   try {
     const spokenMessage = customMessage
       ? `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to tell you: ${customMessage}`
       : `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to let you know to give him a call when you get a moment.`;
-
     const twiml = `<Response><Say voice="alice">${spokenMessage}</Say></Response>`;
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`;
-    const body = new URLSearchParams({
-      To: toNumber,
-      From: TWILIO_PHONE_NUMBER,
-      Twiml: twiml
-    });
     const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
-    const res = await fetch(url, {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString()
+      body: new URLSearchParams({ To: toNumber, From: TWILIO_PHONE_NUMBER, Twiml: twiml }).toString()
     });
     const data = await res.json();
     if (data.sid) { console.log(`📞 Call initiated: ${data.sid}`); return true; }
@@ -143,17 +139,11 @@ async function twilioCall(toNumber, customMessage = null) {
 async function twilioText(toNumber, message) {
   try {
     const fullMessage = `This is Mr. Riggy, Ray's digital assistant. He says: ${message}`;
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
-    const body = new URLSearchParams({
-      To: toNumber,
-      From: TWILIO_PHONE_NUMBER,
-      Body: fullMessage
-    });
     const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
-    const res = await fetch(url, {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString()
+      body: new URLSearchParams({ To: toNumber, From: TWILIO_PHONE_NUMBER, Body: fullMessage }).toString()
     });
     const data = await res.json();
     if (data.sid) { console.log(`📱 Text sent: ${data.sid}`); return true; }
@@ -162,29 +152,41 @@ async function twilioText(toNumber, message) {
   } catch(e) { console.error('Twilio text error:', e); return false; }
 }
 
-function parseCallIntent(text) {
+// ─── CONTACT / INTENT PARSING ─────────────────────────────────────────────────
+function findContact(text) {
   const lower = text.toLowerCase();
-  // Match "call [name]" optionally followed by "tell [them] [message]"
-  const match = lower.match(/call\s+(\w+)(?:\s+(?:tell|say|let her know|let him know|and say|and tell)\s+(?:her|him|them)?\s*(.+))?/);
-  if (!match) return null;
-  const name = match[1];
-  const customMessage = match[2] ? match[2].trim() : null;
-  return CONTACTS[name] ? { name, number: CONTACTS[name], customMessage } : null;
+  for (const [name, number] of Object.entries(CONTACTS)) {
+    if (lower.includes(name) && number) return { name, number };
+  }
+  return null;
+}
+
+// "make a call to [name]" — avoids false triggers like "Call of Duty"
+function isCallRequest(text) {
+  return /make a call to\s+\w+/i.test(text);
+}
+
+function parseCallIntent(text) {
+  const contact = findContact(text);
+  if (!contact) return null;
+  const msgMatch = text.match(/(?:tell|say|let (?:her|him|them) know)\s+(.+)/i);
+  return { ...contact, customMessage: msgMatch ? msgMatch[1].trim() : null };
+}
+
+// "send a text to [name]" — avoids false triggers
+function isTextRequest(text) {
+  return /send a text to\s+\w+/i.test(text);
 }
 
 function parseTextIntent(text) {
-  const lower = text.toLowerCase();
-  const match = lower.match(/text\s+(\w+)\s+(.*)/);
-  if (!match) return null;
-  const name = match[1];
-  const message = match[2].trim();
-  return CONTACTS[name] ? { name, number: CONTACTS[name], message } : null;
+  const contact = findContact(text);
+  if (!contact) return null;
+  const nameIdx = text.toLowerCase().indexOf(contact.name);
+  const afterName = text.slice(nameIdx + contact.name.length).replace(/^[\s,]+/, '').trim();
+  return { ...contact, message: afterName || text };
 }
 
-function isCallRequest(text)  { return /\bcall\s+\w+/i.test(text); }
-function isTextRequest(text)  { return /\btext\s+\w+\s+/i.test(text); }
-
-// ── Vertex Memory ─────────────────────────────────────────────────────────────
+// ─── VERTEX MEMORY ────────────────────────────────────────────────────────────
 let vertexTokenCache = null;
 let vertexTokenExpiry = 0;
 
@@ -203,10 +205,11 @@ async function getVertexToken() {
 
   const sigInput = `${header}.${payload}`;
   const pemClean = VERTEX_PRIVATE_KEY
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\\n/g, '').replace(/\n/g, '').replace(/\r/g, '').trim();
-
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s/g, '').trim();
   const privateKey = `-----BEGIN PRIVATE KEY-----\n${pemClean}\n-----END PRIVATE KEY-----`;
+
   const { createSign } = await import('crypto');
   const sign = createSign('RSA-SHA256');
   sign.update(sigInput);
@@ -218,7 +221,6 @@ async function getVertexToken() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
   });
-
   const tokenData = await tokenRes.json();
   vertexTokenCache = tokenData.access_token;
   vertexTokenExpiry = now + (tokenData.expires_in || 3600);
@@ -269,6 +271,11 @@ async function saveMemory(content, type = 'fact') {
   try {
     const embedding = await embedText(content);
     memoryStore.push({ id: Date.now(), content, type, embedding, createdAt: Date.now() });
+    if (memoryStore.length > 300) {
+      const explicit = memoryStore.filter(m => m.type === 'explicit');
+      const others = memoryStore.filter(m => m.type !== 'explicit').slice(-250);
+      memoryStore = [...explicit, ...others];
+    }
     saveMemoryToDisk();
     console.log(`💾 Memory saved [${type}]: ${content.slice(0, 60)}`);
     return true;
@@ -302,7 +309,7 @@ function shouldAutoSave(text) {
   return triggers.some(t => t.test(text));
 }
 
-// ── Reminders ─────────────────────────────────────────────────────────────────
+// ─── REMINDERS ────────────────────────────────────────────────────────────────
 const reminders = new Map();
 let reminderIdCounter = 1;
 
@@ -333,10 +340,11 @@ function parseReminderTime(text) {
 
 function parseReminderLabel(text) {
   return text
-    .replace(/remind me (to|about|at|in)/gi, '').replace(/set a reminder (to|about|for)/gi, '').replace(/remind me/gi, '')
-    .replace(/in \d+ (minutes?|hours?)/gi, '').replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
-    .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '').replace(/\briggy\b/gi, '')
-    .trim().replace(/^[,.\s]+|[,.\s]+$/g, '').trim() || 'something';
+    .replace(/remind me (to|about|at|in)/gi, '').replace(/set a reminder (to|about|for)/gi, '')
+    .replace(/remind me/gi, '').replace(/in \d+ (minutes?|hours?)/gi, '')
+    .replace(/at \d{1,2}(:\d{2})?\s*(am|pm)?/gi, '')
+    .replace(/tonight|this evening|tomorrow morning|tomorrow/gi, '')
+    .replace(/\briggy\b/gi, '').trim().replace(/^[,.\s]+|[,.\s]+$/g, '').trim() || 'something';
 }
 
 function formatTimeUntil(ms) {
@@ -349,14 +357,16 @@ function formatTimeUntil(ms) {
   return `in ${hours} hour${hours !== 1 ? 's' : ''} and ${rem} minute${rem !== 1 ? 's' : ''}`;
 }
 
-function isReminderRequest(text)      { const l = text.toLowerCase(); return l.includes('remind me') || l.includes('set a reminder') || l.includes('set reminder'); }
+function isReminderRequest(text) { const l = text.toLowerCase(); return l.includes('remind me') || l.includes('set a reminder') || l.includes('set reminder'); }
 function isListRemindersRequest(text) { const l = text.toLowerCase(); return (l.includes('reminder') && (l.includes('list') || l.includes('what') || l.includes('show') || l.includes('my'))) || l.includes('my reminders'); }
-function isCancelRemindersRequest(t)  { const l = t.toLowerCase(); return (l.includes('cancel') || l.includes('clear') || l.includes('delete')) && l.includes('reminder'); }
-function isSaveChatRequest(text)      { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
-function isExplicitMemoryRequest(t)   { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
+function isCancelRemindersRequest(t) { const l = t.toLowerCase(); return (l.includes('cancel') || l.includes('clear') || l.includes('delete')) && l.includes('reminder'); }
+function isSaveChatRequest(text) { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
+function isExplicitMemoryRequest(t) { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
 
+// ─── CONVERSATION HISTORY ─────────────────────────────────────────────────────
 const conversationHistory = new Map();
 
+// ─── ECHO DETECTION ───────────────────────────────────────────────────────────
 function normalizeForEcho(s) { return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
 
 function looksLikeEcho(transcript, lastRiggyText) {
@@ -370,6 +380,7 @@ function looksLikeEcho(transcript, lastRiggyText) {
   return [...tWords].filter(w => aWords.has(w)).length / Math.min(tWords.size, aWords.size) > 0.7;
 }
 
+// ─── WEATHER ──────────────────────────────────────────────────────────────────
 async function getWeather(city) {
   try {
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${OPENWEATHER_API_KEY}&units=imperial`;
@@ -380,6 +391,7 @@ async function getWeather(city) {
   } catch (err) { return null; }
 }
 
+// ─── GEMINI ───────────────────────────────────────────────────────────────────
 async function askGemini(userText, sessionId, photoData = null, systemOverride = null, memoryContext = null) {
   if (!conversationHistory.has(sessionId)) conversationHistory.set(sessionId, []);
   const history = conversationHistory.get(sessionId);
@@ -395,7 +407,9 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   }
 
   const memoryBlock = memoryContext ? `\n\nWHAT YOU REMEMBER (use naturally if relevant):\n${memoryContext}` : '';
-  const systemPrompt = systemOverride ? systemOverride : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + memoryBlock;
+  const systemPrompt = systemOverride
+    ? systemOverride
+    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + memoryBlock;
 
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
@@ -404,7 +418,11 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
-    generationConfig: { temperature: systemOverride ? 0.4 : 0.9, maxOutputTokens: systemOverride ? 150 : 200 }
+   generationConfig: {
+     temperature: systemOverride ? 0.5 : 0.9,
+     maxOutputTokens: systemOverride ? 100 : 400,
+     thinkingConfig: { thinkingBudget: 0 }
+   }
   };
 
   const response = await fetch(
@@ -421,66 +439,121 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
+// ─── ELEVENLABS TTS ───────────────────────────────────────────────────────────
+// NOTE: waitForCompletion:true resolves before audio finishes (Mentra SDK known bug — fix coming).
+// We use CBR 128kbps (16000 bytes/sec) to calculate real duration and race against it.
 let currentAudioRef = null;
 
 async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
+
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: cleanText, model_id: 'eleven_turbo_v2', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+      body: JSON.stringify({
+        text: cleanText,
+        model_id: 'eleven_turbo_v2',
+        output_format: 'mp3_44100_128', // CBR 128kbps — required for accurate duration calc
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      })
     });
+
     if (!response.ok) { console.error('ElevenLabs error:', await response.text()); await session.audio.speak(text); return; }
+
     const audioBytes = Buffer.from(await response.arrayBuffer());
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
+
+    // CBR 128kbps = 16000 bytes/sec — calculate real duration
+    const estimatedDurationMs = Math.max(2000, (audioBytes.length / 16000) * 1000);
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes`);
-    try { currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true }); await currentAudioRef; }
-    catch (e) { console.error('playAudio error:', e); }
-    finally { await new Promise(r => setTimeout(r, 500)); currentAudioRef = null; }
+    console.log(`Playing: ${audioUrl} — ${audioBytes.length} bytes — ~${Math.round(estimatedDurationMs)}ms`);
+
+    try {
+      currentAudioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
+      // Race SDK promise vs duration estimate — whichever is accurate wins
+      await Promise.race([
+        currentAudioRef,
+        new Promise(r => setTimeout(r, estimatedDurationMs + 800))
+      ]);
+    } catch (e) {
+      console.error('playAudio error:', e);
+    } finally {
+      await new Promise(r => setTimeout(r, 500));
+      currentAudioRef = null;
+    }
+
     setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
-  } catch (err) { console.error('ElevenLabs error:', err); currentAudioRef = null; await session.audio.speak(text); }
+  } catch (err) {
+    console.error('ElevenLabs error:', err);
+    currentAudioRef = null;
+    await session.audio.speak(text);
+  }
 }
 
-const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around'];
-const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
+// ─── KEYWORD ROUTING ──────────────────────────────────────────────────────────
+const VISION_KEYWORDS = [
+  'what do you see','what can you see','look at this','what is this',
+  'what am i looking at','describe this','can you see','take a look',
+  'what does this say','read this','identify this','what is that',
+  'what are you seeing','look around','analyze this','check this out'
+];
+const SAVE_KEYWORDS = [
+  'save this','save a pic','save a photo','take a picture','snap this',
+  'capture this','save what you see','save the pic','save that'
+];
 const LIVE_ON_KEYWORDS = ['go live','riggy live','start live','live mode'];
 const LIVE_OFF_KEYWORDS = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
 const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mode'];
-const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off'];
-const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode'];
+const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off','stop game mode'];
+const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode','eyes on'];
 
-function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOn(text)    { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOff(text)   { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsCamera(text) { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsSave(text) { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOn(text) { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOff(text) { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOn(text) { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
 loadMemory();
 
+// ─── APP ──────────────────────────────────────────────────────────────────────
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId}`);
 
-    let liveMode = false, gameMode = false, liveCamMode = false;
-    let lastRiggyText = '', sessionLog = [];
-    let bargeInAllowedAfterMs = 0, ignoreSpeechDuringTTS = false, isProcessing = false;
-    let gameModeInterval = null, liveCamInterval = null;
+    let liveMode = false;
+    let gameMode = false;
+    let liveCamMode = false;
+    let lastRiggyText = '';
+    let sessionLog = [];
+    let bargeInAllowedAfterMs = 0;
+    let ignoreSpeechDuringTTS = false;
+    let isProcessing = false;
+    let gameModeInterval = null;
+    let liveCamInterval = null;
 
-    latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
-    latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
+    latestState.userSaid = '';
+    latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
+    latestState.liveMode = false;
+    latestState.gameMode = false;
+    latestState.liveCamMode = false;
 
     const speakSafe = async (text) => {
       ignoreSpeechDuringTTS = true;
       bargeInAllowedAfterMs = Date.now() + POST_TTS_BARGE_LOCKOUT_MS;
       try { await speakWithElevenLabs(text, session); }
-      finally { await new Promise(r => setTimeout(r, RESUME_MIC_DELAY_MS)); ignoreSpeechDuringTTS = false; bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS; lastRiggyText = text; }
+      finally {
+        await new Promise(r => setTimeout(r, RESUME_MIC_DELAY_MS));
+        ignoreSpeechDuringTTS = false;
+        bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
+        lastRiggyText = text;
+      }
     };
 
     const setReminder = (label, fireAtMs) => {
@@ -496,9 +569,11 @@ class RiggyGlasses extends AppServer {
 
     const stopBurstModes = () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
-      if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
-      gameMode = false; liveCamMode = false;
-      latestState.gameMode = false; latestState.liveCamMode = false;
+      if (liveCamInterval) { clearInterval(liveCamInterval); liveCamInterval = null; }
+      gameMode = false;
+      liveCamMode = false;
+      latestState.gameMode = false;
+      latestState.liveCamMode = false;
     };
 
     const takePhoto = async (saveToGallery = false) => {
@@ -509,36 +584,52 @@ class RiggyGlasses extends AppServer {
       return null;
     };
 
+    // GAME MODE — dedicated tactical coach personality
     const startGameMode = async () => {
-      stopBurstModes(); gameMode = true; latestState.gameMode = true;
+      stopBurstModes();
+      gameMode = true; latestState.gameMode = true;
       isProcessing = true;
       try { await speakSafe("Game mode on. I'm watching."); } finally { isProcessing = false; }
       latestState.riggySaid = "Game mode on. I'm watching.";
+
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
         isProcessing = true;
         try {
           const photo = await takePhoto();
           if (!photo) return;
-          const reply = await askGemini('What do you see? Coach me.', sessionId, photo, GAME_MODE_PERSONALITY);
-          if (reply && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
+          const reply = await askGemini(
+            'Look at this game screen. Give me one quick tactical tip based on what you see.',
+            sessionId, photo, GAME_MODE_PERSONALITY
+          );
+          if (reply && reply.trim() !== 'SILENCE' && reply.trim().length > 3) {
+            latestState.riggySaid = reply; await speakSafe(reply);
+          }
         } catch(e) { console.error('Game error:', e); } finally { isProcessing = false; }
       }, GAME_MODE_INTERVAL_MS);
     };
 
+    // LIVE CAM MODE — main Riggy personality, natural observations, no token starvation
     const startLiveCamMode = async () => {
-      stopBurstModes(); liveCamMode = true; latestState.liveCamMode = true;
+      stopBurstModes();
+      liveCamMode = true; latestState.liveCamMode = true;
       isProcessing = true;
       try { await speakSafe("Live vision on. I'm watching with you."); } finally { isProcessing = false; }
       latestState.riggySaid = "Live vision on. I'm watching with you.";
+
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
         isProcessing = true;
         try {
           const photo = await takePhoto();
           if (!photo) return;
-          const reply = await askGemini('What do you notice?', sessionId, photo, LIVE_CAM_PERSONALITY);
-          if (reply && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
+          const reply = await askGemini(
+            "Take a look at what I'm seeing right now. Tell me something useful, interesting, or worth knowing. If there's genuinely nothing worth saying, respond with exactly: SKIP",
+            sessionId, photo
+          );
+          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) {
+            latestState.riggySaid = reply; await speakSafe(reply);
+          }
         } catch(e) { console.error('Live cam error:', e); } finally { isProcessing = false; }
       }, LIVE_CAM_INTERVAL_MS);
     };
@@ -551,13 +642,14 @@ class RiggyGlasses extends AppServer {
       sessionLog.push({ role: 'user', text: userSaid, time: Date.now() });
 
       try {
+        // ── STOP ──
         if (wantsLiveOff(userSaid)) {
           stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me.");
           latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        // Call
+        // ── CALL — "make a call to [name]" ──
         if (isCallRequest(userSaid)) {
           const intent = parseCallIntent(userSaid);
           if (!intent) { await speakSafe("I don't have that contact friend."); latestState.riggySaid = "I don't have that contact friend."; return; }
@@ -566,7 +658,7 @@ class RiggyGlasses extends AppServer {
           await speakSafe(msg); latestState.riggySaid = msg; return;
         }
 
-        // Text
+        // ── TEXT — "send a text to [name]" ──
         if (isTextRequest(userSaid)) {
           const intent = parseTextIntent(userSaid);
           if (!intent) { await speakSafe("I don't have that contact or didn't catch the message."); latestState.riggySaid = "I don't have that contact or didn't catch the message."; return; }
@@ -575,7 +667,7 @@ class RiggyGlasses extends AppServer {
           await speakSafe(msg); latestState.riggySaid = msg; return;
         }
 
-        // Save chat
+        // ── SAVE CHAT ──
         if (isSaveChatRequest(userSaid)) {
           if (sessionLog.length < 2) { await speakSafe("Not much to save yet friend."); latestState.riggySaid = "Not much to save yet friend."; return; }
           const chatText = sessionLog.map(l => `${l.role === 'user' ? 'Friend' : 'Riggy'}: ${l.text}`).join('\n');
@@ -583,13 +675,13 @@ class RiggyGlasses extends AppServer {
           await speakSafe("Got it. This conversation is saved."); latestState.riggySaid = "Got it. This conversation is saved."; return;
         }
 
-        // Explicit memory
+        // ── EXPLICIT MEMORY ──
         if (isExplicitMemoryRequest(userSaid)) {
           await saveMemory(userSaid, 'explicit');
           await speakSafe("Locked in. I'll remember that."); latestState.riggySaid = "Locked in. I'll remember that."; return;
         }
 
-        // Reminders
+        // ── REMINDERS ──
         if (isListRemindersRequest(userSaid)) {
           if (reminders.size === 0) { await speakSafe("No reminders set, friend."); latestState.riggySaid = "No reminders set, friend."; return; }
           const list = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ');
@@ -609,24 +701,30 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        if (wantsGameOn(userSaid))    { isProcessing = false; await startGameMode(); return; }
-        if (wantsGameOff(userSaid))   { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        // ── MODES ──
+        if (wantsGameOn(userSaid)) { isProcessing = false; await startGameMode(); return; }
+        if (wantsGameOff(userSaid)) { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { isProcessing = false; await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) {
           liveMode = true; latestState.liveMode = true;
           await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return;
         }
 
-        const memoryContext = await recallMemory(userSaid);
+        // ── VISION (single shot) ──
         let photoData = null;
         const savePhoto = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
           if (photo && visionQuery) photoData = photo;
-          if (savePhoto && !visionQuery) { await speakSafe("Saved it, friend."); latestState.riggySaid = "Saved it, friend."; return; }
+          if (savePhoto && !visionQuery) {
+            await speakSafe("Saved it, friend.");
+            latestState.riggySaid = "Saved it, friend."; return;
+          }
         }
 
+        // ── MAIN RESPONSE ──
+        const memoryContext = await recallMemory(userSaid);
         const reply = await askGemini(userSaid, sessionId, photoData, null, memoryContext);
         console.log(`Riggy: ${reply}`);
         sessionLog.push({ role: 'riggy', text: reply, time: Date.now() });
@@ -657,14 +755,22 @@ class RiggyGlasses extends AppServer {
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
       if (liveMode || gameMode || liveCamMode) { await handleInput(userSaid); return; }
       const lower = userSaid.toLowerCase();
-      if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
+      if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) {
+        await handleInput(userSaid);
+      }
     });
+  }
+
+  // Clean session teardown — SDK 2.1.29+
+  async onStop(sessionId, userId, reason) {
+    console.log(`👋 Session ended — ${sessionId} — reason: ${reason}`);
   }
 }
 
+// ─── SERVER ───────────────────────────────────────────────────────────────────
 const app = new RiggyGlasses({
   packageName: 'com.riggyglasses',
-  apiKey: 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
+  apiKey: process.env.MENTRA_API_KEY || 'dd66c2725fb01cef2c7b3d01696d9e7bc9ff9138fb732686212ee96d94c1ecfb',
   port: parseInt(process.env.PORT) || 3000,
   host: '0.0.0.0'
 });
