@@ -8,7 +8,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
-const PLACES_API_KEY = process.env.PLACES_API_KEY;
+// PLACES_API_KEY removed — replaced with free OpenStreetMap
 const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
 const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
 const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
@@ -44,6 +44,7 @@ const POST_SPEECH_COOLDOWN_MS = 450;
 const RESUME_MIC_DELAY_MS = 650;
 const GAME_MODE_INTERVAL_MS = 8000;
 const LIVE_CAM_INTERVAL_MS = 10000;
+const PROCESSING_TIMEOUT_MS = 15000; // safety net — force-reset isProcessing after 15s
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let latestState = {
@@ -119,7 +120,7 @@ RULES:
 - If nothing worth saying — return exactly: SILENCE
 - No cheerleading. No narrating. Just useful tactical information.`;
 
-// ─── LOCATION ─────────────────────────────────────────────────────────────────
+// ─── LOCATION — free OpenStreetMap, no API key needed ─────────────────────────
 async function getGlassesLocation(session) {
   try {
     const location = await session.location.getLatestLocation({ accuracy: 'high' });
@@ -133,35 +134,95 @@ async function getGlassesLocation(session) {
   }
 }
 
-// ─── PLACES ───────────────────────────────────────────────────────────────────
-async function searchNearby(query, lat, lng) {
+// Reverse geocode coordinates → human readable address (free, no key)
+async function reverseGeocode(lat, lng) {
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&keyword=${encodeURIComponent(query)}&key=${PLACES_API_KEY}`;
-    const res = await fetch(url);
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
     const data = await res.json();
-    if (!data.results || data.results.length === 0) return null;
-    const top = data.results.slice(0, 3).map(p => {
-      const dist = getDistanceMiles(lat, lng, p.geometry.location.lat, p.geometry.location.lng);
-      return `${p.name} — ${dist.toFixed(1)} miles away${p.rating ? `, rated ${p.rating}` : ''}`;
-    });
-    return top.join('. ');
+    if (data && data.display_name) {
+      // Return a clean short version
+      const parts = data.display_name.split(',');
+      return parts.slice(0, 3).join(',').trim();
+    }
+    return null;
   } catch(e) {
-    console.error('Places error:', e);
+    console.error('Geocode error:', e);
     return null;
   }
 }
 
-async function getDistanceToPlace(query, lat, lng) {
+// Search nearby places via OpenStreetMap Overpass API (free, no key)
+async function searchNearby(query, lat, lng, radiusMeters = 5000) {
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=50000&keyword=${encodeURIComponent(query)}&key=${PLACES_API_KEY}`;
-    const res = await fetch(url);
+    // Map common queries to OSM amenity/shop tags
+    const tagMap = {
+      'gas station': 'amenity=fuel',
+      'gas': 'amenity=fuel',
+      'fuel': 'amenity=fuel',
+      'restaurant': 'amenity=restaurant',
+      'food': 'amenity=restaurant',
+      'eat': 'amenity=restaurant',
+      'coffee': 'amenity=cafe',
+      'cafe': 'amenity=cafe',
+      'pharmacy': 'amenity=pharmacy',
+      'hospital': 'amenity=hospital',
+      'atm': 'amenity=atm',
+      'bank': 'amenity=bank',
+      'grocery': 'shop=supermarket',
+      'supermarket': 'shop=supermarket',
+      'walmart': 'name=Walmart',
+      'publix': 'name=Publix',
+      'target': 'name=Target',
+      'hotel': 'tourism=hotel',
+      'park': 'leisure=park',
+      'gym': 'leisure=fitness_centre',
+      'school': 'amenity=school',
+      'church': 'amenity=place_of_worship',
+      'library': 'amenity=library',
+    };
+
+    const q = query.toLowerCase();
+    let tag = null;
+    for (const [key, val] of Object.entries(tagMap)) {
+      if (q.includes(key)) { tag = val; break; }
+    }
+
+    if (!tag) {
+      // Generic name search
+      tag = `name~"${query}",i`;
+    }
+
+    const [tagKey, tagVal] = tag.includes('=') ? tag.split('=') : ['name', query];
+    const overpassQuery = `
+      [out:json][timeout:10];
+      (
+        node["${tagKey}"="${tagVal}"](around:${radiusMeters},${lat},${lng});
+        way["${tagKey}"="${tagVal}"](around:${radiusMeters},${lat},${lng});
+      );
+      out center 3;
+    `;
+
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: overpassQuery,
+      headers: { 'Content-Type': 'text/plain' }
+    });
     const data = await res.json();
-    if (!data.results || data.results.length === 0) return null;
-    const place = data.results[0];
-    const dist = getDistanceMiles(lat, lng, place.geometry.location.lat, place.geometry.location.lng);
-    return { name: place.name, miles: dist.toFixed(1) };
+
+    if (!data.elements || data.elements.length === 0) return null;
+
+    const results = data.elements.slice(0, 3).map(el => {
+      const elLat = el.lat || el.center?.lat;
+      const elLng = el.lon || el.center?.lon;
+      const name = el.tags?.name || query;
+      const dist = elLat && elLng ? getDistanceMiles(lat, lng, elLat, elLng) : null;
+      return dist !== null ? `${name} — ${dist.toFixed(1)} miles away` : name;
+    });
+
+    return results.join('. ');
   } catch(e) {
-    console.error('Distance error:', e);
+    console.error('Nearby search error:', e);
     return null;
   }
 }
@@ -177,15 +238,14 @@ function getDistanceMiles(lat1, lng1, lat2, lng2) {
 }
 
 function parseNearbyQuery(text) {
-  const lower = text.toLowerCase();
-  const nearPatterns = [
+  const patterns = [
     /nearest\s+(.+?)(?:\?|$)/i,
     /near(?:by|est)?\s+(.+?)(?:\?|$)/i,
     /close(?:st)?\s+(.+?)(?:\?|$)/i,
     /find\s+(?:a\s+)?(.+?)\s+near/i,
     /(?:any\s+)?(.+?)\s+near\s+me/i,
   ];
-  for (const p of nearPatterns) {
+  for (const p of patterns) {
     const m = text.match(p);
     if (m) return m[1].trim().replace(/\briggy\b/gi, '').trim();
   }
@@ -202,9 +262,7 @@ function isNearbyRequest(text) {
   return l.includes('near me') || l.includes('nearby') || l.includes('nearest') || l.includes('closest') || l.includes('find a ');
 }
 
-function isDistanceRequest(text) {
-  return /how far/i.test(text);
-}
+function isDistanceRequest(text) { return /how far/i.test(text); }
 
 function isLocationRequest(text) {
   const l = text.toLowerCase();
@@ -253,8 +311,8 @@ function findContact(text) {
   return null;
 }
 
-function isCallRequest(text)  { return /make a call to\s+\w+/i.test(text); }
-function isTextRequest(text)  { return /send a text to\s+\w+/i.test(text); }
+function isCallRequest(text) { return /make a call to\s+\w+/i.test(text); }
+function isTextRequest(text) { return /send a text to\s+\w+/i.test(text); }
 
 function parseCallIntent(text) {
   const contact = findContact(text);
@@ -286,7 +344,10 @@ async function getVertexToken() {
     exp: now + 3600, iat: now
   })).toString('base64url');
   const sigInput = `${header}.${payload}`;
-  const pemClean = VERTEX_PRIVATE_KEY.replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s/g, '').trim();
+  const pemClean = VERTEX_PRIVATE_KEY
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s/g, '').trim();
   const privateKey = `-----BEGIN PRIVATE KEY-----\n${pemClean}\n-----END PRIVATE KEY-----`;
   const { createSign } = await import('crypto');
   const sign = createSign('RSA-SHA256');
@@ -319,16 +380,35 @@ async function embedText(text) {
   } catch (e) { console.error('Embed error:', e); return null; }
 }
 
+// Simple keyword scoring fallback when no embedding available
+function keywordScore(query, content) {
+  const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const cLower = content.toLowerCase();
+  const hits = qWords.filter(w => cLower.includes(w)).length;
+  return qWords.length > 0 ? hits / qWords.length : 0;
+}
+
 const MEMORY_FILE = path.join(__dirname, 'riggy_memory.json');
 let memoryStore = [];
+
+// Personal facts always injected into system prompt — never forgotten
+// These are rebuilt from explicit memories on each session
+let permanentFacts = [];
 
 function loadMemory() {
   try {
     if (fs.existsSync(MEMORY_FILE)) {
       memoryStore = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
       console.log(`📚 Loaded ${memoryStore.length} memories`);
+      rebuildPermanentFacts();
     }
   } catch(e) { console.error('Memory load error:', e); }
+}
+
+function rebuildPermanentFacts() {
+  // Extract all explicit memories and recent auto-saves for always-on injection
+  const explicit = memoryStore.filter(m => m.type === 'explicit' || m.type === 'auto');
+  permanentFacts = explicit.slice(-20).map(m => m.content);
 }
 
 function saveMemoryToDisk() {
@@ -346,33 +426,59 @@ function cosineSimilarity(a, b) {
 
 async function saveMemory(content, type = 'fact') {
   try {
-    const embedding = await embedText(content);
-    memoryStore.push({ id: Date.now(), content, type, embedding, createdAt: Date.now() });
+    // Try to get embedding — but ALWAYS save regardless of whether it succeeds
+    const embedding = await embedText(content).catch(() => null);
+    const entry = { id: Date.now(), content, type, embedding, createdAt: Date.now() };
+    memoryStore.push(entry);
+
+    // Trim store — always protect explicit memories
     if (memoryStore.length > 300) {
-      const explicit = memoryStore.filter(m => m.type === 'explicit');
-      const others = memoryStore.filter(m => m.type !== 'explicit').slice(-250);
+      const explicit = memoryStore.filter(m => m.type === 'explicit' || m.type === 'auto');
+      const others = memoryStore.filter(m => m.type !== 'explicit' && m.type !== 'auto').slice(-200);
       memoryStore = [...explicit, ...others];
     }
+
     saveMemoryToDisk();
-    console.log(`💾 Memory [${type}]: ${content.slice(0, 60)}`);
+    rebuildPermanentFacts();
+    console.log(`💾 Memory [${type}]${embedding ? ' +embed' : ' +text-only'}: ${content.slice(0, 60)}`);
     return true;
-  } catch(e) { console.error('Save memory error:', e); return false; }
+  } catch(e) {
+    console.error('Save memory error:', e);
+    return false;
+  }
 }
 
-async function recallMemory(query, limit = 3) {
+async function recallMemory(query, limit = 4) {
   try {
     if (memoryStore.length === 0) return null;
-    const queryEmbed = await embedText(query);
-    if (!queryEmbed) return null;
-    const scored = memoryStore
-      .filter(m => m.embedding)
-      .map(m => ({ ...m, score: cosineSimilarity(queryEmbed, m.embedding) }))
-      .filter(m => m.score > 0.65)
+
+    // Try vector search first
+    const queryEmbed = await embedText(query).catch(() => null);
+
+    const scored = memoryStore.map(m => {
+      let score = 0;
+      if (queryEmbed && m.embedding) {
+        // Vector similarity
+        score = cosineSimilarity(queryEmbed, m.embedding);
+      } else {
+        // Keyword fallback — works even when Vertex is down
+        score = keywordScore(query, m.content) * 0.8;
+      }
+      return { ...m, score };
+    });
+
+    // Lower threshold — 0.55 instead of 0.65 so looser matches surface
+    const relevant = scored
+      .filter(m => m.score > 0.55)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
-    if (scored.length === 0) return null;
-    return scored.map(m => `[${m.type}] ${m.content}`).join('\n');
-  } catch(e) { console.error('Recall error:', e); return null; }
+
+    if (relevant.length === 0) return null;
+    return relevant.map(m => `[${m.type}] ${m.content}`).join('\n');
+  } catch(e) {
+    console.error('Recall error:', e);
+    return null;
+  }
 }
 
 function shouldAutoSave(text) {
@@ -440,9 +546,10 @@ function isCancelRemindersRequest(t) { const l = t.toLowerCase(); return (l.incl
 function isSaveChatRequest(text) { const l = text.toLowerCase(); return l.includes('save this chat') || l.includes('save this conversation') || l.includes('remember this chat') || l.includes('remember this conversation'); }
 function isExplicitMemoryRequest(t) { const l = t.toLowerCase(); return (l.includes('remember this') || l.includes('remember that')) && !l.includes('pic') && !l.includes('photo'); }
 
-// ─── CONVERSATION ─────────────────────────────────────────────────────────────
+// ─── CONVERSATION HISTORY ─────────────────────────────────────────────────────
 const conversationHistory = new Map();
 
+// ─── ECHO DETECTION ───────────────────────────────────────────────────────────
 function normalizeForEcho(s) { return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
 
 function looksLikeEcho(transcript, lastRiggyText) {
@@ -482,10 +589,16 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     if (weather) weatherContext = `\nCurrent weather in ${weather.city}: ${weather.temp}°F, feels like ${weather.feels_like}°F, ${weather.description}, humidity ${weather.humidity}%.`;
   }
 
-  const memoryBlock = memoryContext ? `\n\nWHAT YOU REMEMBER (use naturally if relevant):\n${memoryContext}` : '';
+  // Always inject permanent facts (wife's name, preferences, etc.) so Riggy never forgets
+  const permanentBlock = permanentFacts.length > 0
+    ? `\n\nPERSONAL FACTS — always remember these:\n${permanentFacts.join('\n')}`
+    : '';
+
+  const memoryBlock = memoryContext ? `\n\nRELEVANT MEMORIES:\n${memoryContext}` : '';
+
   const systemPrompt = systemOverride
     ? systemOverride
-    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + locationContext + memoryBlock;
+    : RIGGY_PERSONALITY + `\n\nCurrent date and time: ${now}` + weatherContext + locationContext + permanentBlock + memoryBlock;
 
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
@@ -496,7 +609,7 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
     contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
     generationConfig: {
       temperature: systemOverride ? 0.5 : 0.9,
-      maxOutputTokens: systemOverride ? 100 : 400,
+      maxOutputTokens: systemOverride ? 100 : 300,
       thinkingConfig: { thinkingBudget: 0 }
     }
   };
@@ -515,7 +628,9 @@ async function askGemini(userText, sessionId, photoData = null, systemOverride =
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
-// ─── ELEVENLABS ───────────────────────────────────────────────────────────────
+// ─── ELEVENLABS TTS ───────────────────────────────────────────────────────────
+// NOTE: waitForCompletion:true resolves before audio finishes (Mentra SDK known bug).
+// We calculate real duration from CBR 128kbps file size and race against it.
 let currentAudioRef = null;
 
 async function speakWithElevenLabs(text, session) {
@@ -528,7 +643,7 @@ async function speakWithElevenLabs(text, session) {
       body: JSON.stringify({
         text: cleanText,
         model_id: 'eleven_turbo_v2',
-        output_format: 'mp3_44100_128',
+        output_format: 'mp3_44100_128', // CBR — required for accurate duration calc
         voice_settings: { stability: 0.5, similarity_boost: 0.75 }
       })
     });
@@ -558,14 +673,15 @@ const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mod
 const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off','stop game mode'];
 const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode','eyes on'];
 
-function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOn(text)    { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOff(text)   { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsCamera(text) { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsSave(text) { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOn(text) { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOff(text) { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOn(text) { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
 loadMemory();
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
@@ -573,13 +689,38 @@ class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId} — user ${userId}`);
 
-    let liveMode = false, gameMode = false, liveCamMode = false;
-    let lastRiggyText = '', sessionLog = [];
-    let bargeInAllowedAfterMs = 0, ignoreSpeechDuringTTS = false, isProcessing = false;
-    let gameModeInterval = null, liveCamInterval = null;
+    let liveMode = false;
+    let gameMode = false;
+    let liveCamMode = false;
+    let lastRiggyText = '';
+    let sessionLog = [];
+    let bargeInAllowedAfterMs = 0;
+    let ignoreSpeechDuringTTS = false;
+    let isProcessing = false;
+    let processingTimer = null; // safety net timer
+    let gameModeInterval = null;
+    let liveCamInterval = null;
 
-    latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
-    latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
+    latestState.userSaid = '';
+    latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
+    latestState.liveMode = false;
+    latestState.gameMode = false;
+    latestState.liveCamMode = false;
+
+    // ── isProcessing safety net ──
+    // If anything hangs and isProcessing never resets, Riggy goes deaf.
+    // This force-resets it after PROCESSING_TIMEOUT_MS so he always wakes back up.
+    const setProcessing = (val) => {
+      isProcessing = val;
+      if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
+      if (val) {
+        processingTimer = setTimeout(() => {
+          console.warn('⚠️ isProcessing stuck — force resetting');
+          isProcessing = false;
+          processingTimer = null;
+        }, PROCESSING_TIMEOUT_MS);
+      }
+    };
 
     const speakSafe = async (text) => {
       ignoreSpeechDuringTTS = true;
@@ -606,9 +747,11 @@ class RiggyGlasses extends AppServer {
 
     const stopBurstModes = () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
-      if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
-      gameMode = false; liveCamMode = false;
-      latestState.gameMode = false; latestState.liveCamMode = false;
+      if (liveCamInterval) { clearInterval(liveCamInterval); liveCamInterval = null; }
+      gameMode = false;
+      liveCamMode = false;
+      latestState.gameMode = false;
+      latestState.liveCamMode = false;
     };
 
     const takePhoto = async (saveToGallery = false) => {
@@ -620,36 +763,40 @@ class RiggyGlasses extends AppServer {
     };
 
     const startGameMode = async () => {
-      stopBurstModes(); gameMode = true; latestState.gameMode = true;
-      isProcessing = true;
-      try { await speakSafe("Game mode on. I'm watching."); } finally { isProcessing = false; }
+      stopBurstModes();
+      gameMode = true; latestState.gameMode = true;
+      setProcessing(true);
+      try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
       latestState.riggySaid = "Game mode on. I'm watching.";
+
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
-        isProcessing = true;
+        setProcessing(true);
         try {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini('Look at this game screen. Give me one quick tactical tip.', sessionId, photo, GAME_MODE_PERSONALITY);
           if (reply && reply.trim() !== 'SILENCE' && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
-        } catch(e) { console.error('Game error:', e); } finally { isProcessing = false; }
+        } catch(e) { console.error('Game error:', e); } finally { setProcessing(false); }
       }, GAME_MODE_INTERVAL_MS);
     };
 
     const startLiveCamMode = async () => {
-      stopBurstModes(); liveCamMode = true; latestState.liveCamMode = true;
-      isProcessing = true;
-      try { await speakSafe("Live vision on. I'm watching with you."); } finally { isProcessing = false; }
+      stopBurstModes();
+      liveCamMode = true; latestState.liveCamMode = true;
+      setProcessing(true);
+      try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
       latestState.riggySaid = "Live vision on. I'm watching with you.";
+
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
-        isProcessing = true;
+        setProcessing(true);
         try {
           const photo = await takePhoto();
           if (!photo) return;
           const reply = await askGemini("Take a look at what I'm seeing. Tell me something useful or interesting. If nothing worth saying, respond: SKIP", sessionId, photo);
           if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
-        } catch(e) { console.error('Live cam error:', e); } finally { isProcessing = false; }
+        } catch(e) { console.error('Live cam error:', e); } finally { setProcessing(false); }
       }, LIVE_CAM_INTERVAL_MS);
     };
 
@@ -657,16 +804,18 @@ class RiggyGlasses extends AppServer {
       if (!userSaid || isProcessing) return;
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
-      isProcessing = true;
+      setProcessing(true);
       sessionLog.push({ role: 'user', text: userSaid, time: Date.now() });
 
       try {
+        // ── STOP ──
         if (wantsLiveOff(userSaid)) {
           stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me.");
           latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
+        // ── CALL ──
         if (isCallRequest(userSaid)) {
           const intent = parseCallIntent(userSaid);
           if (!intent) { await speakSafe("I don't have that contact friend."); latestState.riggySaid = "I don't have that contact friend."; return; }
@@ -675,6 +824,7 @@ class RiggyGlasses extends AppServer {
           await speakSafe(msg); latestState.riggySaid = msg; return;
         }
 
+        // ── TEXT ──
         if (isTextRequest(userSaid)) {
           const intent = parseTextIntent(userSaid);
           if (!intent) { await speakSafe("I don't have that contact or didn't catch the message."); latestState.riggySaid = "I don't have that contact or didn't catch the message."; return; }
@@ -683,17 +833,23 @@ class RiggyGlasses extends AppServer {
           await speakSafe(msg); latestState.riggySaid = msg; return;
         }
 
-        // ── LOCATION / PLACES ──
+        // ── WHERE AM I ──
         if (isLocationRequest(userSaid)) {
           const loc = await getGlassesLocation(session);
-          const lat = loc?.lat || DEFAULT_LAT;
-          const lng = loc?.lng || DEFAULT_LNG;
-          const msg = loc
-            ? `You're at coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)}. I can find nearby places if you need.`
-            : "I don't have GPS access right now but I know you're near Deltona, Florida.";
-          await speakSafe(msg); latestState.riggySaid = msg; return;
+          if (loc) {
+            const address = await reverseGeocode(loc.lat, loc.lng);
+            const msg = address
+              ? `You're at ${address}.`
+              : `You're at ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}.`;
+            await speakSafe(msg); latestState.riggySaid = msg;
+          } else {
+            await speakSafe("GPS isn't available right now. You're near Deltona, Florida.");
+            latestState.riggySaid = "GPS isn't available right now.";
+          }
+          return;
         }
 
+        // ── NEARBY SEARCH ──
         if (isNearbyRequest(userSaid)) {
           const query = parseNearbyQuery(userSaid);
           if (query) {
@@ -701,27 +857,26 @@ class RiggyGlasses extends AppServer {
             const lat = loc?.lat || DEFAULT_LAT;
             const lng = loc?.lng || DEFAULT_LNG;
             const results = await searchNearby(query, lat, lng);
-            const msg = results
-              ? `Nearest ${query}: ${results}`
-              : `Couldn't find ${query} nearby right now.`;
+            const msg = results ? `Nearest ${query}: ${results}.` : `Couldn't find ${query} nearby right now.`;
             await speakSafe(msg); latestState.riggySaid = msg; return;
           }
         }
 
+        // ── HOW FAR ──
         if (isDistanceRequest(userSaid)) {
           const destination = parseDistanceQuery(userSaid);
           if (destination) {
             const loc = await getGlassesLocation(session);
             const lat = loc?.lat || DEFAULT_LAT;
             const lng = loc?.lng || DEFAULT_LNG;
-            const result = await getDistanceToPlace(destination, lat, lng);
-            const msg = result
-              ? `${result.name} is about ${result.miles} miles from here.`
-              : `Couldn't find the distance to ${destination} right now.`;
+            // Use OpenStreetMap for distance too
+            const results = await searchNearby(destination, lat, lng, 50000);
+            const msg = results ? `${results}.` : `Couldn't find distance to ${destination} right now.`;
             await speakSafe(msg); latestState.riggySaid = msg; return;
           }
         }
 
+        // ── SAVE CHAT ──
         if (isSaveChatRequest(userSaid)) {
           if (sessionLog.length < 2) { await speakSafe("Not much to save yet friend."); latestState.riggySaid = "Not much to save yet friend."; return; }
           const chatText = sessionLog.map(l => `${l.role === 'user' ? 'Friend' : 'Riggy'}: ${l.text}`).join('\n');
@@ -729,11 +884,13 @@ class RiggyGlasses extends AppServer {
           await speakSafe("Got it. This conversation is saved."); latestState.riggySaid = "Got it. This conversation is saved."; return;
         }
 
+        // ── EXPLICIT MEMORY ──
         if (isExplicitMemoryRequest(userSaid)) {
           await saveMemory(userSaid, 'explicit');
           await speakSafe("Locked in. I'll remember that."); latestState.riggySaid = "Locked in. I'll remember that."; return;
         }
 
+        // ── REMINDERS ──
         if (isListRemindersRequest(userSaid)) {
           if (reminders.size === 0) { await speakSafe("No reminders set, friend."); latestState.riggySaid = "No reminders set, friend."; return; }
           const list = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ');
@@ -753,24 +910,16 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        if (wantsGameOn(userSaid))    { isProcessing = false; await startGameMode(); return; }
-        if (wantsGameOff(userSaid))   { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
-        if (wantsLiveCamOn(userSaid)) { isProcessing = false; await startLiveCamMode(); return; }
+        // ── MODES ──
+        if (wantsGameOn(userSaid)) { setProcessing(false); await startGameMode(); return; }
+        if (wantsGameOff(userSaid)) { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        if (wantsLiveCamOn(userSaid)) { setProcessing(false); await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) {
           liveMode = true; latestState.liveMode = true;
           await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return;
         }
 
-        // ── MAIN RESPONSE ──
-        const memoryContext = await recallMemory(userSaid);
-
-        // Get location context for relevant queries
-        let locationContext = '';
-        if (isNearbyRequest(userSaid) || isDistanceRequest(userSaid) || userSaid.toLowerCase().includes('near') || userSaid.toLowerCase().includes('around here')) {
-          const loc = await getGlassesLocation(session);
-          if (loc) locationContext = `\n\nUser's current GPS location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)} (Deltona FL area).`;
-        }
-
+        // ── VISION (single shot) ──
         let photoData = null;
         const savePhoto = needsSave(userSaid);
         const visionQuery = needsCamera(userSaid);
@@ -780,6 +929,18 @@ class RiggyGlasses extends AppServer {
           if (savePhoto && !visionQuery) { await speakSafe("Saved it, friend."); latestState.riggySaid = "Saved it, friend."; return; }
         }
 
+        // ── LOCATION CONTEXT for nearby queries passed to Gemini ──
+        let locationContext = '';
+        if (isNearbyRequest(userSaid) || userSaid.toLowerCase().includes('near') || userSaid.toLowerCase().includes('around here')) {
+          const loc = await getGlassesLocation(session);
+          if (loc) {
+            const address = await reverseGeocode(loc.lat, loc.lng);
+            locationContext = `\n\nUser's current location: ${address || `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`}`;
+          }
+        }
+
+        // ── MAIN RESPONSE ──
+        const memoryContext = await recallMemory(userSaid);
         const reply = await askGemini(userSaid, sessionId, photoData, null, memoryContext, locationContext);
         console.log(`Riggy: ${reply}`);
         sessionLog.push({ role: 'riggy', text: reply, time: Date.now() });
@@ -790,7 +951,7 @@ class RiggyGlasses extends AppServer {
       } catch (err) {
         console.error('Error:', err);
         await session.audio.speak("Something glitched friend. Try me again.");
-      } finally { isProcessing = false; }
+      } finally { setProcessing(false); }
     };
 
     session._toggleLive = async () => {
