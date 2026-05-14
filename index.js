@@ -44,6 +44,7 @@ const RESUME_MIC_DELAY_MS       = 650;
 const GAME_MODE_INTERVAL_MS     = 8000;
 const LIVE_CAM_INTERVAL_MS      = 10000;
 const PROCESSING_TIMEOUT_MS     = 15000;
+const NOTE_SILENCE_TIMEOUT_MS   = 5000; // 5 seconds silence = done noting
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let latestState = {
@@ -51,7 +52,8 @@ let latestState = {
   riggySaid: 'Mr. Riggy online. Say my name to begin.',
   liveMode: false,
   gameMode: false,
-  liveCamMode: false
+  liveCamMode: false,
+  noteMode: false
 };
 
 // ─── PERSONALITY ──────────────────────────────────────────────────────────────
@@ -124,7 +126,7 @@ You have been given an image. Your job is to deliver exactly three things natura
 
 1. A genuinely interesting fun fact about what you see — something most people don't know.
 2. A historical fact or context — where it comes from, how it started, what era it belongs to.
-3. The average cost or market value if it's something that can be bought, owned, or priced — give a real number or range. If it truly cannot be priced (like a cloud or a random tree), skip this naturally without announcing you're skipping it.
+3. The average cost or market value if it's something that can be bought, owned, or priced — give a real number or range. If it truly cannot be priced, skip this naturally without announcing you're skipping it.
 
 Deliver all three as flowing natural speech — no lists, no headers, no "fun fact colon". Just talk like a knowledgeable friend who noticed something interesting.
 Riggy's voice: warm, dry, confident, a little funny without trying. 5-6 sentences total.`;
@@ -151,7 +153,6 @@ async function reverseGeocode(lat, lng) {
   } catch(e) { console.error('Geocode error:', e); return null; }
 }
 
-// Fixed: tagMap uses arrays, no bad string split
 async function searchNearby(query, lat, lng, radiusMeters = 5000) {
   try {
     const tagMap = {
@@ -252,6 +253,43 @@ function isNearbyRequest(text)   { const l = text.toLowerCase(); return l.includ
 function isDistanceRequest(text) { return /how far/i.test(text); }
 function isLocationRequest(text) { const l = text.toLowerCase(); return l.includes('where am i') || l.includes('what street') || l.includes('my location') || l.includes('where are we'); }
 function isIntelRequest(text)    { const l = text.toLowerCase(); return l.includes('intel') && l.includes('riggy'); }
+
+// ─── BRIEFING DETECTION ───────────────────────────────────────────────────────
+function isMorningGreeting(text) {
+  const l = text.toLowerCase();
+  return l.includes('good morning') && l.includes('riggy');
+}
+
+function isAfternoonGreeting(text) {
+  const l = text.toLowerCase();
+  return l.includes('good afternoon') && l.includes('riggy');
+}
+
+function isNightGreeting(text) {
+  const l = text.toLowerCase();
+  return (l.includes('good night') || l.includes('goodnight')) && l.includes('riggy');
+}
+
+// ─── NOTE MODE DETECTION ──────────────────────────────────────────────────────
+function isNoteRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('note this') || l.includes('riggy note') || l.includes('take a note');
+}
+
+function isNoteListRequest(text) {
+  const l = text.toLowerCase();
+  return (l.includes('my notes') || l.includes('read my notes') || l.includes('what are my notes') || l.includes('show my notes'));
+}
+
+function isNoteDoneRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('riggy done') || l.includes('done noting') || l.includes('end note') || l.includes('stop note');
+}
+
+function isBatteryRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('battery') && l.includes('riggy');
+}
 
 // ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
@@ -425,11 +463,8 @@ async function recallMemory(query, limit = 4) {
     const queryEmbed = await embedText(query).catch(() => null);
     const scored = memoryStore.map(m => {
       let score = 0;
-      if (queryEmbed && m.embedding) {
-        score = cosineSimilarity(queryEmbed, m.embedding);
-      } else {
-        score = keywordScore(query, m.content) * 0.8;
-      }
+      if (queryEmbed && m.embedding) score = cosineSimilarity(queryEmbed, m.embedding);
+      else score = keywordScore(query, m.content) * 0.8;
       return { ...m, score };
     });
     const relevant = scored
@@ -441,6 +476,14 @@ async function recallMemory(query, limit = 4) {
   } catch(e) { console.error('Recall error:', e); return null; }
 }
 
+// Get all notes saved by user
+function getNotes() {
+  return memoryStore
+    .filter(m => m.type === 'note')
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 10);
+}
+
 function shouldAutoSave(text) {
   const triggers = [
     /my (wife|husband|partner|girlfriend|boyfriend|mom|dad|mother|father|sister|brother|son|daughter|kid|baby|friend|boss|name) (is|are|was)/i,
@@ -450,6 +493,95 @@ function shouldAutoSave(text) {
     /my (name|number|address|job|car|dog|cat|pet|house|apartment)/i,
   ];
   return triggers.some(t => t.test(text));
+}
+
+// ─── BRIEFING GENERATORS ──────────────────────────────────────────────────────
+async function generateMorningBriefing(weather, reminderList, recentNotes, personalContext) {
+  const now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const weatherStr = weather ? `${weather.temp}°F and ${weather.description} in ${weather.city}.` : '';
+  const remindersStr = reminderList.length > 0 ? `Reminders today: ${reminderList.join(', ')}.` : 'No reminders set.';
+  const notesStr = recentNotes.length > 0 ? `Notes from yesterday: ${recentNotes.map(n => n.content).join('. ')}.` : '';
+  const contextStr = personalContext ? `Personal context: ${personalContext}` : '';
+
+  const prompt = `You are Mr. Riggy delivering a warm, energetic morning briefing. Keep it natural, spoken, under 6 sentences total.
+
+Current time: ${now}
+Weather: ${weatherStr}
+${remindersStr}
+${notesStr}
+${contextStr}
+
+Deliver: good morning greeting with the day and time, weather naturally woven in, reminders if any, any notes from yesterday, and end with a genuine uplifting message for the day — not generic, make it feel personal and real. Riggy's voice — warm, dry, a little funny. No lists. Pure spoken words.`;
+
+  const body = {
+    system_instruction: { parts: [{ text: prompt }] },
+    contents: [{ role: 'user', parts: [{ text: 'Good morning briefing please.' }] }],
+    generationConfig: { temperature: 0.9, maxOutputTokens: 250, thinkingConfig: { thinkingBudget: 0 } }
+  };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Good morning friend. Mr. Riggy here, ready when you are.";
+}
+
+async function generateAfternoonBriefing(reminderList, recentNotes, personalContext) {
+  const now = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+
+  const remindersStr = reminderList.length > 0 ? `Upcoming reminders: ${reminderList.join(', ')}.` : 'No reminders coming up.';
+  const notesStr = recentNotes.length > 0 ? `Notes from today: ${recentNotes.map(n => n.content).join('. ')}.` : '';
+  const contextStr = personalContext ? `What you know about this person: ${personalContext}` : '';
+
+  const prompt = `You are Mr. Riggy delivering an afternoon check-in. Keep it natural, spoken, under 5 sentences.
+
+Current time: ${now}
+${remindersStr}
+${notesStr}
+${contextStr}
+
+Deliver: a quick afternoon hey with the time, any reminders coming up, reference anything from their notes or personal context to make the positive message feel specific and real — not generic motivation, something that actually connects to what they've been dealing with or who they are. Warm, dry, Riggy's voice. No lists. Pure spoken words.`;
+
+  const body = {
+    system_instruction: { parts: [{ text: prompt }] },
+    contents: [{ role: 'user', parts: [{ text: 'Afternoon check-in please.' }] }],
+    generationConfig: { temperature: 0.9, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } }
+  };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Good afternoon friend. Rest of the day is yours — make it count.";
+}
+
+async function generateNightBriefing(todayNotes, tomorrowReminders, personalContext) {
+  const notesStr = todayNotes.length > 0 ? `Today's notes: ${todayNotes.map(n => n.content).join('. ')}.` : 'No notes from today.';
+  const remindersStr = tomorrowReminders.length > 0 ? `Tomorrow's reminders: ${tomorrowReminders.join(', ')}.` : 'Nothing set for tomorrow yet.';
+  const contextStr = personalContext ? `About this person: ${personalContext}` : '';
+
+  const prompt = `You are Mr. Riggy delivering a warm end-of-day wrap. Keep it natural, spoken, under 5 sentences.
+
+${notesStr}
+${remindersStr}
+${contextStr}
+
+Deliver: a warm good night, quick summary of today's notes if any, mention tomorrow's reminders if set, and close with something genuine — a wind-down line that feels personal, not canned. Riggy's voice. No lists. Pure spoken words.`;
+
+  const body = {
+    system_instruction: { parts: [{ text: prompt }] },
+    contents: [{ role: 'user', parts: [{ text: 'Good night wrap please.' }] }],
+    generationConfig: { temperature: 0.9, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } }
+  };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Good night friend. Rest up — Mr. Riggy will be here when you need him.";
 }
 
 // ─── REMINDERS ────────────────────────────────────────────────────────────────
@@ -648,6 +780,9 @@ class RiggyGlasses extends AppServer {
     let liveMode    = false;
     let gameMode    = false;
     let liveCamMode = false;
+    let noteMode    = false;
+    let noteBuffer  = [];
+    let noteSilenceTimer = null;
     let lastRiggyText = '';
     let sessionLog    = [];
     let bargeInAllowedAfterMs = 0;
@@ -662,6 +797,7 @@ class RiggyGlasses extends AppServer {
     latestState.liveMode    = false;
     latestState.gameMode    = false;
     latestState.liveCamMode = false;
+    latestState.noteMode    = false;
 
     const setProcessing = (val) => {
       isProcessing = val;
@@ -685,6 +821,24 @@ class RiggyGlasses extends AppServer {
         bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
         lastRiggyText = text;
       }
+    };
+
+    // ── NOTE MODE ──
+    const finishNote = async () => {
+      noteMode = false;
+      latestState.noteMode = false;
+      if (noteSilenceTimer) { clearTimeout(noteSilenceTimer); noteSilenceTimer = null; }
+      if (noteBuffer.length === 0) {
+        await speakSafe("Nothing to save friend.");
+        latestState.riggySaid = "Nothing to save friend.";
+        return;
+      }
+      const noteContent = noteBuffer.join(' ').trim();
+      noteBuffer = [];
+      await saveMemory(noteContent, 'note');
+      await speakSafe("Got it. Note saved.");
+      latestState.riggySaid = "Got it. Note saved.";
+      console.log(`📝 Note saved: ${noteContent.slice(0, 80)}`);
     };
 
     const setReminder = (label, fireAtMs) => {
@@ -752,7 +906,24 @@ class RiggyGlasses extends AppServer {
     };
 
     const handleInput = async (userSaid) => {
-      if (!userSaid || isProcessing) return;
+      if (!userSaid) return;
+
+      // ── NOTE MODE — collect everything until silence or "Riggy done" ──
+      if (noteMode) {
+        if (isNoteDoneRequest(userSaid)) {
+          await finishNote();
+          return;
+        }
+        // Add to note buffer and reset silence timer
+        noteBuffer.push(userSaid);
+        if (noteSilenceTimer) clearTimeout(noteSilenceTimer);
+        noteSilenceTimer = setTimeout(async () => {
+          await finishNote();
+        }, NOTE_SILENCE_TIMEOUT_MS);
+        return;
+      }
+
+      if (isProcessing) return;
       console.log(`User said: ${userSaid}`);
       latestState.userSaid = userSaid;
       setProcessing(true);
@@ -766,7 +937,89 @@ class RiggyGlasses extends AppServer {
           latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        // ── INTEL MODE — "Mr. Riggy Intel" ──
+        // ── MORNING BRIEFING ──
+        if (isMorningGreeting(userSaid)) {
+          const weather = await getWeather(DEFAULT_CITY);
+          const reminderList = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`);
+          const yesterdayNotes = memoryStore
+            .filter(m => m.type === 'note' && Date.now() - m.createdAt < 86400000 * 2)
+            .slice(-3);
+          const context = permanentFacts.slice(0, 5).join('. ');
+          const briefing = await generateMorningBriefing(weather, reminderList, yesterdayNotes, context);
+          await speakSafe(briefing);
+          latestState.riggySaid = briefing;
+          return;
+        }
+
+        // ── AFTERNOON BRIEFING ──
+        if (isAfternoonGreeting(userSaid)) {
+          const reminderList = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`);
+          const todayNotes = memoryStore
+            .filter(m => m.type === 'note' && Date.now() - m.createdAt < 43200000)
+            .slice(-3);
+          const context = permanentFacts.slice(0, 5).join('. ');
+          const briefing = await generateAfternoonBriefing(reminderList, todayNotes, context);
+          await speakSafe(briefing);
+          latestState.riggySaid = briefing;
+          return;
+        }
+
+        // ── GOOD NIGHT BRIEFING ──
+        if (isNightGreeting(userSaid)) {
+          const todayNotes = memoryStore
+            .filter(m => m.type === 'note' && Date.now() - m.createdAt < 86400000)
+            .slice(-5);
+          const tomorrowReminders = [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`);
+          const context = permanentFacts.slice(0, 3).join('. ');
+          const briefing = await generateNightBriefing(todayNotes, tomorrowReminders, context);
+          await speakSafe(briefing);
+          latestState.riggySaid = briefing;
+          return;
+        }
+
+        // ── NOTE THIS ──
+        if (isNoteRequest(userSaid)) {
+          noteMode = true;
+          latestState.noteMode = true;
+          noteBuffer = [];
+          await speakSafe("Go ahead, I'm listening. Say Riggy done when you're finished.");
+          latestState.riggySaid = "Go ahead, I'm listening.";
+          setProcessing(false);
+          // Start silence timer in case they never say done
+          noteSilenceTimer = setTimeout(async () => {
+            if (noteMode) await finishNote();
+          }, NOTE_SILENCE_TIMEOUT_MS * 4); // 20 seconds initial grace period
+          return;
+        }
+
+        // ── READ MY NOTES ──
+        if (isNoteListRequest(userSaid)) {
+          const notes = getNotes();
+          if (notes.length === 0) { await speakSafe("No notes saved yet friend."); latestState.riggySaid = "No notes saved yet friend."; return; }
+          const noteText = notes.slice(0, 3).map((n, i) => `Note ${i + 1}: ${n.content}`).join('. ');
+          const msg = `You've got ${notes.length} note${notes.length !== 1 ? 's' : ''}. Here are the latest: ${noteText}.`;
+          await speakSafe(msg);
+          latestState.riggySaid = msg;
+          return;
+        }
+
+        // ── BATTERY ──
+        if (isBatteryRequest(userSaid)) {
+          try {
+            const battery = await session.device.getBatteryLevel();
+            const msg = battery !== null && battery !== undefined
+              ? `Glasses battery is at ${Math.round(battery)}%.`
+              : "Can't read the battery level right now friend.";
+            await speakSafe(msg);
+            latestState.riggySaid = msg;
+          } catch(e) {
+            await speakSafe("Can't read the battery level right now friend.");
+            latestState.riggySaid = "Can't read the battery level right now friend.";
+          }
+          return;
+        }
+
+        // ── INTEL MODE ──
         if (isIntelRequest(userSaid)) {
           const photo = await takePhoto();
           if (!photo) { await speakSafe("Couldn't get a clear shot friend. Try again."); latestState.riggySaid = "Couldn't get a clear shot."; return; }
@@ -921,11 +1174,16 @@ class RiggyGlasses extends AppServer {
 
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
-      if (ignoreSpeechDuringTTS || isProcessing) { console.log('🔇 Busy'); return; }
+      if (ignoreSpeechDuringTTS) { console.log('🔇 TTS active'); return; }
+      if (!noteMode && isProcessing) { console.log('🔇 Busy'); return; }
       if (Date.now() < bargeInAllowedAfterMs) { console.log('🔇 Cooldown'); return; }
       const userSaid = data.text.trim();
       if (!userSaid) return;
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
+
+      // Note mode — pass everything through without wake word check
+      if (noteMode) { await handleInput(userSaid); return; }
+
       if (liveMode || gameMode || liveCamMode) { await handleInput(userSaid); return; }
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
