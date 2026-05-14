@@ -2,57 +2,58 @@ const { AppServer } = require('@mentra/sdk');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const { spawn } = require('child_process');
 
 // ─── ENV ──────────────────────────────────────────────────────────────────────
-const GEMINI_API_KEY      = process.env.GEMINI_API_KEY;
-const ELEVENLABS_API_KEY  = process.env.ELEVENLABS_API_KEY;
-const ELEVEN_VOICE_ID     = process.env.ELEVEN_VOICE_ID;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVEN_VOICE_ID = process.env.ELEVEN_VOICE_ID;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
-const VERTEX_PROJECT_ID   = process.env.VERTEX_PROJECT_ID;
-const VERTEX_LOCATION     = process.env.VERTEX_LOCATION;
+const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID;
+const VERTEX_LOCATION = process.env.VERTEX_LOCATION;
 const VERTEX_CLIENT_EMAIL = process.env.VERTEX_CLIENT_EMAIL;
-const VERTEX_PRIVATE_KEY  = process.env.VERTEX_PRIVATE_KEY
+const VERTEX_PRIVATE_KEY = process.env.VERTEX_PRIVATE_KEY
   ? process.env.VERTEX_PRIVATE_KEY.replace(/\\n/g, '\n')
   : null;
-const TWILIO_ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────
 const CONTACTS = {
-  'dan':    process.env.CONTACT_DAN,
+  'dan': process.env.CONTACT_DAN,
   'eyeris': process.env.CONTACT_EYERIS,
-  'iris':   process.env.CONTACT_EYERIS,
-  'mom':    process.env.CONTACT_MOM,
-  'moms':   process.env.CONTACT_MOMS,
-  'mama':   process.env.CONTACT_MOM,
+  'iris': process.env.CONTACT_EYERIS,
+  'mom': process.env.CONTACT_MOM,
+  'moms': process.env.CONTACT_MOMS,
+  'mama': process.env.CONTACT_MOM,
   'mother': process.env.CONTACT_MOM,
-  'shane':  process.env.CONTACT_SHANE,
-  'syer':   process.env.CONTACT_SYER,
-  'sire':   process.env.CONTACT_SYER,
-  'wife':   process.env.CONTACT_WIFE,
-  'sheba':  process.env.CONTACT_WIFE,
+  'shane': process.env.CONTACT_SHANE,
+  'syer': process.env.CONTACT_SYER,
+  'sire': process.env.CONTACT_SYER,
+  'wife': process.env.CONTACT_WIFE,
+  'sheba': process.env.CONTACT_WIFE,
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const DEFAULT_CITY              = 'Deltona,FL,US';
-const DEFAULT_LAT               = 28.9005;
-const DEFAULT_LNG               = -81.2637;
-// Updated timing for Mentra 2.10.1 transcription changes
+const DEFAULT_CITY = 'Deltona,FL,US';
+const DEFAULT_LAT = 28.9005;
+const DEFAULT_LNG = -81.2637;
 const POST_TTS_BARGE_LOCKOUT_MS = 2000;
-const POST_SPEECH_COOLDOWN_MS   = 800;
-const RESUME_MIC_DELAY_MS       = 1200;
-const GAME_MODE_INTERVAL_MS     = 8000;
-const LIVE_CAM_INTERVAL_MS      = 10000;
-const PROCESSING_TIMEOUT_MS     = 15000;
-const NOTE_SILENCE_TIMEOUT_MS   = 5000;
-const MEMORY_STORAGE_KEY        = 'riggy_memory_v1';
-const SOUND_CHECK_DURATION_MS   = 7000;
+const POST_SPEECH_COOLDOWN_MS = 800;
+const RESUME_MIC_DELAY_MS = 1200;
+const STREAM_FRAME_INTERVAL_MS = 3000;        // How often FFmpeg extracts a frame from HLS
+const GAME_MODE_ANALYSIS_INTERVAL_MS = 6000;  // How often game mode sends frame to Gemini
+const LIVE_CAM_ANALYSIS_INTERVAL_MS = 8000;   // How often live cam sends frame to Gemini
+const PROCESSING_TIMEOUT_MS = 15000;
+const NOTE_SILENCE_TIMEOUT_MS = 5000;
+const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
+const SOUND_CHECK_DURATION_MS = 7000;
 
 // Audio format from Mentra SDK: 16kHz, 16-bit, mono PCM
 const SOUND_SAMPLE_RATE = 16000;
-const SOUND_BITS        = 16;
-const SOUND_CHANNELS    = 1;
+const SOUND_BITS = 16;
+const SOUND_CHANNELS = 1;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let latestState = {
@@ -168,34 +169,6 @@ CONFIDENCE: [HIGH/MEDIUM/LOW]
 BEHAVIOR: [one sentence — what this sound means or context]
 VOICE_SUMMARY: [2-3 natural spoken sentences as Mr. Riggy — warm, dry, specific, interesting. Include what it is, what it means, and one interesting fact. This is what gets spoken aloud.]`;
 
-// ─── SENTENCE CHUNKER ─────────────────────────────────────────────────────────
-// Splits response into individual sentences for sequential playback
-// This prevents word drops caused by long MP3 streams getting interrupted mid-buffer
-function splitIntoSentences(text) {
-  const clean = text.replace(/[🤖⚡🛸]/g, '').trim();
-  if (!clean) return [];
-
-  // Split on sentence endings but keep the punctuation
-  const sentences = clean
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 2);
-
-  // If no sentence breaks found, return as single chunk
-  if (sentences.length === 0) return [clean];
-
-  // Merge very short fragments with the next sentence
-  const merged = [];
-  let buffer = '';
-  for (const s of sentences) {
-    buffer = buffer ? `${buffer} ${s}` : s;
-    if (buffer.length > 20) { merged.push(buffer); buffer = ''; }
-  }
-  if (buffer) merged.push(buffer);
-
-  return merged.length > 0 ? merged : [clean];
-}
-
 // ─── WAV ENCODER ──────────────────────────────────────────────────────────────
 function buildWavFromChunks(chunks) {
   const pcmBuffers = chunks.map(c => Buffer.isBuffer(c) ? c : Buffer.from(c));
@@ -296,18 +269,18 @@ function parseNearbyQuery(text) {
   return null;
 }
 function parseDistanceQuery(text) { const m = text.match(/how far(?:\s+is|\s+to)?\s+(.+?)(?:\?|$)/i); return m ? m[1].trim() : null; }
-function isNearbyRequest(text)    { const l = text.toLowerCase(); return l.includes('near me')||l.includes('nearby')||l.includes('nearest')||l.includes('closest')||l.includes('find a '); }
-function isDistanceRequest(text)  { return /how far/i.test(text); }
-function isLocationRequest(text)  { const l = text.toLowerCase(); return l.includes('where am i')||l.includes('what street')||l.includes('my location')||l.includes('where are we'); }
-function isIntelRequest(text)     { const l = text.toLowerCase(); return l.includes('intel')&&l.includes('riggy'); }
-function isShopRequest(text)      { const l = text.toLowerCase(); return (l.includes('shop mode')||l.includes('riggy shop')||l.includes('price check')||l.includes('how much is this')||l.includes('should i buy this'))&&!l.includes('stop'); }
-function isMorningGreeting(text)  { const l = text.toLowerCase(); return l.includes('good morning')&&l.includes('riggy'); }
+function isNearbyRequest(text) { const l = text.toLowerCase(); return l.includes('near me')||l.includes('nearby')||l.includes('nearest')||l.includes('closest')||l.includes('find a '); }
+function isDistanceRequest(text) { return /how far/i.test(text); }
+function isLocationRequest(text) { const l = text.toLowerCase(); return l.includes('where am i')||l.includes('what street')||l.includes('my location')||l.includes('where are we'); }
+function isIntelRequest(text) { const l = text.toLowerCase(); return l.includes('intel')&&l.includes('riggy'); }
+function isShopRequest(text) { const l = text.toLowerCase(); return (l.includes('shop mode')||l.includes('riggy shop')||l.includes('price check')||l.includes('how much is this')||l.includes('should i buy this'))&&!l.includes('stop'); }
+function isMorningGreeting(text) { const l = text.toLowerCase(); return l.includes('good morning')&&l.includes('riggy'); }
 function isAfternoonGreeting(text){ const l = text.toLowerCase(); return l.includes('good afternoon')&&l.includes('riggy'); }
-function isNightGreeting(text)    { const l = text.toLowerCase(); return (l.includes('good night')||l.includes('goodnight'))&&l.includes('riggy'); }
-function isNoteRequest(text)      { const l = text.toLowerCase(); return l.includes('note this')||l.includes('riggy note')||l.includes('take a note'); }
-function isNoteListRequest(text)  { const l = text.toLowerCase(); return l.includes('my notes')||l.includes('read my notes')||l.includes('what are my notes')||l.includes('show my notes'); }
-function isNoteDoneRequest(text)  { const l = text.toLowerCase(); return l.includes('riggy done')||l.includes('done noting')||l.includes('end note')||l.includes('stop note'); }
-function isBatteryRequest(text)   { const l = text.toLowerCase(); return l.includes('battery')&&l.includes('riggy'); }
+function isNightGreeting(text) { const l = text.toLowerCase(); return (l.includes('good night')||l.includes('goodnight'))&&l.includes('riggy'); }
+function isNoteRequest(text) { const l = text.toLowerCase(); return l.includes('note this')||l.includes('riggy note')||l.includes('take a note'); }
+function isNoteListRequest(text) { const l = text.toLowerCase(); return l.includes('my notes')||l.includes('read my notes')||l.includes('what are my notes')||l.includes('show my notes'); }
+function isNoteDoneRequest(text) { const l = text.toLowerCase(); return l.includes('riggy done')||l.includes('done noting')||l.includes('end note')||l.includes('stop note'); }
+function isBatteryRequest(text) { const l = text.toLowerCase(); return l.includes('battery')&&l.includes('riggy'); }
 
 // ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
@@ -353,7 +326,7 @@ let vertexTokenCache = null, vertexTokenExpiry = 0;
 async function getVertexToken() {
   const now = Math.floor(Date.now() / 1000);
   if (vertexTokenCache && now < vertexTokenExpiry - 60) return vertexTokenCache;
-  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({ iss: VERTEX_CLIENT_EMAIL, scope: 'https://www.googleapis.com/auth/cloud-platform', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now })).toString('base64url');
   const sigInput = `${header}.${payload}`;
   const pemClean = VERTEX_PRIVATE_KEY.replace(/-----BEGIN PRIVATE KEY-----/g,'').replace(/-----END PRIVATE KEY-----/g,'').replace(/\s/g,'').trim();
@@ -424,7 +397,7 @@ async function saveMemory(content, type = 'fact', session, userId) {
     store.push({ id: Date.now(), content, type, embedding, createdAt: Date.now() });
     if (store.length > 300) {
       const explicit = store.filter(m => m.type === 'explicit' || m.type === 'auto');
-      const others   = store.filter(m => m.type !== 'explicit' && m.type !== 'auto').slice(-200);
+      const others = store.filter(m => m.type !== 'explicit' && m.type !== 'auto').slice(-200);
       globalMemoryCache.set(userId, [...explicit, ...others]);
     } else { globalMemoryCache.set(userId, store); }
     await saveMemoryToStorage(session, userId);
@@ -495,11 +468,11 @@ function formatTimeUntil(ms) {
   return rem === 0 ? `in ${hours} hour${hours !== 1 ? 's' : ''}` : `in ${hours} hour${hours !== 1 ? 's' : ''} and ${rem} minute${rem !== 1 ? 's' : ''}`;
 }
 
-function isReminderRequest(text)      { const l = text.toLowerCase(); return l.includes('remind me')||l.includes('set a reminder')||l.includes('set reminder'); }
+function isReminderRequest(text) { const l = text.toLowerCase(); return l.includes('remind me')||l.includes('set a reminder')||l.includes('set reminder'); }
 function isListRemindersRequest(text) { const l = text.toLowerCase(); return (l.includes('reminder')&&(l.includes('list')||l.includes('what')||l.includes('show')||l.includes('my')))||l.includes('my reminders'); }
-function isCancelRemindersRequest(t)  { const l = t.toLowerCase(); return (l.includes('cancel')||l.includes('clear')||l.includes('delete'))&&l.includes('reminder'); }
-function isSaveChatRequest(text)      { const l = text.toLowerCase(); return l.includes('save this chat')||l.includes('save this conversation')||l.includes('remember this chat')||l.includes('remember this conversation'); }
-function isExplicitMemoryRequest(t)   { const l = t.toLowerCase(); return (l.includes('remember this')||l.includes('remember that'))&&!l.includes('pic')&&!l.includes('photo'); }
+function isCancelRemindersRequest(t) { const l = t.toLowerCase(); return (l.includes('cancel')||l.includes('clear')||l.includes('delete'))&&l.includes('reminder'); }
+function isSaveChatRequest(text) { const l = text.toLowerCase(); return l.includes('save this chat')||l.includes('save this conversation')||l.includes('remember this chat')||l.includes('remember this conversation'); }
+function isExplicitMemoryRequest(t) { const l = t.toLowerCase(); return (l.includes('remember this')||l.includes('remember that'))&&!l.includes('pic')&&!l.includes('photo'); }
 
 // ─── CONVERSATION HISTORY ─────────────────────────────────────────────────────
 const conversationHistory = new Map();
@@ -550,80 +523,74 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
-// ─── ELEVENLABS TTS — SENTENCE CHUNKED ────────────────────────────────────────
-// Each sentence is a separate MP3 played sequentially.
-// This prevents random word drops caused by long audio buffers
-// getting interrupted mid-stream on the glasses hardware.
-async function fetchAudioChunk(text) {
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
-    method: 'POST',
-    headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      model_id: 'eleven_turbo_v2',
-      output_format: 'mp3_44100_128',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-    })
-  });
-  if (!response.ok) throw new Error(`ElevenLabs error: ${response.status}`);
-  return Buffer.from(await response.arrayBuffer());
-}
-
+// ─── ELEVENLABS TTS — SINGLE STREAM ───────────────────────────────────────────
+// Sends the full response as ONE MP3 — no sentence chunking.
+// Uses Promise.race between waitForCompletion and an accurate MP3 duration timer
+// so Mentra's early-resolve bug can't cut off the audio.
+// MP3 at 128kbps = 16,000 bytes/sec. We add 2s buffer for network/startup jitter.
 async function speakWithElevenLabs(text, session) {
   try {
-    const sentences = splitIntoSentences(text);
-    if (sentences.length === 0) return;
+    const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
+    if (!cleanText) return;
 
-    console.log(`🔊 Speaking ${sentences.length} sentence(s)`);
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
+      method: 'POST',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: cleanText,
+        model_id: 'eleven_turbo_v2_5',
+        output_format: 'mp3_44100_128',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      })
+    });
 
-    for (const sentence of sentences) {
-      if (!sentence.trim()) continue;
-      try {
-        const audioBytes = await fetchAudioChunk(sentence);
-        const fileName = `audio_${Date.now()}.mp3`;
-        const filePath = path.join(__dirname, fileName);
+    if (!response.ok) throw new Error(`ElevenLabs error: ${response.status}`);
 
-        // Ensure file is fully written before serving
-        fs.writeFileSync(filePath, audioBytes);
-        fs.fsyncSync(fs.openSync(filePath, 'r')); // force flush to disk
+    const audioBytes = Buffer.from(await response.arrayBuffer());
+    const fileName = `audio_${Date.now()}.mp3`;
+    const filePath = path.join(__dirname, fileName);
 
-        const estimatedDurationMs = Math.max(1500, (audioBytes.length / 16000) * 1000);
-        const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-        console.log(`  → "${sentence.slice(0, 40)}..." — ${audioBytes.length} bytes — ~${Math.round(estimatedDurationMs)}ms`);
+    fs.writeFileSync(filePath, audioBytes);
 
-        try {
-          const audioRef = session.audio.playAudio({ audioUrl, waitForCompletion: true });
-          await Promise.race([audioRef, new Promise(r => setTimeout(r, estimatedDurationMs + 1500))]);
-        } catch(e) { console.error('playAudio error:', e); }
-        finally { await new Promise(r => setTimeout(r, 300)); }
+    // Accurate MP3 duration: 128kbps = 16000 bytes/sec. Add 2s buffer for startup + network.
+    const durationMs = Math.max(3000, Math.ceil((audioBytes.length / 16000) * 1000) + 2000);
+    const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
 
-        setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
-      } catch(e) {
-        console.error(`Sentence chunk error: ${e.message}`);
-        // Fall back to SDK TTS for this sentence
-        try { await session.audio.speak(sentence); } catch(_) {}
-      }
+    console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
+
+    try {
+      // Race: waitForCompletion fires when Mentra says done, duration timer is the safety net.
+      // Whichever resolves LAST wins — so early SDK resolve can't cut us short.
+      await Promise.all([
+        session.audio.playAudio({ audioUrl, waitForCompletion: true }).catch(e => console.error('playAudio error:', e)),
+        new Promise(r => setTimeout(r, durationMs))
+      ]);
+    } catch(e) {
+      console.error('playAudio error:', e);
     }
+
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
+
   } catch (err) {
     console.error('speakWithElevenLabs error:', err);
-    await session.audio.speak(text);
+    try { await session.audio.speak(text); } catch(_) {}
   }
 }
 
-const VISION_KEYWORDS      = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
-const SAVE_KEYWORDS        = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
-const LIVE_ON_KEYWORDS     = ['go live','riggy live','start live','live mode'];
-const LIVE_OFF_KEYWORDS    = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
-const GAME_ON_KEYWORDS     = ['game mode','riggy game','start game mode','gaming mode'];
-const GAME_OFF_KEYWORDS    = ['stop game','end game mode','exit game','game off','stop game mode'];
+const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
+const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
+const LIVE_ON_KEYWORDS = ['go live','riggy live','start live','live mode'];
+const LIVE_OFF_KEYWORDS = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
+const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mode'];
+const GAME_OFF_KEYWORDS = ['stop game','end game mode','exit game','game off','stop game mode'];
 const LIVE_CAM_ON_KEYWORDS = ['go live camera','live camera','live vision','start live camera','watch mode','eyes on'];
 
-function needsCamera(text)    { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function needsSave(text)      { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOn(text)    { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsLiveOff(text)   { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOn(text)    { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
-function wantsGameOff(text)   { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsCamera(text) { return VISION_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function needsSave(text) { return SAVE_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOn(text) { return LIVE_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsLiveOff(text) { return LIVE_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOn(text) { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
@@ -702,9 +669,65 @@ class RiggyGlasses extends AppServer {
       reminders.set(id, { id, label, fireAtMs, timerId: setTimeout(async () => { reminders.delete(id); const msg = `Hey friend — reminder: ${label}.`; latestState.riggySaid = msg; await speakSafe(msg); }, fireAtMs - Date.now()) });
     };
 
-    const stopBurstModes = () => {
+    // ── HLS STREAM STATE ──
+    let activeStream = null;       // stream object from startManagedStream
+    let ffmpegProcess = null;      // spawned FFmpeg child process
+    let streamFramePath = null;    // path to latest_frame.jpg on disk
+
+    // Starts FFmpeg pulling frames from the HLS stream into a jpg on disk
+    const startFFmpeg = (hlsUrl) => {
+      const framePath = path.join(__dirname, `frame_${sessionId}.jpg`);
+      streamFramePath = framePath;
+
+      // Kill any existing FFmpeg first
+      if (ffmpegProcess) { try { ffmpegProcess.kill('SIGKILL'); } catch(e) {} ffmpegProcess = null; }
+
+      // FFmpeg: pull HLS stream, extract one frame every STREAM_FRAME_INTERVAL_MS, overwrite same file
+      const ffmpeg = spawn('ffmpeg', [
+        '-re',
+        '-i', hlsUrl,
+        '-vf', `fps=1/${Math.round(STREAM_FRAME_INTERVAL_MS / 1000)}`,
+        '-update', '1',
+        '-q:v', '3',
+        '-y',
+        framePath
+      ]);
+
+      ffmpeg.stderr.on('data', (d) => console.log(`FFmpeg: ${d.toString().slice(0, 80)}`));
+      ffmpeg.on('close', (code) => { console.log(`FFmpeg exited: ${code}`); ffmpegProcess = null; });
+      ffmpeg.on('error', (e) => console.error('FFmpeg spawn error:', e.message));
+
+      ffmpegProcess = ffmpeg;
+      console.log(`🎥 FFmpeg started — writing frames to ${framePath}`);
+      return framePath;
+    };
+
+    // Read the latest frame from disk as base64
+    const readLatestFrame = () => {
+      if (!streamFramePath || !fs.existsSync(streamFramePath)) return null;
+      try {
+        const buf = fs.readFileSync(streamFramePath);
+        if (buf.length < 1000) return null; // incomplete frame, skip
+        return { base64: buf.toString('base64'), mimeType: 'image/jpeg' };
+      } catch(e) { return null; }
+    };
+
+    const stopBurstModes = async () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
-      if (liveCamInterval)  { clearInterval(liveCamInterval);  liveCamInterval  = null; }
+      if (liveCamInterval) { clearInterval(liveCamInterval); liveCamInterval = null; }
+
+      // Kill FFmpeg
+      if (ffmpegProcess) { try { ffmpegProcess.kill('SIGKILL'); } catch(e) {} ffmpegProcess = null; }
+
+      // Stop the Mentra managed stream
+      if (activeStream) {
+        try { await session.camera.stopStream(); console.log('📷 Stream stopped'); } catch(e) { console.error('stopStream error:', e); }
+        activeStream = null;
+      }
+
+      // Clean up frame file
+      if (streamFramePath) { try { fs.unlinkSync(streamFramePath); } catch(e) {} streamFramePath = null; }
+
       gameMode = false; liveCamMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
     };
 
@@ -714,25 +737,69 @@ class RiggyGlasses extends AppServer {
     };
 
     const startGameMode = async () => {
-      stopBurstModes(); gameMode = true; latestState.gameMode = true;
-      setProcessing(true); try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
+      await stopBurstModes();
+      gameMode = true; latestState.gameMode = true;
+      setProcessing(true);
+      try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
+
+      // Start HLS stream
+      try {
+        activeStream = await session.camera.startManagedStream({ title: 'Game Mode' });
+        console.log(`🎮 Game stream: ${activeStream.hlsUrl}`);
+        startFFmpeg(activeStream.hlsUrl);
+      } catch(e) {
+        console.error('Failed to start game stream:', e);
+        await speakSafe("Couldn't start the stream friend. Try again.");
+        gameMode = false; latestState.gameMode = false; return;
+      }
+
+      // Wait a few seconds for FFmpeg to get its first frame
+      await new Promise(r => setTimeout(r, 4000));
+
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
+        const frame = readLatestFrame();
+        if (!frame) return;
         setProcessing(true);
-        try { const photo = await takePhoto(); if (!photo) return; const reply = await askGemini('Look at this game screen. Give me one quick tactical tip.', sessionId, userId, photo, GAME_MODE_PERSONALITY); if (reply && reply.trim() !== 'SILENCE' && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); } }
-        catch(e) { console.error('Game error:', e); } finally { setProcessing(false); }
-      }, GAME_MODE_INTERVAL_MS);
+        try {
+          const reply = await askGemini('Look at this game screen. Give me one quick tactical tip.', sessionId, userId, frame, GAME_MODE_PERSONALITY);
+          if (reply && reply.trim() !== 'SILENCE' && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
+        } catch(e) { console.error('Game analysis error:', e); }
+        finally { setProcessing(false); }
+      }, GAME_MODE_ANALYSIS_INTERVAL_MS);
     };
 
     const startLiveCamMode = async () => {
-      stopBurstModes(); liveCamMode = true; latestState.liveCamMode = true;
-      setProcessing(true); try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
+      await stopBurstModes();
+      liveCamMode = true; latestState.liveCamMode = true;
+      setProcessing(true);
+      try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
+
+      // Start HLS stream
+      try {
+        activeStream = await session.camera.startManagedStream({ title: 'Live Vision' });
+        console.log(`👁 Live stream: ${activeStream.hlsUrl}`);
+        startFFmpeg(activeStream.hlsUrl);
+      } catch(e) {
+        console.error('Failed to start live stream:', e);
+        await speakSafe("Couldn't start the stream friend. Try again.");
+        liveCamMode = false; latestState.liveCamMode = false; return;
+      }
+
+      // Wait for FFmpeg to get its first frame
+      await new Promise(r => setTimeout(r, 4000));
+
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
+        const frame = readLatestFrame();
+        if (!frame) return;
         setProcessing(true);
-        try { const photo = await takePhoto(); if (!photo) return; const reply = await askGemini("Take a look at what I'm seeing. Tell me something useful or interesting. If nothing worth saying, respond: SKIP", sessionId, userId, photo); if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); } }
-        catch(e) { console.error('Live cam error:', e); } finally { setProcessing(false); }
-      }, LIVE_CAM_INTERVAL_MS);
+        try {
+          const reply = await askGemini("Take a look at what I'm seeing. Tell me something useful or interesting. If nothing worth saying, respond: SKIP", sessionId, userId, frame);
+          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
+        } catch(e) { console.error('Live cam analysis error:', e); }
+        finally { setProcessing(false); }
+      }, LIVE_CAM_ANALYSIS_INTERVAL_MS);
     };
 
     const handleInput = async (userSaid) => {
@@ -756,11 +823,11 @@ class RiggyGlasses extends AppServer {
       try {
         if (wantsLiveOff(userSaid)) {
           if (soundCheckMode) { soundCheckMode = false; latestState.soundCheckMode = false; if (soundCheckTimer) { clearTimeout(soundCheckTimer); soundCheckTimer = null; } soundChunks = []; }
-          stopBurstModes(); liveMode = false; latestState.liveMode = false;
+          await stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        if (isSoundCheckRequest(userSaid))  { setProcessing(false); await startSoundCheck(); return; }
+        if (isSoundCheckRequest(userSaid)) { setProcessing(false); await startSoundCheck(); return; }
 
         if (isMorningGreeting(userSaid)) {
           const weather = await getWeather(DEFAULT_CITY);
@@ -860,8 +927,8 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        if (wantsGameOn(userSaid))    { setProcessing(false); await startGameMode(); return; }
-        if (wantsGameOff(userSaid))   { stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
+        if (wantsGameOn(userSaid)) { setProcessing(false); await startGameMode(); return; }
+        if (wantsGameOff(userSaid)) { await stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { setProcessing(false); await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) { liveMode = true; latestState.liveMode = true; await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return; }
 
@@ -893,7 +960,7 @@ class RiggyGlasses extends AppServer {
     };
 
     session._toggleLive = async () => {
-      if (gameMode || liveCamMode) { stopBurstModes(); await speakSafe("Burst mode off."); latestState.riggySaid = "Burst mode off."; return false; }
+      if (gameMode || liveCamMode) { await stopBurstModes(); await speakSafe("Burst mode off."); latestState.riggySaid = "Burst mode off."; return false; }
       liveMode = !liveMode; latestState.liveMode = liveMode;
       if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
       else { await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; }
@@ -924,6 +991,9 @@ class RiggyGlasses extends AppServer {
 
   async onStop(sessionId, userId, reason) {
     console.log(`👋 Session ended — ${sessionId} — reason: ${reason}`);
+    // Frame files are per-session — clean up on exit
+    const framePath = path.join(__dirname, `frame_${sessionId}.jpg`);
+    try { if (fs.existsSync(framePath)) fs.unlinkSync(framePath); } catch(e) {}
   }
 }
 
