@@ -1117,6 +1117,8 @@ expressApp.post('/text-command', async (req, res) => {
   }
   res.json({ ok: true });
 });
+
+expressApp.post('/toggle-live', async (req, res) => {
   const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
   if (sessions && sessions.length > 0) { const s = sessions[0]; if (s._toggleLive) { const live = await s._toggleLive(); res.json({ live }); return; } }
   latestState.liveMode = !latestState.liveMode; res.json({ live: latestState.liveMode });
