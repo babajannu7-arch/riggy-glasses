@@ -559,9 +559,9 @@ async function speakWithElevenLabs(text, session) {
     console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
 
     try {
-      // Race: waitForCompletion fires when Mentra says done, duration timer is the safety net.
-      // Whichever resolves LAST wins — so early SDK resolve can't cut us short.
-      await Promise.all([
+      // Race: duration timer is the safety net if SDK resolves early.
+      // Whichever resolves FIRST wins — audio plays fully before moving on.
+      await Promise.race([
         session.audio.playAudio({ audioUrl, waitForCompletion: true }).catch(e => console.error('playAudio error:', e)),
         new Promise(r => setTimeout(r, durationMs))
       ]);
@@ -721,7 +721,7 @@ class RiggyGlasses extends AppServer {
 
       // Stop the Mentra managed stream
       if (activeStream) {
-        try { await session.camera.stopStream(); console.log('📷 Stream stopped'); } catch(e) { console.error('stopStream error:', e); }
+        try { await session.camera.stopManagedStream(); console.log('📷 Managed stream stopped'); } catch(e) { console.error('stopManagedStream error:', e); }
         activeStream = null;
       }
 
