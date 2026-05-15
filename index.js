@@ -968,6 +968,13 @@ class RiggyGlasses extends AppServer {
       return liveMode;
     };
 
+    // Expose text command handler for webview input
+    session._handleTextCommand = async (text) => {
+      if (!text) return;
+      console.log(`⌨️ Text command: ${text}`);
+      await handleInput(text);
+    };
+
     // ── BUTTON PRESS ──────────────────────────────────────────────────────────
     // Short tap — wakes Riggy for one response, no wake word needed
     // Long press — toggles live mode on/off
@@ -1099,7 +1106,17 @@ expressApp.get('/memory', (req, res) => {
   const all = []; for (const [uid, store] of globalMemoryCache) store.forEach(m => all.push({ userId: uid, id: m.id, content: m.content, type: m.type, createdAt: m.createdAt })); res.json(all);
 });
 
-expressApp.post('/toggle-live', async (req, res) => {
+expressApp.post('/text-command', async (req, res) => {
+  const { text } = req.body;
+  if (!text) { res.json({ ok: false }); return; }
+  latestState.userSaid = text;
+  const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
+  if (sessions && sessions.length > 0) {
+    const s = sessions[0];
+    if (s._handleTextCommand) { await s._handleTextCommand(text); }
+  }
+  res.json({ ok: true });
+});
   const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
   if (sessions && sessions.length > 0) { const s = sessions[0]; if (s._toggleLive) { const live = await s._toggleLive(); res.json({ live }); return; } }
   latestState.liveMode = !latestState.liveMode; res.json({ live: latestState.liveMode });

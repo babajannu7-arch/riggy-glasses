@@ -9,20 +9,21 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-          --bg:        #2B2D2F;
-          --panel:     #2B2D2F;
-          --card:      #1A1D20;
-          --border:    #2E3235;
-          --border2:   #1E2428;
+          --bg:        #1A1C1E;
+          --panel:     #1E2124;
+          --card:      #141618;
+          --border:    #2A2D31;
+          --border2:   #1E2124;
           --sand:      #C4B697;
           --sand-dim:  #7A6E57;
           --silver:    #B8BEC4;
           --silver-dim:#6E7478;
           --slate:     #3D5060;
-          --slate-dim: #3D5060;
+          --slate-dim: #2D3D4A;
           --text:      #A8ADB2;
           --green:     #5EA87A;
           --red:       #CC4444;
+          --accent:    #4A7FA0;
         }
 
         html, body {
@@ -37,24 +38,20 @@
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 44px 22px 28px;
           position: relative;
         }
 
-        /* Scanline retro overlay */
+        /* Scanline overlay */
         body::before {
           content: '';
           position: fixed;
           inset: 0;
           background: repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0,0,0,0.06) 2px,
-            rgba(0,0,0,0.06) 4px
+            0deg, transparent, transparent 2px,
+            rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px
           );
           pointer-events: none;
-          z-index: 50;
+          z-index: 100;
         }
 
         /* Vignette */
@@ -62,7 +59,7 @@
           content: '';
           position: fixed;
           inset: 0;
-          background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.4) 100%);
+          background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
           pointer-events: none;
           z-index: 1;
         }
@@ -70,107 +67,138 @@
         /* Corner brackets */
         .corner {
           position: fixed;
-          width: 20px; height: 20px;
-          z-index: 20; opacity: 0.3;
-          transition: opacity 0.4s;
+          width: 18px; height: 18px;
+          z-index: 20; opacity: 0.25;
+          transition: opacity 0.4s, border-color 0.4s;
         }
-        .corner-tl { top: 14px; left: 14px; border-top: 1px solid var(--sand); border-left: 1px solid var(--sand); }
-        .corner-tr { top: 14px; right: 14px; border-top: 1px solid var(--sand); border-right: 1px solid var(--sand); }
-        .corner-bl { bottom: 14px; left: 14px; border-bottom: 1px solid var(--sand); border-left: 1px solid var(--sand); }
-        .corner-br { bottom: 14px; right: 14px; border-bottom: 1px solid var(--sand); border-right: 1px solid var(--sand); }
-        body.speaking .corner { opacity: 0.6; }
-        body.live .corner { opacity: 0.5; border-color: var(--green); }
+        .corner-tl { top: 12px; left: 12px; border-top: 1px solid var(--sand); border-left: 1px solid var(--sand); }
+        .corner-tr { top: 12px; right: 12px; border-top: 1px solid var(--sand); border-right: 1px solid var(--sand); }
+        .corner-bl { bottom: 12px; left: 12px; border-bottom: 1px solid var(--sand); border-left: 1px solid var(--sand); }
+        .corner-br { bottom: 12px; right: 12px; border-bottom: 1px solid var(--sand); border-right: 1px solid var(--sand); }
+        body.speaking .corner { opacity: 0.55; }
+        body.live .corner { opacity: 0.45; border-color: var(--green); }
+
+        /* ── MAIN SCREEN ─────────────────────────────── */
+        #mainScreen {
+          width: 100%; height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 40px 20px 16px;
+          transition: transform 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.4s;
+          z-index: 10;
+        }
+        #mainScreen.hidden {
+          transform: translateX(-100%);
+          opacity: 0;
+          pointer-events: none;
+          position: absolute;
+        }
 
         /* HEADER */
         .header {
           width: 100%;
           display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          margin-bottom: 4px;
+          z-index: 10;
+        }
+
+        .header-center {
+          flex: 1;
+          display: flex;
           flex-direction: column;
           align-items: center;
-          z-index: 10;
-          margin-bottom: 6px;
         }
 
         .brand {
           font-family: 'Orbitron', sans-serif;
           font-weight: 900;
-          font-size: 26px;
-          letter-spacing: 10px;
+          font-size: 22px;
+          letter-spacing: 9px;
           color: var(--silver);
           text-align: center;
-          text-shadow: 0 0 20px rgba(61,80,96,0.5);
+          text-shadow: 0 0 20px rgba(61,80,96,0.4);
         }
 
         .brand-sub {
           font-family: 'VT323', monospace;
-          font-size: 14px;
-          letter-spacing: 5px;
+          font-size: 13px;
+          letter-spacing: 4px;
           color: var(--sand-dim);
-          opacity: 0.7;
+          opacity: 0.65;
           text-align: center;
           margin-top: 2px;
           text-transform: uppercase;
         }
 
+        .commander-tag {
+          font-family: 'VT323', monospace;
+          font-size: 12px;
+          letter-spacing: 3px;
+          color: var(--slate);
+          text-transform: uppercase;
+          margin-top: 3px;
+          transition: color 0.4s;
+        }
+        body.live .commander-tag { color: var(--green); }
+        body.speaking .commander-tag { color: var(--sand-dim); }
+
+        /* Settings icon */
+        .settings-btn {
+          width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          opacity: 0.4;
+          transition: opacity 0.3s;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        .settings-btn:active { opacity: 0.8; }
+        .settings-btn svg { width: 18px; height: 18px; stroke: var(--silver); fill: none; stroke-width: 1.5; }
+
+        /* Spacer for symmetry */
+        .header-spacer { width: 36px; flex-shrink: 0; }
+
         /* Status pill */
         .status-pill {
           display: flex;
           align-items: center;
-          gap: 8px;
-          background: rgba(94,168,122,0.08);
-          border: 1px solid rgba(94,168,122,0.2);
+          gap: 7px;
+          background: rgba(94,168,122,0.07);
+          border: 1px solid rgba(94,168,122,0.18);
           border-radius: 30px;
-          padding: 5px 14px;
-          margin-top: 10px;
+          padding: 4px 12px;
+          margin-top: 8px;
           transition: all 0.4s ease;
         }
-        .status-pill.speaking {
-          background: rgba(196,182,151,0.08);
-          border-color: rgba(196,182,151,0.25);
-        }
-        .status-pill.live {
-          background: rgba(94,168,122,0.12);
-          border-color: rgba(94,168,122,0.4);
-        }
+        .status-pill.speaking { background: rgba(196,182,151,0.07); border-color: rgba(196,182,151,0.22); }
+        .status-pill.live { background: rgba(94,168,122,0.1); border-color: rgba(94,168,122,0.35); }
 
         .status-dot {
-          width: 8px; height: 8px;
+          width: 7px; height: 7px;
           border-radius: 50%;
           background: var(--green);
-          box-shadow: 0 0 8px var(--green);
+          box-shadow: 0 0 7px var(--green);
           animation: dot-breathe 2s ease-in-out infinite;
           transition: all 0.4s ease;
         }
-        .status-pill.speaking .status-dot {
-          background: var(--sand);
-          box-shadow: 0 0 8px var(--sand);
-          animation: dot-flash 0.5s ease-in-out infinite alternate;
-        }
-        .status-pill.live .status-dot {
-          background: var(--green);
-          box-shadow: 0 0 12px var(--green), 0 0 24px var(--green);
-          animation: dot-flash 0.8s ease-in-out infinite alternate;
-        }
+        .status-pill.speaking .status-dot { background: var(--sand); box-shadow: 0 0 7px var(--sand); animation: dot-flash 0.5s ease-in-out infinite alternate; }
+        .status-pill.live .status-dot { background: var(--green); box-shadow: 0 0 10px var(--green), 0 0 20px var(--green); animation: dot-flash 0.8s ease-in-out infinite alternate; }
 
-        @keyframes dot-breathe {
-          0%, 100% { opacity: 0.6; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        @keyframes dot-flash {
-          from { opacity: 0.7; transform: scale(1); }
-          to { opacity: 1; transform: scale(1.3); }
-        }
+        @keyframes dot-breathe { 0%,100%{opacity:0.6;transform:scale(1);} 50%{opacity:1;transform:scale(1.2);} }
+        @keyframes dot-flash { from{opacity:0.7;transform:scale(1);} to{opacity:1;transform:scale(1.3);} }
 
         .status-text {
           font-family: 'VT323', monospace;
-          font-size: 15px;
+          font-size: 14px;
           letter-spacing: 3px;
           color: var(--green);
           text-transform: uppercase;
           transition: color 0.4s ease;
         }
         .status-pill.speaking .status-text { color: var(--sand); }
-        .status-pill.live .status-text { color: var(--green); }
 
         /* ORB SECTION */
         .orb-section {
@@ -182,250 +210,296 @@
           position: relative;
           z-index: 5;
           width: 100%;
+          min-height: 0;
         }
 
         .orb-wrap {
           position: relative;
-          width: 220px; height: 220px;
+          width: 180px; height: 180px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
-        .ring {
-          position: absolute;
-          border-radius: 50%;
-        }
-
-        .ring-1 {
-          width: 220px; height: 220px;
-          border: 1px solid rgba(61,80,96,0.35);
-          animation: spin 20s linear infinite;
-          transition: border-color 0.5s, box-shadow 0.5s;
-        }
-        .ring-1::before {
-          content: '';
-          position: absolute;
-          top: -4px; left: 50%;
-          width: 8px; height: 8px;
-          background: var(--slate);
-          border-radius: 50%;
-          box-shadow: 0 0 10px var(--slate), 0 0 20px var(--slate);
-          transform: translateX(-50%);
-        }
-
-        .ring-2 {
-          width: 168px; height: 168px;
-          border: 1px solid rgba(196,182,151,0.2);
-          animation: spin 13s linear infinite reverse;
-          transition: border-color 0.5s;
-        }
-        .ring-2::before {
-          content: '';
-          position: absolute;
-          bottom: -3px; left: 50%;
-          width: 6px; height: 6px;
-          background: var(--sand);
-          border-radius: 50%;
-          box-shadow: 0 0 8px var(--sand), 0 0 16px var(--sand);
-          transform: translateX(-50%);
-        }
-
-        .ring-3 {
-          width: 118px; height: 118px;
-          border: 1px solid rgba(184,190,196,0.1);
-          animation: spin 9s linear infinite;
-        }
-
-        body.speaking .ring-1 {
-          border-color: rgba(61,80,96,0.6);
-          box-shadow: 0 0 20px rgba(61,80,96,0.15);
-        }
-        body.speaking .ring-2 {
-          border-color: rgba(196,182,151,0.45);
-          box-shadow: 0 0 15px rgba(196,182,151,0.1);
-        }
-        body.live .ring-1 {
-          border-color: rgba(94,168,122,0.4);
-          box-shadow: 0 0 20px rgba(94,168,122,0.1);
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
+        .ring { position: absolute; border-radius: 50%; }
+        .ring-1 { width: 180px; height: 180px; border: 1px solid rgba(61,80,96,0.32); animation: spin 20s linear infinite; transition: border-color 0.5s, box-shadow 0.5s; }
+        .ring-1::before { content:''; position:absolute; top:-3px; left:50%; width:7px; height:7px; background:var(--slate); border-radius:50%; box-shadow:0 0 8px var(--slate),0 0 16px var(--slate); transform:translateX(-50%); }
+        .ring-2 { width: 136px; height: 136px; border: 1px solid rgba(196,182,151,0.18); animation: spin 13s linear infinite reverse; transition: border-color 0.5s; }
+        .ring-2::before { content:''; position:absolute; bottom:-3px; left:50%; width:5px; height:5px; background:var(--sand); border-radius:50%; box-shadow:0 0 7px var(--sand),0 0 14px var(--sand); transform:translateX(-50%); }
+        .ring-3 { width: 96px; height: 96px; border: 1px solid rgba(184,190,196,0.08); animation: spin 9s linear infinite; }
+        body.speaking .ring-1 { border-color:rgba(61,80,96,0.55); box-shadow:0 0 18px rgba(61,80,96,0.12); }
+        body.speaking .ring-2 { border-color:rgba(196,182,151,0.4); }
+        body.live .ring-1 { border-color:rgba(94,168,122,0.35); box-shadow:0 0 18px rgba(94,168,122,0.08); }
+        @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
 
         .orb-core {
-          width: 68px; height: 68px;
+          width: 56px; height: 56px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(61,80,96,0.15) 0%, transparent 70%);
-          box-shadow: 0 0 20px rgba(61,80,96,0.1);
+          background: radial-gradient(circle, rgba(61,80,96,0.14) 0%, transparent 70%);
+          box-shadow: 0 0 18px rgba(61,80,96,0.08);
           transition: all 0.5s ease;
         }
-        body.speaking .orb-core {
-          background: radial-gradient(circle, rgba(196,182,151,0.2) 0%, rgba(61,80,96,0.1) 50%, transparent 100%);
-          box-shadow: 0 0 30px rgba(196,182,151,0.2), 0 0 60px rgba(61,80,96,0.1);
-          animation: core-pulse 0.9s ease-in-out infinite alternate;
-        }
-        body.live .orb-core {
-          background: radial-gradient(circle, rgba(94,168,122,0.2) 0%, rgba(61,80,96,0.1) 50%, transparent 100%);
-          box-shadow: 0 0 30px rgba(94,168,122,0.2);
-          animation: core-pulse 1.5s ease-in-out infinite alternate;
-        }
+        body.speaking .orb-core { background:radial-gradient(circle,rgba(196,182,151,0.18) 0%,rgba(61,80,96,0.08) 50%,transparent 100%); box-shadow:0 0 28px rgba(196,182,151,0.18),0 0 50px rgba(61,80,96,0.08); animation:core-pulse 0.9s ease-in-out infinite alternate; }
+        body.live .orb-core { background:radial-gradient(circle,rgba(94,168,122,0.18) 0%,rgba(61,80,96,0.08) 50%,transparent 100%); box-shadow:0 0 28px rgba(94,168,122,0.18); animation:core-pulse 1.5s ease-in-out infinite alternate; }
+        @keyframes core-pulse { from{transform:scale(1);} to{transform:scale(1.12);} }
 
-        @keyframes core-pulse {
-          from { transform: scale(1); }
-          to { transform: scale(1.12); }
-        }
+        /* Voice wave */
+        .voice-wave { display:flex; align-items:center; justify-content:center; gap:3px; height:36px; margin-top:14px; width:160px; }
+        .bar { width:3px; border-radius:3px; background:linear-gradient(to top,var(--sand-dim),var(--slate)); height:4px; opacity:0.2; transition:opacity 0.3s ease; }
+        body.speaking .bar { opacity:1; background:linear-gradient(to top,var(--sand),var(--silver)); animation:bar-wave 0.5s ease-in-out infinite alternate; }
+        body.live .bar { opacity:0.5; background:linear-gradient(to top,var(--green),var(--slate)); animation:bar-idle 2s ease-in-out infinite alternate; }
+        .bar:nth-child(1){animation-delay:0.00s;} .bar:nth-child(2){animation-delay:0.04s;} .bar:nth-child(3){animation-delay:0.08s;} .bar:nth-child(4){animation-delay:0.12s;} .bar:nth-child(5){animation-delay:0.16s;} .bar:nth-child(6){animation-delay:0.20s;} .bar:nth-child(7){animation-delay:0.24s;} .bar:nth-child(8){animation-delay:0.20s;} .bar:nth-child(9){animation-delay:0.16s;} .bar:nth-child(10){animation-delay:0.12s;} .bar:nth-child(11){animation-delay:0.08s;} .bar:nth-child(12){animation-delay:0.04s;} .bar:nth-child(13){animation-delay:0.00s;}
+        @keyframes bar-wave { from{height:4px;} to{height:34px;} }
+        @keyframes bar-idle { from{height:4px;} to{height:10px;} }
 
-        /* VOICE WAVE — replaces particles */
-        .voice-wave {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          height: 48px;
-          margin-top: 20px;
-          width: 200px;
-        }
+        .state-label { font-family:'VT323',monospace; font-size:12px; letter-spacing:4px; color:var(--slate-dim); text-transform:uppercase; margin-top:6px; transition:all 0.4s ease; }
+        body.speaking .state-label { color:var(--sand); text-shadow:0 0 8px rgba(196,182,151,0.25); }
+        body.live .state-label { color:var(--green); text-shadow:0 0 8px rgba(94,168,122,0.25); }
 
-        .bar {
-          width: 3px;
-          border-radius: 3px;
-          background: linear-gradient(to top, var(--sand-dim), var(--slate));
-          height: 4px;
-          opacity: 0.25;
-          transition: opacity 0.3s ease;
-        }
-
-        body.speaking .bar {
-          opacity: 1;
-          background: linear-gradient(to top, var(--sand), var(--silver));
-          animation: bar-wave 0.5s ease-in-out infinite alternate;
-        }
-
-        body.live .bar {
-          opacity: 0.6;
-          background: linear-gradient(to top, var(--green), var(--slate));
-          animation: bar-idle 2s ease-in-out infinite alternate;
-        }
-
-        .bar:nth-child(1)  { animation-delay: 0.00s; }
-        .bar:nth-child(2)  { animation-delay: 0.04s; }
-        .bar:nth-child(3)  { animation-delay: 0.08s; }
-        .bar:nth-child(4)  { animation-delay: 0.12s; }
-        .bar:nth-child(5)  { animation-delay: 0.16s; }
-        .bar:nth-child(6)  { animation-delay: 0.20s; }
-        .bar:nth-child(7)  { animation-delay: 0.24s; }
-        .bar:nth-child(8)  { animation-delay: 0.20s; }
-        .bar:nth-child(9)  { animation-delay: 0.16s; }
-        .bar:nth-child(10) { animation-delay: 0.12s; }
-        .bar:nth-child(11) { animation-delay: 0.08s; }
-        .bar:nth-child(12) { animation-delay: 0.04s; }
-        .bar:nth-child(13) { animation-delay: 0.00s; }
-
-        @keyframes bar-wave {
-          from { height: 4px; }
-          to { height: 42px; }
-        }
-
-        @keyframes bar-idle {
-          from { height: 4px; }
-          to { height: 12px; }
-        }
-
-        .state-label {
-          font-family: 'VT323', monospace;
-          font-size: 13px;
-          letter-spacing: 4px;
-          color: var(--slate-dim);
-          text-transform: uppercase;
-          margin-top: 8px;
-          transition: all 0.4s ease;
-        }
-        body.speaking .state-label { color: var(--sand); text-shadow: 0 0 8px rgba(196,182,151,0.3); }
-        body.live .state-label { color: var(--green); text-shadow: 0 0 8px rgba(94,168,122,0.3); }
-
-        /* LIVE BUTTON */
-        .live-btn {
-          margin-top: 14px;
-          padding: 10px 28px;
-          font-family: 'VT323', monospace;
-          font-size: 16px;
-          letter-spacing: 4px;
-          text-transform: uppercase;
-          border-radius: 30px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          z-index: 10;
-          border: 1px solid rgba(94,168,122,0.3);
-          background: rgba(94,168,122,0.08);
-          color: var(--green);
-        }
-        .live-btn:active { transform: scale(0.96); }
-        .live-btn.active {
-          background: rgba(94,168,122,0.15);
-          border-color: rgba(94,168,122,0.6);
-          box-shadow: 0 0 16px rgba(94,168,122,0.2);
-          color: var(--green);
-        }
+        /* Live button */
+        .live-btn { margin-top:10px; padding:8px 24px; font-family:'VT323',monospace; font-size:15px; letter-spacing:4px; text-transform:uppercase; border-radius:30px; cursor:pointer; transition:all 0.3s ease; z-index:10; border:1px solid rgba(94,168,122,0.28); background:rgba(94,168,122,0.07); color:var(--green); }
+        .live-btn:active { transform:scale(0.96); }
+        .live-btn.active { background:rgba(94,168,122,0.13); border-color:rgba(94,168,122,0.55); box-shadow:0 0 14px rgba(94,168,122,0.18); }
 
         /* RESPONSE CARDS */
-        .response-section {
+        .response-section { width:100%; z-index:10; display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+        .card { background:var(--card); border-radius:3px; padding:9px 13px; border:1px solid var(--border); position:relative; overflow:hidden; }
+        .card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; }
+        .card.user::before { background:var(--slate); opacity:0.55; }
+        .card.riggy::before { background:var(--sand); opacity:0.65; }
+        .card-label { font-family:'VT323',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase; margin-bottom:3px; }
+        .card.user .card-label { color:var(--silver-dim); }
+        .card.riggy .card-label { color:var(--sand-dim); }
+        .card-text { font-family:'Share Tech Mono',monospace; font-size:12px; line-height:1.5; color:var(--text); opacity:0.8; min-height:16px; max-height:70px; overflow-y:auto; }
+        .card.user .card-text { opacity:0.4; font-size:11px; }
+        .fade-in { animation:fadeUp 0.3s ease forwards; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(3px);} to{opacity:1;transform:translateY(0);} }
+
+        /* ── TEXT COMMAND INPUT ──────────────────────── */
+        .command-section {
           width: 100%;
           z-index: 10;
+          margin-top: 10px;
+          position: relative;
+        }
+
+        .command-wrap {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          padding: 8px 10px;
+          transition: border-color 0.3s;
+        }
+        .command-wrap:focus-within {
+          border-color: rgba(61,80,96,0.6);
+          box-shadow: 0 0 0 1px rgba(61,80,96,0.2);
+        }
+
+        .command-input {
+          flex: 1;
+          background: transparent;
+          border: none;
+          outline: none;
+          font-family: 'Share Tech Mono', monospace;
+          font-size: 12px;
+          color: var(--text);
+          caret-color: var(--sand);
+        }
+        .command-input::placeholder {
+          color: var(--silver-dim);
+          opacity: 0.4;
+          font-size: 11px;
+          letter-spacing: 1px;
+        }
+
+        .command-send {
+          background: rgba(61,80,96,0.3);
+          border: 1px solid rgba(61,80,96,0.4);
+          border-radius: 3px;
+          padding: 5px 12px;
+          font-family: 'VT323', monospace;
+          font-size: 13px;
+          letter-spacing: 2px;
+          color: var(--silver);
+          cursor: pointer;
+          text-transform: uppercase;
+          transition: all 0.2s;
+          flex-shrink: 0;
+        }
+        .command-send:active { background: rgba(61,80,96,0.5); transform: scale(0.97); }
+
+        /* ── SETTINGS PANEL ──────────────────────────── */
+        #settingsScreen {
+          position: fixed;
+          inset: 0;
+          background: var(--bg);
+          z-index: 200;
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          margin-top: 14px;
-        }
-
-        .card {
-          background: var(--card);
-          border-radius: 4px;
-          padding: 11px 15px;
-          border: 1px solid var(--border);
-          position: relative;
-          overflow: hidden;
-        }
-        .card::before {
-          content: '';
-          position: absolute;
-          left: 0; top: 0; bottom: 0;
-          width: 2px;
-        }
-        .card.user::before { background: var(--slate); opacity: 0.6; }
-        .card.riggy::before { background: var(--sand); opacity: 0.7; }
-
-        .card-label {
-          font-family: 'VT323', monospace;
-          font-size: 11px;
-          letter-spacing: 3px;
-          text-transform: uppercase;
-          margin-bottom: 4px;
-        }
-        .card.user .card-label { color: var(--silver-dim); }
-        .card.riggy .card-label { color: var(--sand-dim); }
-
-        .card-text {
-          font-family: 'Share Tech Mono', monospace;
-          font-size: 13px;
-          line-height: 1.5;
-          color: var(--text);
-          opacity: 0.8;
-          min-height: 18px;
-          max-height: 80px;
+          transform: translateX(100%);
+          transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+          padding: 48px 22px 28px;
           overflow-y: auto;
         }
-        .card.user .card-text { opacity: 0.45; font-size: 12px; }
+        #settingsScreen.open { transform: translateX(0); }
 
-        .fade-in {
-          animation: fadeUp 0.3s ease forwards;
+        .settings-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 28px;
         }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
+
+        .settings-title {
+          font-family: 'Orbitron', sans-serif;
+          font-weight: 600;
+          font-size: 16px;
+          letter-spacing: 6px;
+          color: var(--silver);
         }
+
+        .settings-back {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          opacity: 0.5;
+          transition: opacity 0.3s;
+          font-family: 'VT323', monospace;
+          font-size: 14px;
+          letter-spacing: 3px;
+          color: var(--text);
+          text-transform: uppercase;
+        }
+        .settings-back:active { opacity: 1; }
+        .settings-back svg { width: 14px; height: 14px; stroke: var(--text); fill: none; stroke-width: 2; }
+
+        /* Section label */
+        .s-section {
+          font-family: 'VT323', monospace;
+          font-size: 11px;
+          letter-spacing: 4px;
+          color: var(--slate);
+          text-transform: uppercase;
+          margin-bottom: 10px;
+          margin-top: 22px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid var(--border);
+        }
+        .s-section:first-of-type { margin-top: 0; }
+
+        /* Setting row */
+        .s-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 0;
+          border-bottom: 1px solid rgba(42,45,49,0.5);
+        }
+
+        .s-row-info { flex: 1; margin-right: 16px; }
+        .s-label { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--silver); margin-bottom: 2px; }
+        .s-desc { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--silver-dim); opacity: 0.55; line-height: 1.4; }
+
+        /* Toggle switch */
+        .toggle-wrap { position: relative; width: 42px; height: 24px; flex-shrink: 0; cursor: pointer; }
+        .toggle-wrap input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .toggle-track {
+          position: absolute; inset: 0;
+          background: var(--border);
+          border-radius: 12px;
+          border: 1px solid var(--border2);
+          transition: background 0.3s, border-color 0.3s;
+        }
+        .toggle-wrap input:checked ~ .toggle-track {
+          background: rgba(94,168,122,0.25);
+          border-color: rgba(94,168,122,0.4);
+        }
+        .toggle-thumb {
+          position: absolute;
+          top: 3px; left: 3px;
+          width: 16px; height: 16px;
+          background: var(--silver-dim);
+          border-radius: 50%;
+          transition: transform 0.3s, background 0.3s;
+        }
+        .toggle-wrap input:checked ~ .toggle-track ~ .toggle-thumb {
+          transform: translateX(18px);
+          background: var(--green);
+          box-shadow: 0 0 8px rgba(94,168,122,0.5);
+        }
+
+        /* Text input in settings */
+        .s-input {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: 3px;
+          padding: 8px 10px;
+          font-family: 'Share Tech Mono', monospace;
+          font-size: 12px;
+          color: var(--text);
+          width: 100%;
+          margin-top: 8px;
+          outline: none;
+          transition: border-color 0.3s;
+        }
+        .s-input:focus { border-color: rgba(61,80,96,0.5); }
+        .s-input::placeholder { color: var(--silver-dim); opacity: 0.4; }
+
+        /* Slider */
+        .s-slider-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid rgba(42,45,49,0.5); }
+        .s-slider-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .s-slider-val { font-family: 'VT323', monospace; font-size: 18px; color: var(--sand); letter-spacing: 2px; }
+
+        input[type=range] {
+          -webkit-appearance: none;
+          width: 100%; height: 2px;
+          background: var(--border);
+          border-radius: 2px;
+          outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 16px; height: 16px;
+          border-radius: 50%;
+          background: var(--sand);
+          box-shadow: 0 0 8px rgba(196,182,151,0.4);
+          cursor: pointer;
+        }
+
+        /* Save button */
+        .s-save {
+          margin-top: 28px;
+          padding: 12px;
+          width: 100%;
+          background: rgba(94,168,122,0.1);
+          border: 1px solid rgba(94,168,122,0.3);
+          border-radius: 4px;
+          font-family: 'VT323', monospace;
+          font-size: 16px;
+          letter-spacing: 5px;
+          color: var(--green);
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+        .s-save:active { background: rgba(94,168,122,0.2); transform: scale(0.98); }
+
+        .s-saved-msg {
+          text-align: center;
+          font-family: 'VT323', monospace;
+          font-size: 13px;
+          letter-spacing: 3px;
+          color: var(--green);
+          margin-top: 10px;
+          opacity: 0;
+          transition: opacity 0.3s;
+          text-transform: uppercase;
+        }
+        .s-saved-msg.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -435,61 +509,283 @@
 <div class="corner corner-bl"></div>
 <div class="corner corner-br"></div>
 
-<div class="header">
-    <div class="brand">MR. RIGGY</div>
-    <div class="brand-sub">Private Digital Assistant</div>
-    <div class="status-pill" id="statusPill">
-        <div class="status-dot"></div>
-        <span class="status-text" id="statusText">Online</span>
+<!-- ── MAIN SCREEN ──────────────────────────────────── -->
+<div id="mainScreen">
+
+    <div class="header">
+        <div class="header-spacer"></div>
+        <div class="header-center">
+            <div class="brand">MR. RIGGY</div>
+            <div class="brand-sub">Private Digital Assistant</div>
+            <div class="commander-tag" id="commanderTag">Commander</div>
+            <div class="status-pill" id="statusPill">
+                <div class="status-dot"></div>
+                <span class="status-text" id="statusText">Online</span>
+            </div>
+        </div>
+        <div class="settings-btn" onclick="openSettings()">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+        </div>
     </div>
+
+    <div class="orb-section">
+        <div class="orb-wrap">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="orb-core"></div>
+        </div>
+        <div class="voice-wave">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div class="state-label" id="stateLabel">Standby</div>
+        <button class="live-btn" id="liveBtn" onclick="toggleLive()">Go Live</button>
+    </div>
+
+    <div class="response-section">
+        <div class="card user">
+            <div class="card-label">You said</div>
+            <div class="card-text" id="userText">Awaiting your command...</div>
+        </div>
+        <div class="card riggy">
+            <div class="card-label">Mr. Riggy</div>
+            <div class="card-text" id="riggyText">Online and ready, Commander.</div>
+        </div>
+    </div>
+
+    <!-- Text command input -->
+    <div class="command-section">
+        <div class="command-wrap">
+            <input
+                    class="command-input"
+                    id="commandInput"
+                    type="text"
+                    placeholder="Type your command, Commander..."
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+            />
+            <button class="command-send" onclick="sendTextCommand()">Send</button>
+        </div>
+    </div>
+
 </div>
 
-<div class="orb-section">
-    <div class="orb-wrap">
-        <div class="ring ring-1"></div>
-        <div class="ring ring-2"></div>
-        <div class="ring ring-3"></div>
-        <div class="orb-core"></div>
+<!-- ── SETTINGS PANEL ───────────────────────────────── -->
+<div id="settingsScreen">
+
+    <div class="settings-header">
+        <div class="settings-back" onclick="closeSettings()">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+        </div>
+        <div class="settings-title">Settings</div>
+        <div style="width:50px"></div>
     </div>
 
-    <div class="voice-wave">
-        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-        <div class="bar"></div>
+    <!-- Commander identity -->
+    <div class="s-section">Identity</div>
+
+    <div class="s-row" style="flex-direction:column; align-items:flex-start; border-bottom:none;">
+        <div class="s-label">Your Call Sign</div>
+        <div class="s-desc">Riggy will address you as Commander [Name] by default.</div>
+        <input class="s-input" id="commanderName" type="text" placeholder="Your first name" maxlength="20" />
     </div>
 
-    <div class="state-label" id="stateLabel">Standby</div>
+    <!-- Chime In -->
+    <div class="s-section">Chime In</div>
 
-    <button class="live-btn" id="liveBtn" onclick="toggleLive()">Go Live</button>
-</div>
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Enable Chime In</div>
+            <div class="s-desc">Riggy passively listens a few times a day and speaks up if something's worth saying.</div>
+        </div>
+        <label class="toggle-wrap">
+            <input type="checkbox" id="chimeEnabled" />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+        </label>
+    </div>
 
-<div class="response-section">
-    <div class="card user">
-        <div class="card-label">You said</div>
-        <div class="card-text" id="userText">Waiting for your voice...</div>
+    <div class="s-slider-row">
+        <div class="s-slider-top">
+            <div class="s-row-info">
+                <div class="s-label">Daily Chime Limit</div>
+                <div class="s-desc">Max times Riggy will chime in per day.</div>
+            </div>
+            <div class="s-slider-val" id="chimeVal">3</div>
+        </div>
+        <input type="range" id="chimeLimit" min="1" max="10" value="3"
+               oninput="document.getElementById('chimeVal').textContent = this.value" />
     </div>
-    <div class="card riggy">
-        <div class="card-label">Mr. Riggy</div>
-        <div class="card-text" id="riggyText">Online and ready, friend.</div>
+
+    <!-- Notifications -->
+    <div class="s-section">Notifications</div>
+
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Read Notifications Aloud</div>
+            <div class="s-desc">Riggy reads incoming texts and calls through your glasses.</div>
+        </div>
+        <label class="toggle-wrap">
+            <input type="checkbox" id="notifsEnabled" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+        </label>
     </div>
+
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Calls</div>
+            <div class="s-desc">Announce incoming phone calls.</div>
+        </div>
+        <label class="toggle-wrap">
+            <input type="checkbox" id="notifCalls" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+        </label>
+    </div>
+
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Text Messages</div>
+            <div class="s-desc">Read SMS and messaging app texts.</div>
+        </div>
+        <label class="toggle-wrap">
+            <input type="checkbox" id="notifTexts" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+        </label>
+    </div>
+
+    <!-- General -->
+    <div class="s-section">General</div>
+
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Wake Word</div>
+            <div class="s-desc">Riggy activates when he hears his name.</div>
+        </div>
+        <label class="toggle-wrap">
+            <input type="checkbox" id="wakeWordEnabled" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+        </label>
+    </div>
+
+    <div class="s-row">
+        <div class="s-row-info">
+            <div class="s-label">Default City</div>
+            <div class="s-desc">Used for weather when GPS is unavailable.</div>
+        </div>
+    </div>
+    <input class="s-input" id="defaultCity" type="text" placeholder="City, State, Country (e.g. Deltona,FL,US)" style="margin-bottom:4px;" />
+
+    <button class="s-save" onclick="saveSettings()">Save Settings</button>
+    <div class="s-saved-msg" id="savedMsg">Settings Saved</div>
+
 </div>
 
 <script>
-    const pill = document.getElementById('statusPill');
+    // ── State ─────────────────────────────────────────
+    const pill       = document.getElementById('statusPill');
     const statusText = document.getElementById('statusText');
     const stateLabel = document.getElementById('stateLabel');
-    const riggyText = document.getElementById('riggyText');
-    const userText = document.getElementById('userText');
-    const liveBtn = document.getElementById('liveBtn');
+    const riggyText  = document.getElementById('riggyText');
+    const userText   = document.getElementById('userText');
+    const liveBtn    = document.getElementById('liveBtn');
+    const cmdInput   = document.getElementById('commandInput');
+    const cmdTag     = document.getElementById('commanderTag');
 
     let speakTimer = null;
     let lastRiggy = '';
     let lastUser = '';
     let isLive = false;
-    let lastLiveState = false;
 
+    // ── Load saved settings ───────────────────────────
+    function loadSettings() {
+      const name = localStorage.getItem('commanderName') || '';
+      if (name) {
+        document.getElementById('commanderName').value = name;
+        cmdTag.textContent = 'Commander ' + name;
+      }
+      const chimeOn = localStorage.getItem('chimeEnabled') === 'true';
+      document.getElementById('chimeEnabled').checked = chimeOn;
+      const chimeLimit = localStorage.getItem('chimeLimit') || '3';
+      document.getElementById('chimeLimit').value = chimeLimit;
+      document.getElementById('chimeVal').textContent = chimeLimit;
+      document.getElementById('notifsEnabled').checked = localStorage.getItem('notifsEnabled') !== 'false';
+      document.getElementById('notifCalls').checked = localStorage.getItem('notifCalls') !== 'false';
+      document.getElementById('notifTexts').checked = localStorage.getItem('notifTexts') !== 'false';
+      document.getElementById('wakeWordEnabled').checked = localStorage.getItem('wakeWordEnabled') !== 'false';
+      const city = localStorage.getItem('defaultCity') || '';
+      if (city) document.getElementById('defaultCity').value = city;
+    }
+
+    function saveSettings() {
+      const name = document.getElementById('commanderName').value.trim();
+      localStorage.setItem('commanderName', name);
+      localStorage.setItem('chimeEnabled', document.getElementById('chimeEnabled').checked);
+      localStorage.setItem('chimeLimit', document.getElementById('chimeLimit').value);
+      localStorage.setItem('notifsEnabled', document.getElementById('notifsEnabled').checked);
+      localStorage.setItem('notifCalls', document.getElementById('notifCalls').checked);
+      localStorage.setItem('notifTexts', document.getElementById('notifTexts').checked);
+      localStorage.setItem('wakeWordEnabled', document.getElementById('wakeWordEnabled').checked);
+      localStorage.setItem('defaultCity', document.getElementById('defaultCity').value.trim());
+
+      if (name) cmdTag.textContent = 'Commander ' + name;
+      else cmdTag.textContent = 'Commander';
+
+      const msg = document.getElementById('savedMsg');
+      msg.classList.add('show');
+      setTimeout(() => msg.classList.remove('show'), 2000);
+    }
+
+    // ── Settings panel ────────────────────────────────
+    function openSettings() {
+      document.getElementById('settingsScreen').classList.add('open');
+      document.getElementById('mainScreen').classList.add('hidden');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsScreen').classList.remove('open');
+      document.getElementById('mainScreen').classList.remove('hidden');
+    }
+
+    // ── Text command ──────────────────────────────────
+    async function sendTextCommand() {
+      const text = cmdInput.value.trim();
+      if (!text) return;
+      cmdInput.value = '';
+
+      // Show in user card
+      userText.textContent = text;
+      userText.classList.remove('fade-in');
+      void userText.offsetWidth;
+      userText.classList.add('fade-in');
+
+      try {
+        await fetch('/text-command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+      } catch(e) { console.error('Text command error:', e); }
+    }
+
+    // Enter key to send
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendTextCommand();
+    });
+
+    // ── Live toggle ───────────────────────────────────
     async function toggleLive() {
       try {
         const res = await fetch('/toggle-live', { method: 'POST' });
@@ -503,8 +799,7 @@
       if (isLive) {
         document.body.classList.add('live');
         document.body.classList.remove('speaking');
-        pill.classList.add('live');
-        pill.classList.remove('speaking');
+        pill.classList.add('live'); pill.classList.remove('speaking');
         statusText.textContent = 'Live';
         stateLabel.textContent = 'Listening Live';
         liveBtn.textContent = 'Stop Live';
@@ -534,18 +829,16 @@
       }
     }
 
+    // ── Poll state ────────────────────────────────────
     async function pollUpdates() {
       try {
         const res = await fetch('/webview-state');
         if (res.ok) {
           const data = await res.json();
-
-          // Sync live state from server
           if (data.liveMode !== undefined && data.liveMode !== isLive) {
             isLive = data.liveMode;
             updateLiveUI();
           }
-
           if (data.userSaid && data.userSaid !== lastUser) {
             lastUser = data.userSaid;
             userText.textContent = data.userSaid;
@@ -570,6 +863,8 @@
       setTimeout(pollUpdates, 1200);
     }
 
+    // ── Init ──────────────────────────────────────────
+    loadSettings();
     setSpeaking(false);
     pollUpdates();
 </script>
