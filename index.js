@@ -561,12 +561,8 @@ async function speakWithElevenLabs(text, session) {
     console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
 
     try {
-      // Race: duration timer is the safety net if SDK resolves early.
-      // Whichever resolves FIRST wins — audio plays fully before moving on.
-      await Promise.race([
-        session.audio.playAudio({ audioUrl, waitForCompletion: true }).catch(e => console.error('playAudio error:', e)),
-        new Promise(r => setTimeout(r, durationMs))
-      ]);
+      session.audio.playAudio({ audioUrl, waitForCompletion: false }).catch(e => console.error('playAudio error:', e));
+      await new Promise(r => setTimeout(r, durationMs));
     } catch(e) {
       console.error('playAudio error:', e);
     }
