@@ -610,6 +610,7 @@ class RiggyGlasses extends AppServer {
     // ── Deduplication — stops Mentra 2.10 delayed transcription replays ──
     let lastProcessedText = '';
     let lastProcessedTime = 0;
+    let tapWakeActive = false; // set true by short button tap, cleared after one response
 
     latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
     latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
@@ -967,6 +968,73 @@ class RiggyGlasses extends AppServer {
       return liveMode;
     };
 
+    // ── BUTTON PRESS ──────────────────────────────────────────────────────────
+    // Short tap — wakes Riggy for one response, no wake word needed
+    // Long press — toggles live mode on/off
+    session.events.onButtonPress(async (data) => {
+      console.log(`🔘 Button: ${data.buttonId} — ${data.pressType}`);
+      if (data.buttonId !== 'main') return;
+      if (ignoreSpeechDuringTTS || isProcessing) return;
+
+      if (data.pressType === 'short') {
+        // Short tap — activate for next transcription without wake word
+        console.log('👆 Short tap — listening for one response');
+        tapWakeActive = true;
+        // Brief audio cue so user knows Riggy heard the tap
+        try { await session.audio.speak('Yeah?'); } catch(e) {}
+      } else if (data.pressType === 'long') {
+        // Long press — toggle live mode
+        liveMode = !liveMode; latestState.liveMode = liveMode;
+        if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
+        else { await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; }
+      }
+    });
+
+    // ── PHONE NOTIFICATIONS ───────────────────────────────────────────────────
+    // Reads incoming texts, calls, and app notifications aloud through glasses
+    session.events.onPhoneNotifications(async (notifications) => {
+      if (!notifications || notifications.length === 0) return;
+      if (ignoreSpeechDuringTTS || isProcessing) return;
+
+      for (const notif of notifications) {
+        const app = notif.app || 'Someone';
+        const title = notif.title || '';
+        const content = notif.content || '';
+
+        console.log(`📱 Notification — ${app}: ${title} — ${content}`);
+
+        // Filter out junk/spam notifications — only read meaningful ones
+        const appLower = app.toLowerCase();
+        const isMessaging = appLower.includes('messages') || appLower.includes('whatsapp') ||
+          appLower.includes('messenger') || appLower.includes('telegram') ||
+          appLower.includes('snapchat') || appLower.includes('instagram') ||
+          appLower.includes('signal') || appLower.includes('gmail') ||
+          appLower.includes('phone') || appLower.includes('call');
+
+        if (!isMessaging) {
+          console.log(`📱 Skipping non-messaging notification from ${app}`);
+          continue;
+        }
+
+        // Build natural spoken message
+        let msg = '';
+        if (appLower.includes('phone') || appLower.includes('call')) {
+          msg = `Incoming call from ${title || 'someone'}.`;
+        } else if (title && content) {
+          msg = `${title} says: ${content}`;
+        } else if (title) {
+          msg = `Message from ${title}.`;
+        } else if (content) {
+          msg = `New message: ${content}`;
+        }
+
+        if (msg) {
+          latestState.riggySaid = msg;
+          await speakSafe(msg);
+        }
+      }
+    });
+
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
       if (ignoreSpeechDuringTTS) { console.log('🔇 TTS active'); return; }
@@ -984,6 +1052,10 @@ class RiggyGlasses extends AppServer {
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
       if (noteMode) { await handleInput(userSaid); return; }
       if (liveMode || liveCamMode) { await handleInput(userSaid); return; }
+
+      // ── Tap wake — short tap activated, no wake word needed for next response ──
+      if (tapWakeActive) { tapWakeActive = false; await handleInput(userSaid); return; }
+
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
     });
