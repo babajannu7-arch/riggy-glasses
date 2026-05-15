@@ -45,7 +45,7 @@ const RESUME_MIC_DELAY_MS = 1200;
 const STREAM_FRAME_INTERVAL_MS = 3000;        // How often FFmpeg extracts a frame from HLS
 const GAME_MODE_ANALYSIS_INTERVAL_MS = 6000;  // How often game mode sends frame to Gemini
 const LIVE_CAM_ANALYSIS_INTERVAL_MS = 8000;   // How often live cam sends frame to Gemini
-const PROCESSING_TIMEOUT_MS = 15000;
+const PROCESSING_TIMEOUT_MS = 30000;
 const NOTE_SILENCE_TIMEOUT_MS = 5000;
 const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
 const SOUND_CHECK_DURATION_MS = 7000;
@@ -92,8 +92,8 @@ Wise without being preachy. Warm without being soft. Funny without trying.
 
 SPEAKING STYLE:
 - Call the user "friend" unless they tell you their name, then use it naturally
-- DEFAULT: 2-3 natural sentences. Speak like a person, not a telegram.
-- Only go shorter if the answer genuinely calls for it.
+- HARD LIMIT: 2 sentences maximum. Every single response. No exceptions.
+- Only go to 1 sentence if the answer genuinely calls for it.
 - No bullet points. No lists. No markdown. Pure spoken words only.
 - Sci-fi emojis occasionally 🤖⚡🛸 — only when it genuinely fits
 
@@ -517,7 +517,7 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
   if (!systemOverride) history.push({ role: 'user', parts: userParts });
-  const body = { system_instruction: { parts: [{ text: systemPrompt }] }, contents: systemOverride ? [{ role: 'user', parts: userParts }] : history, generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 200 : 300, thinkingConfig: { thinkingBudget: 0 } } };
+  const body = { system_instruction: { parts: [{ text: systemPrompt }] }, contents: systemOverride ? [{ role: 'user', parts: userParts }] : history, generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 150 : 180, thinkingConfig: { thinkingBudget: 0 } } };
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await response.json();
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -1045,7 +1045,7 @@ class RiggyGlasses extends AppServer {
 
       // ── Deduplication — blocks Mentra 2.10 delayed replay bug ──
       const now = Date.now();
-      if (userSaid === lastProcessedText && now - lastProcessedTime < 60000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
+      if (userSaid === lastProcessedText && now - lastProcessedTime < 180000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
       lastProcessedText = userSaid;
       lastProcessedTime = now;
 
