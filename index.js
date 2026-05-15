@@ -983,7 +983,7 @@ class RiggyGlasses extends AppServer {
 
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
       if (noteMode) { await handleInput(userSaid); return; }
-      if (liveMode || gameMode || liveCamMode) { await handleInput(userSaid); return; }
+      if (liveMode || liveCamMode) { await handleInput(userSaid); return; }
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
     });
