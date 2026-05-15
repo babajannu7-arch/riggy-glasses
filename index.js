@@ -555,7 +555,7 @@ async function speakWithElevenLabs(text, session) {
     fs.writeFileSync(filePath, audioBytes);
 
     // Accurate MP3 duration: 128kbps = 16000 bytes/sec. Add 2s buffer for startup + network.
-    const durationMs = Math.max(3000, Math.ceil((audioBytes.length / 16000) * 1000) + 2000);
+    const durationMs = Math.max(4000, Math.ceil((audioBytes.length / 16000) * 1000) + 4000);
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
 
     console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
