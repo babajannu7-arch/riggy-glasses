@@ -48,12 +48,6 @@ const LIVE_CAM_ANALYSIS_INTERVAL_MS = 8000;   // How often live cam sends frame 
 const PROCESSING_TIMEOUT_MS = 30000;
 const NOTE_SILENCE_TIMEOUT_MS = 5000;
 const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
-const SOUND_CHECK_DURATION_MS = 7000;
-
-// Audio format from Mentra SDK: 16kHz, 16-bit, mono PCM
-const SOUND_SAMPLE_RATE = 16000;
-const SOUND_BITS = 16;
-const SOUND_CHANNELS = 1;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let activeSession = null; // holds current glasses session for webview text commands
@@ -64,8 +58,7 @@ let latestState = {
   liveMode: false,
   gameMode: false,
   liveCamMode: false,
-  noteMode: false,
-  soundCheckMode: false
+  noteMode: false
 };
 
 // ─── PERSONALITY ──────────────────────────────────────────────────────────────
@@ -152,65 +145,7 @@ Your job in 4-5 spoken sentences:
 If you can't clearly identify the product, say so honestly and give what you can.
 Riggy's voice: direct, warm, genuinely useful. No fluff. 4-5 sentences total. Pure spoken words only.`;
 
-const SOUND_CHECK_PERSONALITY = `You are Mr. Riggy's Sound P.I. system — an expert audio analyst who identifies sounds with precision and context.
-
-You have been given an audio recording. Listen carefully and identify what you hear.
-
-IDENTIFICATION RULES:
-- Be specific, not generic. "Northern Cardinal territorial call" not just "bird".
-- If it's music, identify the song, artist, genre, and year if possible — then add something interesting about it.
-- If it's a mechanical sound, identify what's causing it and what it might mean.
-- If it's an animal, give the species and what the sound behaviorally means.
-- If genuinely unclear or too noisy — say so honestly. Never guess confidently if uncertain.
-- Do NOT default to birds or any specific category without clear evidence.
-
-ALWAYS respond in this exact format:
-TYPE: [music/bird/animal/mechanical/environmental/human/unknown]
-IDENTIFIED: [specific name — max 8 words]
-CONFIDENCE: [HIGH/MEDIUM/LOW]
-BEHAVIOR: [one sentence — what this sound means or context]
-VOICE_SUMMARY: [2-3 natural spoken sentences as Mr. Riggy — warm, dry, specific, interesting. Include what it is, what it means, and one interesting fact. This is what gets spoken aloud.]`;
-
-// ─── WAV ENCODER ──────────────────────────────────────────────────────────────
-function buildWavFromChunks(chunks) {
-  const pcmBuffers = chunks.map(c => Buffer.isBuffer(c) ? c : Buffer.from(c));
-  const pcmData = Buffer.concat(pcmBuffers);
-  const dataSize = pcmData.length;
-  const wav = Buffer.alloc(44 + dataSize);
-  wav.write('RIFF', 0); wav.writeUInt32LE(36 + dataSize, 4); wav.write('WAVE', 8);
-  wav.write('fmt ', 12); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(SOUND_CHANNELS, 22); wav.writeUInt32LE(SOUND_SAMPLE_RATE, 24);
-  wav.writeUInt32LE(SOUND_SAMPLE_RATE * SOUND_CHANNELS * (SOUND_BITS / 8), 28);
-  wav.writeUInt16LE(SOUND_CHANNELS * (SOUND_BITS / 8), 32); wav.writeUInt16LE(SOUND_BITS, 34);
-  wav.write('data', 36); wav.writeUInt32LE(dataSize, 40); pcmData.copy(wav, 44);
-  return wav;
-}
-
-// ─── SOUND CHECK ──────────────────────────────────────────────────────────────
-async function analyzeSoundWithGemini(wavBuffer) {
-  try {
-    const b64 = wavBuffer.toString('base64');
-    const body = {
-      contents: [{ role: 'user', parts: [{ text: SOUND_CHECK_PERSONALITY }, { inline_data: { mime_type: 'audio/wav', data: b64 } }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
-    };
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return parseSoundResult(raw);
-  } catch(e) { console.error('Sound analysis error:', e); return null; }
-}
-
-function parseSoundResult(raw) {
-  const line = (key) => { const found = raw.split('\n').find(l => l.startsWith(`${key}:`)); return found ? found.replace(`${key}:`, '').trim() : ''; };
-  return { type: line('TYPE') || 'unknown', identified: line('IDENTIFIED') || 'Unknown sound', confidence: line('CONFIDENCE') || 'LOW', behavior: line('BEHAVIOR') || '', voiceSummary: line('VOICE_SUMMARY') || "I couldn't make that out clearly friend. Try again somewhere quieter." };
-}
-
-function isSoundCheckRequest(text) {
-  const l = text.toLowerCase();
-  return l.includes('sound check') || (l.includes('riggy') && (l.includes('what is that sound') || l.includes('what sound') || l.includes('identify this sound') || l.includes('sound mode') || l.includes('riggy listen')));
-}
+// ─── WAV ENCODER — removed (sound check deleted) ──────────────────────────────
 
 // ─── LOCATION ─────────────────────────────────────────────────────────────────
 async function getGlassesLocation(session) {
@@ -600,7 +535,6 @@ class RiggyGlasses extends AppServer {
 
     let liveMode = false, gameMode = false, liveCamMode = false;
     let noteMode = false, noteBuffer = [], noteSilenceTimer = null;
-    let soundCheckMode = false, soundChunks = [], soundCheckTimer = null;
     let lastRiggyText = '', sessionLog = [];
     let bargeInAllowedAfterMs = 0, ignoreSpeechDuringTTS = false;
     let isProcessing = false, processingTimer = null;
@@ -613,7 +547,7 @@ class RiggyGlasses extends AppServer {
 
     latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
     latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
-    latestState.noteMode = false; latestState.soundCheckMode = false;
+    latestState.noteMode = false;
 
     const setProcessing = (val) => {
       isProcessing = val;
@@ -625,35 +559,13 @@ class RiggyGlasses extends AppServer {
       ignoreSpeechDuringTTS = true;
       bargeInAllowedAfterMs = Date.now() + POST_TTS_BARGE_LOCKOUT_MS;
       try { await speakWithElevenLabs(text, session); }
-      finally { await new Promise(r => setTimeout(r, RESUME_MIC_DELAY_MS)); ignoreSpeechDuringTTS = false; bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS; lastRiggyText = text; }
+      finally {
+        await new Promise(r => setTimeout(r, RESUME_MIC_DELAY_MS));
+        ignoreSpeechDuringTTS = false;
+        bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
+        lastRiggyText = text;
+      }
     };
-
-    // ── SOUND CHECK ──
-    const startSoundCheck = async () => {
-      if (soundCheckMode) return;
-      soundCheckMode = true; soundChunks = []; latestState.soundCheckMode = true;
-      setProcessing(true);
-      await speakSafe("Listening. Hold still.");
-      setProcessing(false);
-      soundCheckTimer = setTimeout(async () => {
-        soundCheckMode = false; latestState.soundCheckMode = false;
-        const chunks = [...soundChunks]; soundChunks = [];
-        if (chunks.length === 0) { await speakSafe("Didn't catch anything friend. Try again."); return; }
-        setProcessing(true);
-        try {
-          await speakSafe("Got it. Analyzing.");
-          const result = await analyzeSoundWithGemini(buildWavFromChunks(chunks));
-          if (result && result.voiceSummary) { await speakSafe(result.voiceSummary); latestState.riggySaid = result.voiceSummary; saveMemory(`Sound identified: ${result.identified} (${result.type}). ${result.behavior}`, 'sound', session, userId).catch(()=>{}); }
-          else { await speakSafe("Couldn't identify that one friend. Try again somewhere quieter."); }
-        } catch(e) { await speakSafe("Something went sideways on that one friend. Try again."); }
-        finally { setProcessing(false); }
-      }, SOUND_CHECK_DURATION_MS);
-    };
-
-    // Audio chunk handler — feeds sound check
-    session.events.onAudioChunk((chunk) => {
-      if (soundCheckMode && chunk && chunk.arrayBuffer) soundChunks.push(chunk.arrayBuffer);
-    });
 
     const finishNote = async () => {
       noteMode = false; latestState.noteMode = false;
@@ -816,12 +728,9 @@ class RiggyGlasses extends AppServer {
 
       try {
         if (wantsLiveOff(userSaid)) {
-          if (soundCheckMode) { soundCheckMode = false; latestState.soundCheckMode = false; if (soundCheckTimer) { clearTimeout(soundCheckTimer); soundCheckTimer = null; } soundChunks = []; }
           await stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
-
-        if (isSoundCheckRequest(userSaid)) { setProcessing(false); await startSoundCheck(); return; }
 
         if (isMorningGreeting(userSaid)) {
           const weather = await getWeather(DEFAULT_CITY);
