@@ -56,6 +56,8 @@ const SOUND_BITS = 16;
 const SOUND_CHANNELS = 1;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
+let activeSession = null; // holds current glasses session for webview text commands
+
 let latestState = {
   userSaid: '',
   riggySaid: 'Mr. Riggy online. Say my name to begin.',
@@ -597,6 +599,7 @@ function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLo
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
     console.log(`🤖 Riggy connected — session ${sessionId} — user ${userId}`);
+    activeSession = session;
     await loadMemoryForUser(session, userId);
 
     let liveMode = false, gameMode = false, liveCamMode = false;
@@ -754,9 +757,6 @@ class RiggyGlasses extends AppServer {
         gameMode = false; latestState.gameMode = false; return;
       }
 
-      // Wait a few seconds for FFmpeg to get its first frame
-      await new Promise(r => setTimeout(r, 4000));
-
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
         const frame = readLatestFrame();
@@ -786,9 +786,6 @@ class RiggyGlasses extends AppServer {
         await speakSafe("Couldn't start the stream friend. Try again.");
         liveCamMode = false; latestState.liveCamMode = false; return;
       }
-
-      // Wait for FFmpeg to get its first frame
-      await new Promise(r => setTimeout(r, 4000));
 
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
@@ -1070,7 +1067,7 @@ class RiggyGlasses extends AppServer {
 
   async onStop(sessionId, userId, reason) {
     console.log(`👋 Session ended — ${sessionId} — reason: ${reason}`);
-    // Frame files are per-session — clean up on exit
+    activeSession = null;
     const framePath = path.join(__dirname, `frame_${sessionId}.jpg`);
     try { if (fs.existsSync(framePath)) fs.unlinkSync(framePath); } catch(e) {}
   }
@@ -1110,17 +1107,14 @@ expressApp.post('/text-command', async (req, res) => {
   const { text } = req.body;
   if (!text) { res.json({ ok: false }); return; }
   latestState.userSaid = text;
-  const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
-  if (sessions && sessions.length > 0) {
-    const s = sessions[0];
-    if (s._handleTextCommand) { await s._handleTextCommand(text); }
+  if (activeSession && activeSession._handleTextCommand) {
+    await activeSession._handleTextCommand(text);
   }
   res.json({ ok: true });
 });
 
 expressApp.post('/toggle-live', async (req, res) => {
-  const sessions = app.getActiveSessions ? app.getActiveSessions() : null;
-  if (sessions && sessions.length > 0) { const s = sessions[0]; if (s._toggleLive) { const live = await s._toggleLive(); res.json({ live }); return; } }
+  if (activeSession && activeSession._toggleLive) { const live = await activeSession._toggleLive(); res.json({ live }); return; }
   latestState.liveMode = !latestState.liveMode; res.json({ live: latestState.liveMode });
 });
 

@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1A1C1E">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Mr. Riggy</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
@@ -28,7 +31,8 @@
 
         html, body {
           width: 100%; height: 100%;
-          background: var(--bg);
+          min-height: 100dvh;
+          background: #1A1C1E;
           overflow: hidden;
           font-family: 'Share Tech Mono', monospace;
           color: var(--text);
@@ -39,6 +43,9 @@
           flex-direction: column;
           align-items: center;
           position: relative;
+          padding-top: env(safe-area-inset-top);
+          padding-bottom: env(safe-area-inset-bottom);
+          background: var(--bg);
         }
 
         /* Scanline overlay */
@@ -135,28 +142,27 @@
 
         .commander-tag {
           font-family: 'VT323', monospace;
-          font-size: 12px;
-          letter-spacing: 3px;
-          color: var(--slate);
+          font-size: 11px;
+          letter-spacing: 4px;
+          color: var(--sand-dim);
           text-transform: uppercase;
-          margin-top: 3px;
-          transition: color 0.4s;
+          margin-top: 4px;
+          opacity: 0.6;
+          min-height: 14px;
         }
-        body.live .commander-tag { color: var(--green); }
-        body.speaking .commander-tag { color: var(--sand-dim); }
 
-        /* Settings icon */
+        /* Settings icon — muted sand so it reads */
         .settings-btn {
           width: 36px; height: 36px;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer;
-          opacity: 0.4;
+          opacity: 0.65;
           transition: opacity 0.3s;
           flex-shrink: 0;
           margin-top: 2px;
         }
-        .settings-btn:active { opacity: 0.8; }
-        .settings-btn svg { width: 18px; height: 18px; stroke: var(--silver); fill: none; stroke-width: 1.5; }
+        .settings-btn:active { opacity: 1; }
+        .settings-btn svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.5; }
 
         /* Spacer for symmetry */
         .header-spacer { width: 36px; flex-shrink: 0; }
@@ -267,11 +273,11 @@
         .card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; }
         .card.user::before { background:var(--slate); opacity:0.55; }
         .card.riggy::before { background:var(--sand); opacity:0.65; }
-        .card-label { font-family:'VT323',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase; margin-bottom:3px; }
+        .card-label { font-family:'VT323',monospace; font-size:13px; letter-spacing:3px; text-transform:uppercase; margin-bottom:4px; }
         .card.user .card-label { color:var(--silver-dim); }
         .card.riggy .card-label { color:var(--sand-dim); }
-        .card-text { font-family:'Share Tech Mono',monospace; font-size:12px; line-height:1.5; color:var(--text); opacity:0.8; min-height:16px; max-height:70px; overflow-y:auto; }
-        .card.user .card-text { opacity:0.4; font-size:11px; }
+        .card-text { font-family:'Share Tech Mono',monospace; font-size:14px; line-height:1.55; color:var(--text); opacity:0.85; min-height:18px; max-height:80px; overflow-y:auto; }
+        .card.user .card-text { opacity:0.55; font-size:13px; }
         .fade-in { animation:fadeUp 0.3s ease forwards; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(3px);} to{opacity:1;transform:translateY(0);} }
 
@@ -304,15 +310,15 @@
           border: none;
           outline: none;
           font-family: 'Share Tech Mono', monospace;
-          font-size: 12px;
+          font-size: 14px;
           color: var(--text);
           caret-color: var(--sand);
         }
         .command-input::placeholder {
           color: var(--silver-dim);
-          opacity: 0.4;
-          font-size: 11px;
-          letter-spacing: 1px;
+          opacity: 0.45;
+          font-size: 13px;
+          letter-spacing: 0.5px;
         }
 
         .command-send {
@@ -517,11 +523,11 @@
         <div class="header-center">
             <div class="brand">MR. RIGGY</div>
             <div class="brand-sub">Private Digital Assistant</div>
-            <div class="commander-tag" id="commanderTag">Commander</div>
             <div class="status-pill" id="statusPill">
                 <div class="status-dot"></div>
                 <span class="status-text" id="statusText">Online</span>
             </div>
+            <div class="commander-tag" id="commanderTag"></div>
         </div>
         <div class="settings-btn" onclick="openSettings()">
             <svg viewBox="0 0 24 24">
