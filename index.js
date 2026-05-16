@@ -978,6 +978,8 @@ class RiggyGlasses extends AppServer {
           await doChime(fact || getWaterReminder());
           return;
         }
+
+        if (isMorningGreeting(userSaid)) {
           const weather = await getWeather(DEFAULT_CITY);
           const briefing = await generateBriefing('morning', { now: new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }), weather: weather ? `${weather.temp}°F and ${weather.description}` : 'not available', reminders: [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ') || 'No reminders', notes: getMemoryStore(userId).filter(m => m.type==='note'&&Date.now()-m.createdAt<86400000*2).slice(-3).map(n=>n.content).join('. ') || '', personal: permanentFacts.slice(0,5).join('. ') });
           await speakSafe(briefing); latestState.riggySaid = briefing; return;
