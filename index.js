@@ -49,6 +49,57 @@ const PROCESSING_TIMEOUT_MS = 60000;
 const NOTE_SILENCE_TIMEOUT_MS = 5000;
 const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
 
+// ─── CHIME SYSTEM ─────────────────────────────────────────────────────────────
+const CHIME_URL = 'https://riggy-glasses-production.up.railway.app/riggy_notification.mp3';
+const CHIME_MAX_PER_DAY = 10;
+const CHIME_WATER_INTERVAL_MS = 2 * 60 * 60 * 1000;      // every 2 hours
+const CHIME_FACT_INTERVAL_MS = 4 * 60 * 60 * 1000;        // every 4 hours
+const CHIME_WEATHER_CHECK_MS = 30 * 60 * 1000;            // check weather every 30 min
+const CHIME_REMINDER_CHECK_MS = 60 * 1000;                // check reminders every minute
+
+const CHIME_PHRASES = [
+  "Excuse me Commander...",
+  "Sorry to interrupt...",
+  "Real quick Commander...",
+  "Hey, pardon me for a second...",
+  "Commander, quick thing...",
+  "Forgive the interruption...",
+  "One moment Commander...",
+  "Hey, just chiming in real quick...",
+  "Don't mind me, but...",
+  "Commander, heads up..."
+];
+
+const WATER_REMINDERS = [
+  "When's the last time you had some water? Your brain is basically a sponge, don't let it dry out.",
+  "Hey, hydration check. Go grab some water, Commander. Your body will thank you.",
+  "Quick reminder — water exists and it loves you. Go drink some.",
+  "Commander, serious question. Water. Have you had any? Because you should.",
+  "Your cells are out here working hard. Least you can do is send them some water.",
+  "Riggy here with a hydration bulletin. Water. Now. That is all."
+];
+
+const NATURE_REMINDERS = [
+  "Step outside for two minutes today. The world's still out there doing its thing.",
+  "Hey Commander, the sun is out there doing its thing. Go say hello.",
+  "Two minutes outside. Fresh air is free and it hits different.",
+  "The sky exists. Just a reminder. Go look at it for a second.",
+  "Nature called. Said it misses you. Two minutes outside, Commander.",
+  "Sunlight, fresh air, the sound of the world. It's all right outside. Go touch some grass, Commander."
+];
+
+// Chime state — resets daily
+let chimeState = {
+  count: 0,
+  lastWater: 0,
+  lastFact: 0,
+  lastWeatherAlert: '',
+  lastSunrise: 0,
+  lastSunset: 0,
+  dailyFactDone: false,
+  resetDate: new Date().toDateString()
+};
+
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let activeSession = null; // holds current glasses session for webview text commands
 
@@ -524,6 +575,67 @@ function wantsGameOn(text) { return GAME_ON_KEYWORDS.some(kw => text.toLowerCase
 function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
+// ─── CHIME HELPERS ────────────────────────────────────────────────────────────
+function getChimePhrase() {
+  return CHIME_PHRASES[Math.floor(Math.random() * CHIME_PHRASES.length)];
+}
+
+function getWaterReminder() {
+  return WATER_REMINDERS[Math.floor(Math.random() * WATER_REMINDERS.length)];
+}
+
+function getNatureReminder() {
+  return NATURE_REMINDERS[Math.floor(Math.random() * NATURE_REMINDERS.length)];
+}
+
+function resetChimeDailyIfNeeded() {
+  const today = new Date().toDateString();
+  if (chimeState.resetDate !== today) {
+    chimeState.count = 0;
+    chimeState.lastWater = 0;
+    chimeState.lastFact = 0;
+    chimeState.lastSunrise = 0;
+    chimeState.lastSunset = 0;
+    chimeState.dailyFactDone = false;
+    chimeState.fact1Done = false;
+    chimeState.fact2Done = false;
+    chimeState.lastNature = '';
+    chimeState.lastWeatherAlert = '';
+    chimeState.resetDate = today;
+  }
+}
+
+function canChime() {
+  resetChimeDailyIfNeeded();
+  return chimeState.count < CHIME_MAX_PER_DAY;
+}
+
+async function getDailyFact() {
+  try {
+    const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const body = {
+      system_instruction: { parts: [{ text: `You are Mr. Riggy. Deliver one genuinely fascinating "on this day in history" fact for ${today}, or one incredible science or nature fact if nothing historic happened today. 2 sentences MAX. Warm, dry, Riggy's voice. Pure spoken words only. Start directly with the fact, no intro.` }] },
+      contents: [{ role: 'user', parts: [{ text: 'daily fact' }] }],
+      generationConfig: { temperature: 0.9, maxOutputTokens: 100, thinkingConfig: { thinkingBudget: 0 } }
+    };
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch(e) { return null; }
+}
+
+async function getSunriseSunset(lat, lng) {
+  try {
+    const res = await fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lng}&formatted=0`);
+    const data = await res.json();
+    if (data.status !== 'OK') return null;
+    return {
+      sunrise: new Date(data.results.sunrise),
+      sunset: new Date(data.results.sunset)
+    };
+  } catch(e) { return null; }
+}
+
 // ─── APP ──────────────────────────────────────────────────────────────────────
 class RiggyGlasses extends AppServer {
   async onSession(session, sessionId, userId) {
@@ -563,6 +675,135 @@ class RiggyGlasses extends AppServer {
         bargeInAllowedAfterMs = Date.now() + POST_SPEECH_COOLDOWN_MS;
         lastRiggyText = text;
       }
+    };
+
+    // ── CHIME SYSTEM ──────────────────────────────────────────────────────────
+    const playChime = async () => {
+      try {
+        await session.audio.playAudio({ audioUrl: CHIME_URL, waitForCompletion: false });
+        await new Promise(r => setTimeout(r, 2500)); // wait for chime to finish
+      } catch(e) { console.error('Chime sound error:', e); }
+    };
+
+    const doChime = async (message) => {
+      if (!canChime()) return;
+      if (ignoreSpeechDuringTTS || isProcessing) return;
+      chimeState.count++;
+      console.log(`🔔 Chime #${chimeState.count}: ${message.slice(0, 50)}`);
+      const phrase = getChimePhrase();
+      await playChime();
+      await speakSafe(`${phrase} ${message}`);
+      latestState.riggySaid = message;
+    };
+
+    // Water reminder — every 2 hours
+    const waterInterval = setInterval(async () => {
+      const now = Date.now();
+      if (now - chimeState.lastWater < CHIME_WATER_INTERVAL_MS) return;
+      chimeState.lastWater = now;
+      await doChime(getWaterReminder());
+    }, 15 * 60 * 1000);
+
+    // Nature reminder — once at 3pm or 4pm randomly
+    const natureHour = Math.random() < 0.5 ? 15 : 16;
+    const natureInterval = setInterval(async () => {
+      const hour = new Date().getHours();
+      if (hour !== natureHour) return;
+      const today = new Date().toDateString();
+      if (chimeState.lastNature === today) return;
+      chimeState.lastNature = today;
+      await doChime(getNatureReminder());
+    }, 30 * 60 * 1000); // check every 30 min
+
+    // Daily fact — once around 2pm and once around 6pm
+    const factInterval = setInterval(async () => {
+      const hour = new Date().getHours();
+      const today = new Date().toDateString();
+      const shouldFire = (hour === 14 && !chimeState.fact1Done) || (hour === 18 && !chimeState.fact2Done);
+      if (!shouldFire) return;
+      if (hour === 14) chimeState.fact1Done = true;
+      if (hour === 18) chimeState.fact2Done = true;
+      const fact = await getDailyFact();
+      if (fact) await doChime(fact);
+    }, 30 * 60 * 1000); // check every 30 min
+
+    // Weather chime — checks every 30 min for rain or big temp changes
+    const weatherChimeInterval = setInterval(async () => {
+      if (!canChime()) return;
+      try {
+        const weather = await getWeather(DEFAULT_CITY);
+        if (!weather) return;
+        const desc = weather.description.toLowerCase();
+        const alertKey = `${weather.temp}-${desc}`;
+        if (alertKey === chimeState.lastWeatherAlert) return;
+
+        let msg = null;
+        if (desc.includes('rain') || desc.includes('storm') || desc.includes('thunder')) {
+          msg = `Heads up Commander, looks like rain is moving in. ${weather.description} out there right now, ${weather.temp} degrees.`;
+        } else if (weather.temp <= 45) {
+          msg = `It's getting cold out there Commander, ${weather.temp} degrees. Might want a jacket if you're heading out.`;
+        } else if (weather.temp >= 95) {
+          msg = `It's ${weather.temp} degrees out there Commander. Stay hydrated and try to stay cool if you can.`;
+        }
+
+        if (msg) {
+          chimeState.lastWeatherAlert = alertKey;
+          await doChime(msg);
+        }
+      } catch(e) {}
+    }, CHIME_WEATHER_CHECK_MS);
+
+    // Sunrise/sunset chime
+    const sunInterval = setInterval(async () => {
+      const now = Date.now();
+      try {
+        const sun = await getSunriseSunset(DEFAULT_LAT, DEFAULT_LNG);
+        if (!sun) return;
+        const sunriseMs = sun.sunrise.getTime();
+        const sunsetMs = sun.sunset.getTime();
+        const window = 10 * 60 * 1000; // 10 min window
+
+        if (Math.abs(now - sunriseMs) < window && now - chimeState.lastSunrise > 60 * 60 * 1000) {
+          chimeState.lastSunrise = now;
+          await doChime("Sunrise, Commander. A brand new day just started. Make it count.");
+        }
+        if (Math.abs(now - sunsetMs) < window && now - chimeState.lastSunset > 60 * 60 * 1000) {
+          chimeState.lastSunset = now;
+          await doChime("Sun's going down Commander. Take a second to appreciate it if you can. Those colors don't last long.");
+        }
+      } catch(e) {}
+    }, 5 * 60 * 1000); // check every 5 min
+
+    // Reminder warnings — 1 hour, 20 min, 5 min
+    const reminderChimeInterval = setInterval(async () => {
+      const now = Date.now();
+      for (const [id, reminder] of reminders) {
+        const timeLeft = reminder.fireAtMs - now;
+        const warned = reminder.warned || [];
+
+        if (timeLeft <= 60 * 60 * 1000 && timeLeft > 59 * 60 * 1000 && !warned.includes('1h')) {
+          warned.push('1h'); reminder.warned = warned;
+          await doChime(`Just so you know Commander, you have a reminder coming up in about an hour. ${reminder.label}.`);
+        }
+        if (timeLeft <= 20 * 60 * 1000 && timeLeft > 19 * 60 * 1000 && !warned.includes('20m')) {
+          warned.push('20m'); reminder.warned = warned;
+          await doChime(`Twenty minutes Commander. Don't forget — ${reminder.label}.`);
+        }
+        if (timeLeft <= 5 * 60 * 1000 && timeLeft > 4 * 60 * 1000 && !warned.includes('5m')) {
+          warned.push('5m'); reminder.warned = warned;
+          await doChime(`Five minutes Commander. ${reminder.label}. Almost time.`);
+        }
+      }
+    }, CHIME_REMINDER_CHECK_MS);
+
+    // Clean up all chime intervals on session end
+    const stopChimes = () => {
+      clearInterval(waterInterval);
+      clearInterval(natureInterval);
+      clearInterval(factInterval);
+      clearInterval(weatherChimeInterval);
+      clearInterval(sunInterval);
+      clearInterval(reminderChimeInterval);
     };
 
     const finishNote = async () => {
@@ -730,7 +971,13 @@ class RiggyGlasses extends AppServer {
           await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        if (isMorningGreeting(userSaid)) {
+        // ── TEST CHIME ──
+        if (userSaid.toLowerCase().includes('riggy test chime') || userSaid.toLowerCase().includes('test chime')) {
+          setProcessing(false);
+          const fact = await getDailyFact();
+          await doChime(fact || getWaterReminder());
+          return;
+        }
           const weather = await getWeather(DEFAULT_CITY);
           const briefing = await generateBriefing('morning', { now: new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }), weather: weather ? `${weather.temp}°F and ${weather.description}` : 'not available', reminders: [...reminders.values()].map(r => `${r.label} ${formatTimeUntil(r.fireAtMs)}`).join(', ') || 'No reminders', notes: getMemoryStore(userId).filter(m => m.type==='note'&&Date.now()-m.createdAt<86400000*2).slice(-3).map(n=>n.content).join('. ') || '', personal: permanentFacts.slice(0,5).join('. ') });
           await speakSafe(briefing); latestState.riggySaid = briefing; return;
@@ -999,14 +1246,27 @@ expressApp.get('/audio_:timestamp.mp3', (req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-expressApp.use(express.static(__dirname));
+expressApp.get('/riggy_notification.mp3', (req, res) => {
+  const filePath = path.join(__dirname, 'riggy_notification.mp3');
+  if (!fs.existsSync(filePath)) { res.status(404).end(); return; }
+  const stat = fs.statSync(filePath);
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Length', stat.size);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  fs.createReadStream(filePath).pipe(res);
+});
 expressApp.get('/webview', (req, res) => { res.sendFile(path.join(__dirname, 'webview.html')); });
 expressApp.get('/webview-state', (req, res) => { res.json(latestState); });
 expressApp.get('/memory', (req, res) => {
   const all = []; for (const [uid, store] of globalMemoryCache) store.forEach(m => all.push({ userId: uid, id: m.id, content: m.content, type: m.type, createdAt: m.createdAt })); res.json(all);
 });
 
-expressApp.post('/text-command', async (req, res) => {
+expressApp.post('/test-chime', async (req, res) => {
+  if (activeSession && activeSession._handleTextCommand) {
+    await activeSession._handleTextCommand('test chime');
+  }
+  res.json({ ok: true });
+});
   const { text } = req.body;
   if (!text) { res.json({ ok: false }); return; }
   latestState.userSaid = text;
