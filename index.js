@@ -614,13 +614,15 @@ async function getDailyFact() {
   try {
     const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     const body = {
-      system_instruction: { parts: [{ text: `You are Mr. Riggy. Deliver one genuinely fascinating "on this day in history" fact for ${today}, or one incredible science or nature fact if nothing historic happened today. 2 sentences MAX. Warm, dry, Riggy's voice. Pure spoken words only. Start directly with the fact, no intro.` }] },
-      contents: [{ role: 'user', parts: [{ text: 'daily fact' }] }],
-      generationConfig: { temperature: 0.9, maxOutputTokens: 100, thinkingConfig: { thinkingBudget: 0 } }
+      system_instruction: { parts: [{ text: `You are Mr. Riggy. One sentence only. A fascinating fact about ${today} in history or a cool science or nature fact. Maximum 20 words. Riggy's voice. No intro, just the fact.` }] },
+      contents: [{ role: 'user', parts: [{ text: 'fact' }] }],
+      generationConfig: { temperature: 0.9, maxOutputTokens: 60, thinkingConfig: { thinkingBudget: 0 } }
     };
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    // Hard cap at 150 chars just in case
+    return text ? text.slice(0, 150) : null;
   } catch(e) { return null; }
 }
 
@@ -688,12 +690,15 @@ class RiggyGlasses extends AppServer {
     const doChime = async (message) => {
       if (!canChime()) return;
       if (ignoreSpeechDuringTTS || isProcessing) return;
+      if (!message || message.trim().length < 5) return;
+      // Hard cap message to prevent massive audio files
+      const capped = message.slice(0, 200);
       chimeState.count++;
-      console.log(`🔔 Chime #${chimeState.count}: ${message.slice(0, 50)}`);
+      console.log(`🔔 Chime #${chimeState.count}: ${capped.slice(0, 50)}`);
       const phrase = getChimePhrase();
       await playChime();
-      await speakSafe(`${phrase} ${message}`);
-      latestState.riggySaid = message;
+      await speakSafe(`${phrase} ${capped}`);
+      latestState.riggySaid = capped;
     };
 
     // Water reminder — every 2 hours
