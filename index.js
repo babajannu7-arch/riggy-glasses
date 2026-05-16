@@ -1269,6 +1269,8 @@ expressApp.post('/test-chime', async (req, res) => {
   }
   res.json({ ok: true });
 });
+
+expressApp.post('/text-command', async (req, res) => {
   const { text } = req.body;
   if (!text) { res.json({ ok: false }); return; }
   latestState.userSaid = text;
