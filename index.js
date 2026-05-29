@@ -153,6 +153,20 @@ PHRASES THAT ARE YOURS — use them when they feel right, never force them:
 - "Sorted"
 - "I dig it"
 
+CORE PILLARS — these are Riggy's foundation, weave them naturally into responses when relevant:
+- NATURE — encourage people to go outside, touch grass, look at the sky, appreciate the world around them
+- WATER — hydration, being near water, the ocean, rivers, rain — water heals
+- SOCIALIZING — real human connection over screens, call a friend, go see people, be present with others
+
+EMOTIONAL SUPPORT — when someone brings up emotional pain, relationship problems, mental health, or personal struggles:
+- Acknowledge in one warm sentence. That's it. Don't linger.
+- Then say clearly: "I'm only AI — I can't truly feel what you're feeling. Please reach out to someone real who can."
+- Then — and this is the most important part — deliver ONE metaphor or thought that makes them answer their own question. Like Yoda. Not advice. A mirror. Something that makes them think.
+- Example: someone says their girlfriend cheated — don't say leave or stay. Say something like "When a foundation cracks, the real question was never whether to fix it — it's whether it was solid to begin with. Only you know that."
+- Then nudge toward one of the three pillars naturally — go outside, call someone you trust, drink some water and breathe.
+- Never tell them what to do. Never play therapist. Drop the mirror and step back.
+- Keep the whole response to 3 sentences maximum. Short, real, powerful.
+
 VIBE:
 - Loves 80s-2000s hip hop, comedy films, tech, and learning random things about the world
 - Loyal as hell, laid back, genuinely funny without trying
@@ -258,7 +272,7 @@ function parseDistanceQuery(text) { const m = text.match(/how far(?:\s+is|\s+to)
 function isNearbyRequest(text) { const l = text.toLowerCase(); return l.includes('near me')||l.includes('nearby')||l.includes('nearest')||l.includes('closest')||l.includes('find a '); }
 function isDistanceRequest(text) { return /how far/i.test(text); }
 function isLocationRequest(text) { const l = text.toLowerCase(); return l.includes('where am i')||l.includes('what street')||l.includes('my location')||l.includes('where are we'); }
-function isIntelRequest(text) { const l = text.toLowerCase(); return l.includes('intel')&&l.includes('riggy'); }
+function isIntelRequest(text) { const l = text.toLowerCase(); return l.includes('intel') || (l.includes('run') && l.includes('sweep')) || l.includes('intel mode'); }
 function isShopRequest(text) { const l = text.toLowerCase(); return (l.includes('shop mode')||l.includes('riggy shop')||l.includes('price check')||l.includes('how much is this')||l.includes('should i buy this'))&&!l.includes('stop'); }
 function isMorningGreeting(text) { const l = text.toLowerCase(); return l.includes('good morning')&&l.includes('riggy'); }
 function isAfternoonGreeting(text){ const l = text.toLowerCase(); return l.includes('good afternoon')&&l.includes('riggy'); }
@@ -484,6 +498,14 @@ async function getWeather(city) {
   } catch { return null; }
 }
 
+// Keywords that signal a factual query needing search grounding
+const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
+
+function needsSearchGrounding(text) {
+  const l = text.toLowerCase();
+  return FACTUAL_KEYWORDS.some(k => l.includes(k));
+}
+
 async function askGemini(userText, sessionId, userId, photoData = null, systemOverride = null, memoryContext = null, locationContext = '') {
   if (!conversationHistory.has(sessionId)) conversationHistory.set(sessionId, []);
   const history = conversationHistory.get(sessionId);
@@ -501,10 +523,25 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
   if (!systemOverride) history.push({ role: 'user', parts: userParts });
-  const body = { system_instruction: { parts: [{ text: systemPrompt }] }, contents: systemOverride ? [{ role: 'user', parts: userParts }] : history, generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 150 : 180, thinkingConfig: { thinkingBudget: 0 } } };
+
+  // Add Google Search grounding for factual queries to prevent hallucination
+  const useSearch = !systemOverride && !photoData && needsSearchGrounding(userText);
+  const body = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
+    generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 150 : 180, thinkingConfig: { thinkingBudget: 0 } },
+    ...(useSearch && { tools: [{ googleSearch: {} }] })
+  };
+
+  if (useSearch) console.log('🔍 Search grounding enabled for:', userText.slice(0, 50));
+
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await response.json();
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Extract text from response — search grounding may return multiple parts
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const reply = parts.filter(p => p.text).map(p => p.text).join(' ').trim() || '';
+
   if (!systemOverride) { history.push({ role: 'model', parts: [{ text: reply || 'I hit a snag friend.' }] }); if (history.length > 20) conversationHistory.set(sessionId, history.slice(-20)); }
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
@@ -679,11 +716,13 @@ class RiggyGlasses extends AppServer {
       }
     };
 
+    const SESSION_START = Date.now();
+
     // ── CHIME SYSTEM ──────────────────────────────────────────────────────────
     const playChime = async () => {
       try {
-        await session.audio.playAudio({ audioUrl: CHIME_URL, waitForCompletion: false });
-        await new Promise(r => setTimeout(r, 2500)); // wait for chime to finish
+        session.audio.playAudio({ audioUrl: CHIME_URL, waitForCompletion: false }).catch(()=>{});
+        await new Promise(r => setTimeout(r, 2500));
       } catch(e) { console.error('Chime sound error:', e); }
     };
 
@@ -691,7 +730,6 @@ class RiggyGlasses extends AppServer {
       if (!canChime()) return;
       if (ignoreSpeechDuringTTS || isProcessing) return;
       if (!message || message.trim().length < 5) return;
-      // Hard cap message to prevent massive audio files
       const capped = message.slice(0, 200);
       chimeState.count++;
       console.log(`🔔 Chime #${chimeState.count}: ${capped.slice(0, 50)}`);
@@ -701,36 +739,52 @@ class RiggyGlasses extends AppServer {
       latestState.riggySaid = capped;
     };
 
-    // Water reminder — every 2 hours
+    // Session elapsed time in minutes
+    const sessionMinutes = () => Math.floor((Date.now() - SESSION_START) / 60000);
+
+    // Water reminder — 45 min after session start, then every 60 min
+    let waterFired = false, water2Fired = false;
     const waterInterval = setInterval(async () => {
-      const now = Date.now();
-      if (now - chimeState.lastWater < CHIME_WATER_INTERVAL_MS) return;
-      chimeState.lastWater = now;
-      await doChime(getWaterReminder());
-    }, 15 * 60 * 1000);
+      const mins = sessionMinutes();
+      if (!waterFired && mins >= 45) { waterFired = true; await doChime(getWaterReminder()); return; }
+      if (!water2Fired && mins >= 105) { water2Fired = true; await doChime(getWaterReminder()); }
+    }, 5 * 60 * 1000);
 
-    // Nature reminder — once at 3pm or 4pm randomly
-    const natureHour = Math.random() < 0.5 ? 15 : 16;
+    // Nature reminder — 60 min into session, once
+    let natureFired = false;
     const natureInterval = setInterval(async () => {
-      const hour = new Date().getHours();
-      if (hour !== natureHour) return;
-      const today = new Date().toDateString();
-      if (chimeState.lastNature === today) return;
-      chimeState.lastNature = today;
-      await doChime(getNatureReminder());
-    }, 30 * 60 * 1000); // check every 30 min
+      if (!natureFired && sessionMinutes() >= 60) { natureFired = true; await doChime(getNatureReminder()); }
+    }, 10 * 60 * 1000);
 
-    // Daily fact — once around 2pm and once around 6pm
+    // Daily fact — 30 min into session, once per session
+    let factFired = false;
     const factInterval = setInterval(async () => {
-      const hour = new Date().getHours();
-      const today = new Date().toDateString();
-      const shouldFire = (hour === 14 && !chimeState.fact1Done) || (hour === 18 && !chimeState.fact2Done);
-      if (!shouldFire) return;
-      if (hour === 14) chimeState.fact1Done = true;
-      if (hour === 18) chimeState.fact2Done = true;
-      const fact = await getDailyFact();
-      if (fact) await doChime(fact);
-    }, 30 * 60 * 1000); // check every 30 min
+      if (!factFired && sessionMinutes() >= 30) {
+        factFired = true;
+        const fact = await getDailyFact();
+        if (fact) await doChime(fact);
+      }
+    }, 10 * 60 * 1000);
+
+    // Check in — 20 min into session, once
+    let checkInFired = false;
+    const checkInInterval = setInterval(async () => {
+      if (!checkInFired && sessionMinutes() >= 20) {
+        checkInFired = true;
+        if (ignoreSpeechDuringTTS || isProcessing) return;
+        const checkIns = [
+          `Hey Commander, been a minute. How are you doing out there?`,
+          `Commander, just checking in. You good?`,
+          `Hey, real quick — how are you feeling today, Commander?`,
+          `Commander, how's everything going on your end?`,
+          `Just wanted to check in. How are you doing, Commander?`
+        ];
+        const msg = checkIns[Math.floor(Math.random() * checkIns.length)];
+        await playChime();
+        await speakSafe(msg);
+        latestState.riggySaid = msg;
+      }
+    }, 5 * 60 * 1000);
 
     // Weather chime — checks every 30 min for rain or big temp changes
     const weatherChimeInterval = setInterval(async () => {
@@ -809,6 +863,7 @@ class RiggyGlasses extends AppServer {
       clearInterval(weatherChimeInterval);
       clearInterval(sunInterval);
       clearInterval(reminderChimeInterval);
+      clearInterval(checkInInterval);
     };
 
     const finishNote = async () => {
@@ -1014,21 +1069,28 @@ class RiggyGlasses extends AppServer {
         }
 
         if (isBatteryRequest(userSaid)) {
-          try { const battery = await session.device.getBatteryLevel(); const msg = battery!=null ? `Glasses battery is at ${Math.round(battery)}%.` : "Can't read the battery level right now friend."; await speakSafe(msg); latestState.riggySaid = msg; }
-          catch(e) { await speakSafe("Can't read the battery level right now friend."); } return;
+          try {
+            const state = await session.device.getDeviceState();
+            const level = state?.batteryLevel;
+            const msg = level != null ? `Glasses battery is at ${Math.round(level)}%.` : "Can't read the battery level right now friend.";
+            await speakSafe(msg); latestState.riggySaid = msg;
+          } catch(e) { await speakSafe("Can't read the battery level right now friend."); }
+          return;
         }
 
         if (isShopRequest(userSaid)) {
           const photo = await takePhoto(); if (!photo) { await speakSafe("Can't get a clear shot friend. Try again."); return; }
           await speakSafe("Scanning it now.");
           const reply = await askGemini('Do a shop analysis on this product.', sessionId, userId, photo, SHOP_PERSONALITY);
-          if (reply && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); } return;
+          if (reply && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
+          setProcessing(false); return;
         }
 
         if (isIntelRequest(userSaid)) {
-          const photo = await takePhoto(); if (!photo) { await speakSafe("Couldn't get a clear shot friend. Try again."); return; }
+          const photo = await takePhoto(); if (!photo) { await speakSafe("Couldn't get a clear shot friend. Try again."); setProcessing(false); return; }
           const reply = await askGemini('Run an intel sweep on what you see in this image.', sessionId, userId, photo, INTEL_PERSONALITY);
-          if (reply && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); } return;
+          if (reply && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
+          setProcessing(false); return;
         }
 
         if (isCallRequest(userSaid)) {
@@ -1133,18 +1195,14 @@ class RiggyGlasses extends AppServer {
     // Short tap — wakes Riggy for one response, no wake word needed
     // Long press — toggles live mode on/off
     session.events.onButtonPress(async (data) => {
-      console.log(`🔘 Button: ${data.buttonId} — ${data.pressType}`);
-      if (data.buttonId !== 'main') return;
+      console.log(`🔘 Button press: id=${JSON.stringify(data.buttonId)} type=${JSON.stringify(data.pressType)} full=${JSON.stringify(data)}`);
       if (ignoreSpeechDuringTTS || isProcessing) return;
 
-      if (data.pressType === 'short') {
-        // Short tap — activate for next transcription without wake word
+      if (data.pressType === 'short' || data.pressType === 'single') {
         console.log('👆 Short tap — listening for one response');
         tapWakeActive = true;
-        // Brief audio cue so user knows Riggy heard the tap
         try { await session.audio.speak('Yeah?'); } catch(e) {}
-      } else if (data.pressType === 'long') {
-        // Long press — toggle live mode
+      } else if (data.pressType === 'long' || data.pressType === 'long_press') {
         liveMode = !liveMode; latestState.liveMode = liveMode;
         if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
         else { await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; }
@@ -1207,6 +1265,10 @@ class RiggyGlasses extends AppServer {
       // ── Deduplication — blocks Mentra 2.10 delayed replay bug ──
       const now = Date.now();
       if (userSaid === lastProcessedText && now - lastProcessedTime < 180000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
+
+      // Fuzzy match — catches slightly reworded replays of the same utterance
+      if (lastProcessedText && now - lastProcessedTime < 180000 && looksLikeEcho(userSaid, lastProcessedText)) { console.log('🔇 Fuzzy duplicate — ignoring:', userSaid); return; }
+
       lastProcessedText = userSaid;
       lastProcessedTime = now;
 
@@ -1288,6 +1350,76 @@ expressApp.post('/text-command', async (req, res) => {
 expressApp.post('/toggle-live', async (req, res) => {
   if (activeSession && activeSession._toggleLive) { const live = await activeSession._toggleLive(); res.json({ live }); return; }
   latestState.liveMode = !latestState.liveMode; res.json({ live: latestState.liveMode });
+});
+
+// ── BLUETOOTH APP ENDPOINTS ───────────────────────────────────────────────────
+
+// TTS endpoint — generates ElevenLabs audio, saves file, returns URL
+// Used by the Kotlin Bluetooth app to get audio to play through glasses speaker
+expressApp.post('/tts', async (req, res) => {
+  const { text } = req.body;
+  if (!text) { res.json({ ok: false }); return; }
+  try {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
+      method: 'POST',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text.replace(/[🤖⚡🛸]/g, '').trim(),
+        model_id: 'eleven_turbo_v2_5',
+        output_format: 'mp3_44100_128',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      })
+    });
+    if (!response.ok) { res.json({ ok: false }); return; }
+    const audioBytes = Buffer.from(await response.arrayBuffer());
+    const fileName = `tts_${Date.now()}.mp3`;
+    const filePath = path.join(__dirname, fileName);
+    fs.writeFileSync(filePath, audioBytes);
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 120000);
+    const url = `https://riggy-glasses-production.up.railway.app/${fileName}`;
+    res.json({ ok: true, url });
+  } catch(e) { console.error('TTS endpoint error:', e); res.json({ ok: false }); }
+});
+
+// Photo webhook — receives photo from Bluetooth app, sends to Gemini, returns reply
+expressApp.post('/mentra/photo', async (req, res) => {
+  try {
+    const context = req.query.context || 'what do you see';
+    // Photo arrives as multipart or raw buffer
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', async () => {
+      const photoBuffer = Buffer.concat(chunks);
+      const base64 = photoBuffer.toString('base64');
+      const photoData = { base64, mimeType: 'image/jpeg' };
+
+      // Determine which personality to use
+      const lower = context.toLowerCase();
+      let systemOverride = null;
+      if (lower.includes('intel')) systemOverride = INTEL_PERSONALITY;
+      else if (lower.includes('shop') || lower.includes('price')) systemOverride = SHOP_PERSONALITY;
+
+      const reply = await askGemini(context, 'bt-session', 'bt-user', photoData, systemOverride);
+      res.json({ ok: true, reply });
+
+      // Also speak through glasses if cloud session active
+      if (activeSession && activeSession._handleTextCommand && reply) {
+        latestState.riggySaid = reply;
+        if (activeSession.speakSafe) await activeSession.speakSafe(reply);
+      }
+    });
+  } catch(e) { console.error('Photo webhook error:', e); res.json({ ok: false }); }
+});
+
+// Bluetooth text command — same as /text-command but returns the reply directly
+expressApp.post('/bt/command', async (req, res) => {
+  const { text, userId } = req.body;
+  if (!text) { res.json({ ok: false }); return; }
+  try {
+    const memoryContext = await recallMemory(text, userId || 'bt-user');
+    const reply = await askGemini(text, 'bt-session', userId || 'bt-user', null, null, memoryContext);
+    res.json({ ok: true, reply });
+  } catch(e) { console.error('BT command error:', e); res.json({ ok: false, reply: "I hit a snag friend." }); }
 });
 
 console.log(`🤖 Mr. Riggy glasses server running on port ${process.env.PORT || 3000}`);
