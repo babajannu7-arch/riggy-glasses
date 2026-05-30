@@ -860,6 +860,84 @@ function buildVisorCameraAnalysis(label, icon, analysis, extraLinks = []) {
   return html;
 }
 
+// ─── DIRECTIONS ──────────────────────────────────────────────────────────────
+async function geocodeDestination(destination) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`, {
+      headers: { 'User-Agent': 'RiggyGlasses/1.0' }
+    });
+    const data = await res.json();
+    if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name.split(',').slice(0,2).join(',').trim() };
+    return null;
+  } catch(e) { return null; }
+}
+
+async function fetchOSRMDirections(fromLat, fromLng, destinationText) {
+  try {
+    const dest = await geocodeDestination(destinationText);
+    if (!dest) return null;
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${dest.lng},${dest.lat}?steps=true&geometries=geojson&overview=false`);
+    const data = await res.json();
+    if (!data.routes || !data.routes[0]) return null;
+    const route = data.routes[0];
+    const steps = route.legs[0].steps.map(s => ({
+      instruction: s.maneuver.type === 'depart' ? 'Head ' + (s.maneuver.modifier || '') + ' on ' + (s.name || 'the road') :
+                   s.maneuver.type === 'arrive' ? 'Arrive at ' + destinationText :
+                   (s.maneuver.type.charAt(0).toUpperCase() + s.maneuver.type.slice(1)).replace(/-/g,' ') + (s.name ? ' onto ' + s.name : ''),
+      distance: s.distance > 1000 ? (s.distance/1609.34).toFixed(1) + ' mi' : Math.round(s.distance * 3.28084) + ' ft',
+      duration: Math.round(s.duration / 60)
+    })).filter(s => s.instruction && !s.instruction.includes('undefined'));
+    const totalMiles = (route.distance / 1609.34).toFixed(1);
+    const totalMins = Math.round(route.duration / 60);
+    return { steps, totalMiles, totalMins, destName: dest.name };
+  } catch(e) { console.error('OSRM error:', e.message); return null; }
+}
+
+function buildVisorDirections(destination, routeData) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#9E8A68;margin-bottom:6px;opacity:.7">DIRECTIONS</div>`;
+  html += `<div style="font-size:16px;font-weight:500;color:#E8D5B0;margin-bottom:4px">${destination}</div>`;
+
+  if (!routeData) {
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.5);margin-top:12px">Could not find route. Check spelling and try again.</div>`;
+    // Fallback open-in-maps link
+    const q = encodeURIComponent(destination);
+    html += `<a href="https://maps.google.com/?q=${q}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-top:14px;text-decoration:none">`;
+    html += `<span style="font-size:16px">🗺️</span><div style="flex:1;font-size:13px;color:#E8D5B0">Open in Google Maps</div><div style="color:#6B8FA8;font-family:'DM Mono',monospace;font-size:10px">↗</div></a>`;
+    html += `</div>`;
+    return html;
+  }
+
+  // Summary chips
+  html += `<div style="display:flex;gap:8px;margin-bottom:16px;margin-top:4px">`;
+  html += `<div style="padding:8px 14px;background:rgba(107,143,168,0.08);border:1px solid rgba(107,143,168,0.15);border-radius:20px;font-size:13px;color:#6B8FA8">🕐 ${routeData.totalMins} min</div>`;
+  html += `<div style="padding:8px 14px;background:rgba(158,138,104,0.08);border:1px solid rgba(158,138,104,0.15);border-radius:20px;font-size:13px;color:#9E8A68">📍 ${routeData.totalMiles} mi</div>`;
+  html += `</div>`;
+
+  // Turn by turn steps
+  html += `<div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:#9E8A68;margin-bottom:8px;opacity:.7">Turn by Turn</div>`;
+  routeData.steps.slice(0, 12).forEach((step, i) => {
+    const isLast = i === routeData.steps.length - 1 || step.instruction.startsWith('Arrive');
+    const icon = step.instruction.toLowerCase().includes('left') ? '↰' :
+                 step.instruction.toLowerCase().includes('right') ? '↱' :
+                 step.instruction.startsWith('Arrive') ? '📍' :
+                 step.instruction.toLowerCase().includes('head') ? '↑' : '↑';
+    html += `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:flex-start">`;
+    html += `<div style="width:24px;height:24px;border-radius:50%;background:${isLast ? 'rgba(107,143,168,0.2)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isLast ? 'rgba(107,143,168,0.3)' : 'rgba(255,255,255,0.06)'};display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px">${icon}</div>`;
+    html += `<div style="flex:1"><div style="font-size:13px;color:${isLast ? '#6B8FA8' : '#E8D5B0'};line-height:1.4">${step.instruction}</div>`;
+    if (step.distance) html += `<div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">${step.distance}${step.duration > 0 ? ' · ' + step.duration + ' min' : ''}</div>`;
+    html += `</div></div>`;
+  });
+
+  // Open in maps button
+  const q = encodeURIComponent(routeData.destName || destination);
+  html += `<a href="https://maps.google.com/?q=${q}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-top:14px;text-decoration:none">`;
+  html += `<span style="font-size:16px">🗺️</span><div style="flex:1;font-size:13px;color:#E8D5B0">Open in Google Maps</div><div style="color:#6B8FA8;font-family:'DM Mono',monospace;font-size:10px">↗</div></a>`;
+
+  html += `</div>`;
+  return html;
+}
+
 const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
 
 function needsSearchGrounding(text) {
@@ -1545,24 +1623,44 @@ class RiggyGlasses extends AppServer {
             await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
           }
           if (lower.includes('radar')) {
+            // Rainviewer allows iframe embedding
             const radarUrl = `https://www.rainviewer.com/map.html?loc=${lat},${lng},8&oFa=0&oC=0&oU=0&oCS=1&oF=0&oAP=1&rmt=2&c=3&o=83&lm=0&th=0&sm=1&sn=1`;
-            latestState.visor = { type:'url', label:'Live Radar', url: radarUrl, summary: 'Animated rain radar — tap to open.' };
+            latestState.visor = { type:'url', label:'Live Radar', url: radarUrl };
             await speakSafe("Radar's on your visor Commander."); latestState.riggySaid = "Radar's on your visor."; return;
           }
+          if (lower.includes('directions') || lower.includes('how do i get to') || lower.includes('navigate to')) {
+            // Parse destination from phrase
+            const destMatch = lower.match(/(?:directions|navigate)\s+to\s+(.+)|how do i get to\s+(.+)/);
+            const destination = destMatch ? (destMatch[1] || destMatch[2] || '').replace(/riggy/gi,'').trim() : '';
+            if (destination) {
+              latestState.visor = { type:'html', label:'DIRECTIONS', html: buildVisorShowMeSkeleton('Getting directions...') };
+              await speakSafe(`Getting directions to ${destination}.`);
+              const steps = await fetchOSRMDirections(lat, lng, destination);
+              latestState.visor = { type:'html', label:'DIRECTIONS', html: buildVisorDirections(destination, steps) };
+            } else {
+              await speakSafe("Where do you want directions to Commander?");
+            }
+            return;
+          }
           if (lower.includes('map') && !lower.includes('traffic')) {
-            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
-            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${DEFAULT_CITY}. Tap to open Maps.` };
+            // OpenStreetMap embeds fine on Android, Google Maps blocks iframes
+            const osmUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.01},${lat-0.01},${lng+0.01},${lat+0.01}&layer=mapnik&marker=${lat},${lng}`;
+            latestState.visor = { type:'url', label:'Your Location', url: osmUrl };
             await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
           }
           if (lower.includes('traffic')) {
-            const trafficUrl = `https://www.google.com/maps/@${lat},${lng},14z/data=!5m1!1e1`;
-            latestState.visor = { type:'url', label:'Live Traffic', url: trafficUrl, summary: 'Live traffic map — tap to open.' };
-            await speakSafe("Traffic's on your visor Commander."); latestState.riggySaid = "Traffic's on your visor."; return;
+            // Waze embeds cleanly and shows live traffic
+            const wazeUrl = `https://embed.waze.com/iframe?zoom=13&lat=${lat}&lon=${lng}&ct=livemap`;
+            latestState.visor = { type:'url', label:'Live Traffic', url: wazeUrl };
+            await speakSafe("Live traffic on your visor Commander."); latestState.riggySaid = "Traffic on your visor."; return;
           }
           if (lower.includes('gas')) {
             const stations = await getNearbyGas(lat, lng);
             if (stations) latestState.visor = { type:'html', label:'Nearest Gas', html: buildVisorGas(stations) };
-            else latestState.visor = { type:'url', label:'Gas Stations', url: `https://www.google.com/maps/search/gas+station/@${lat},${lng},14z`, summary: 'Tap to find nearby gas stations.' };
+            else {
+              const osmGasUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.05},${lat-0.05},${lng+0.05},${lat+0.05}&layer=mapnik`;
+              latestState.visor = { type:'url', label:'Gas Stations', url: osmGasUrl };
+            }
             await speakSafe("Gas stations on your visor Commander."); latestState.riggySaid = "Gas stations on your visor."; return;
           }
           if (lower.includes('reminder')) {
@@ -1577,8 +1675,9 @@ class RiggyGlasses extends AppServer {
             await speakSafe("Your day is on the visor Commander."); latestState.riggySaid = "Your day is on the visor."; return;
           }
           if (lower.includes('street view') || lower.includes('street')) {
+            // Street view — open in browser since no embeddable alternative
             const svUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
-            latestState.visor = { type:'url', label:'Street View', url: svUrl, summary: 'Street level view of your current location.' };
+            latestState.visor = { type:'url', label:'Street View', url: svUrl };
             await speakSafe("Street view on your visor Commander."); return;
           }
           if (lower.includes('intel')) {
