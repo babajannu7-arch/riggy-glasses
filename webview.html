@@ -87,7 +87,7 @@
         .wordmark{display:flex;flex-direction:column;gap:2px}
         .wordmark-title{
           font-family:'Orbitron',monospace;
-          font-size:22px;font-weight:900;
+          font-size:24px;font-weight:900;
           letter-spacing:.15em;
           color:var(--slate);
           text-shadow:
@@ -102,7 +102,7 @@
         }
         .wordmark-sub{
           font-family:'Share Tech Mono',monospace;
-          font-size:8px;letter-spacing:.3em;text-transform:uppercase;
+          font-size:9px;letter-spacing:.3em;text-transform:uppercase;
           color:var(--sand);opacity:.7;
         }
         .topbar-right{display:flex;align-items:center;gap:8px;margin-top:2px}
@@ -114,7 +114,7 @@
           background:rgba(74,104,128,0.07);
           border:1px solid var(--border-slate);
           font-family:'Share Tech Mono',monospace;
-          font-size:8px;letter-spacing:.12em;
+          font-size:10px;letter-spacing:.12em;
           color:var(--slate-light);transition:all .3s;
         }
         .status-badge.speaking{
@@ -227,20 +227,27 @@
         /* Label styles */
         .tc-label{
           font-family:'Share Tech Mono',monospace;
-          font-size:8px;letter-spacing:.18em;text-transform:uppercase;
-          margin-bottom:8px;flex-shrink:0;
+          font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+          margin-bottom:10px;flex-shrink:0;
         }
         .tc-user .tc-label{color:var(--orange);opacity:.8}
         .tc-riggy .tc-label{color:var(--brown);opacity:.9}
 
-        /* Text — beige/yellowish tan */
+        /* Text — BIGGER, retro sci-fi fonts */
         .tc-text{
           font-family:'Share Tech Mono',monospace;
-          font-size:13px;line-height:1.65;
-          color:var(--tan2);
+          font-size:17px;line-height:1.7;
+          color:var(--slate-light);
           flex:1;overflow-y:auto;
+          letter-spacing:.02em;
+          text-shadow:0 0 12px rgba(74,104,128,0.4),0 0 25px rgba(74,104,128,0.15);
         }
-        .tc-user .tc-text{color:var(--tan);opacity:.8;font-size:12px}
+        .tc-user .tc-text{
+          font-size:15px;
+          color:#4DFF91;
+          text-shadow:0 0 10px rgba(77,255,145,0.5),0 0 25px rgba(77,255,145,0.2),0 0 45px rgba(77,255,145,0.08);
+          opacity:1;
+        }
 
         /* Glow line inside card */
         .tc-user .glow-line{
@@ -272,7 +279,7 @@
         @keyframes wv-idle{from{height:3px}to{height:7px}}
         .state-lbl{
           font-family:'Share Tech Mono',monospace;
-          font-size:8px;letter-spacing:.15em;text-transform:uppercase;
+          font-size:11px;letter-spacing:.15em;text-transform:uppercase;
           color:var(--muted);transition:color .3s;
         }
         body.speaking .state-lbl{color:var(--orange)}
@@ -280,7 +287,7 @@
         .cmd-tag{
           margin-left:auto;
           font-family:'Orbitron',monospace;
-          font-size:7px;letter-spacing:.1em;
+          font-size:9px;letter-spacing:.1em;
           color:rgba(74,104,128,.5);
         }
 
@@ -299,26 +306,28 @@
         }
         .cmd-input{
           flex:1;background:transparent;border:none;outline:none;
-          font-family:'Share Tech Mono',monospace;font-size:13px;
-          color:var(--tan2);caret-color:var(--orange);
+          font-family:'Share Tech Mono',monospace;font-size:15px;
+          color:#4DFF91;
+          caret-color:#4DFF91;
+          text-shadow:0 0 8px rgba(77,255,145,0.4);
         }
-        .cmd-input::placeholder{color:var(--muted);font-size:12px;font-family:'DM Sans',sans-serif}
+        .cmd-input::placeholder{color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;text-shadow:none}
         .send-btn{
           background:var(--slate);border:none;border-radius:5px;
-          padding:7px 14px;
+          padding:8px 16px;
           font-family:'Orbitron',monospace;
-          font-size:9px;font-weight:700;letter-spacing:.1em;
+          font-size:10px;font-weight:700;letter-spacing:.1em;
           color:#fff;cursor:pointer;transition:all .2s;flex-shrink:0;
           box-shadow:0 2px 10px rgba(74,104,128,.25),0 0 20px rgba(74,104,128,.1);
         }
         .send-btn:active{opacity:.8;transform:scale(.95)}
         .action-row{display:flex;gap:7px}
         .act-btn{
-          flex:1;padding:9px 8px;border-radius:5px;
+          flex:1;padding:10px 8px;border-radius:5px;
           border:1px solid var(--border-slate);
           background:rgba(74,104,128,.06);
           font-family:'Orbitron',monospace;
-          font-size:8px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+          font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
           color:var(--slate);cursor:pointer;transition:all .2s;
           display:flex;align-items:center;justify-content:center;gap:5px;
         }
