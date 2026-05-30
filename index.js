@@ -201,27 +201,8 @@ let locationCacheTime = 0;
 const LOCATION_CACHE_MS = 5 * 60 * 1000;
 
 async function getIpLocation() {
-  const now = Date.now();
-  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) return cachedLocation;
-  try {
-    const res = await fetch('https://ipapi.co/json/', { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
-    const data = await res.json();
-    if (data.latitude && data.longitude) {
-      cachedLocation = { lat: data.latitude, lng: data.longitude, city: data.city, region: data.region, country: data.country_name };
-      locationCacheTime = now;
-      console.log(`📍 IP Location: ${data.city}, ${data.region}`);
-      return cachedLocation;
-    }
-  } catch(e) { console.error('ipapi.co failed:', e.message); }
-  try {
-    const res = await fetch('http://ip-api.com/json/?fields=lat,lon,city,regionName,country');
-    const data = await res.json();
-    if (data.lat && data.lon) {
-      cachedLocation = { lat: data.lat, lng: data.lon, city: data.city, region: data.regionName, country: data.country };
-      locationCacheTime = now;
-      return cachedLocation;
-    }
-  } catch(e) { console.error('ip-api.com failed:', e.message); }
+  // NOTE: IP geolocation returns Railway server location (California), not user location.
+  // Always return the hardcoded default. GPS via getGlassesLocation() is the real source.
   return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
 }
 
