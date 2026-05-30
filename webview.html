@@ -6,27 +6,27 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#EDEBE6">
     <title>Mr. Riggy</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
         :root{
-          --cream: #EDEBE6;
-          --cream2: #E4E1D9;
-          --surface: #F5F3EF;
-          --card: #FAFAF8;
-          --slate: #4A6880;
-          --slate2: #3D5A6E;
-          --slate-light: #6B8FA8;
-          --sand: #9E8A68;
-          --sand-light: #B8A882;
-          --sand-dim: rgba(158,138,104,0.15);
-          --ink: #1C2331;
-          --ink2: #3A4255;
-          --muted: rgba(60,70,90,0.4);
-          --border: rgba(158,138,104,0.18);
-          --border2: rgba(74,104,128,0.12);
-          --r: 14px;
+          --cream:#EDEBE6;
+          --cream2:#E2DFD8;
+          --card:#F5F3EE;
+          --slate:#4A6880;
+          --slate2:#3D5A6E;
+          --slate-light:#6B8FA8;
+          --slate-glow:rgba(74,104,128,0.25);
+          --sand:#9E8A68;
+          --sand-light:#B8A882;
+          --sand-dim:rgba(158,138,104,0.12);
+          --ink:#1C2331;
+          --ink2:#3A4255;
+          --muted:rgba(60,70,90,0.38);
+          --border:rgba(158,138,104,0.2);
+          --border-slate:rgba(74,104,128,0.15);
+          --r:12px;
         }
 
         html,body{
@@ -39,247 +39,304 @@
           -webkit-font-smoothing:antialiased;
         }
 
+        /* ── SCAN LINES OVERLAY ── */
+        body::before{
+          content:'';
+          position:fixed;inset:0;
+          background:repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 3px,
+            rgba(74,104,128,0.03) 3px,
+            rgba(74,104,128,0.03) 4px
+          );
+          pointer-events:none;z-index:0;
+        }
+
         /* ── SCREENS ── */
         .screen{
           position:fixed;inset:0;
           display:flex;flex-direction:column;
-          padding:max(env(safe-area-inset-top),20px) 20px max(env(safe-area-inset-bottom),20px);
-          transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .4s;
+          padding:max(env(safe-area-inset-top),20px) 18px max(env(safe-area-inset-bottom),16px);
+          transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .35s;
           background:var(--cream);
-          will-change:transform;
+          z-index:1;
         }
         .screen.hidden{transform:translateX(-110%);opacity:0;pointer-events:none}
-        #settingsScreen{transform:translateX(110%);opacity:0;pointer-events:none}
+        #settingsScreen{
+          transform:translateX(110%);opacity:0;pointer-events:none;
+          overflow-y:auto;
+          -webkit-overflow-scrolling:touch;
+          overscroll-behavior:contain;
+        }
         #settingsScreen.open{transform:translateX(0);opacity:1;pointer-events:auto}
 
-        /* ── MAIN TOPBAR ── */
+        /* ── TOPBAR ── */
         .topbar{
-          display:flex;align-items:flex-start;justify-content:space-between;
-          margin-bottom:24px;flex-shrink:0;
-        }
-        .wordmark h1{
-          font-family:'Cormorant Garamond',serif;
-          font-size:28px;font-weight:300;
-          letter-spacing:.05em;color:var(--ink);
-          line-height:1;
-        }
-        .wordmark p{
-          font-size:9px;font-weight:500;
-          letter-spacing:.18em;text-transform:uppercase;
-          color:var(--sand);margin-top:3px;
-        }
-        .gear-btn{
-          width:36px;height:36px;border-radius:50%;
-          background:var(--card);border:1px solid var(--border);
-          display:flex;align-items:center;justify-content:center;
-          cursor:pointer;transition:all .2s;flex-shrink:0;
-          margin-top:2px;
-        }
-        .gear-btn:active{background:var(--cream2)}
-        .gear-btn svg{width:15px;height:15px;stroke:var(--slate);fill:none;stroke-width:1.6}
-
-        /* ── STATUS PILL ── */
-        .status-pill{
-          display:inline-flex;align-items:center;gap:6px;
-          padding:5px 12px;border-radius:20px;
-          background:var(--card);border:1px solid var(--border2);
-          margin-bottom:20px;flex-shrink:0;align-self:flex-start;
-          transition:all .3s;
-        }
-        .status-dot{
-          width:6px;height:6px;border-radius:50%;
-          background:var(--slate-light);
-          animation:breathe 2.5s ease-in-out infinite;
-        }
-        .status-pill.speaking .status-dot{background:var(--sand);animation:blink .6s ease-in-out infinite alternate}
-        .status-pill.live .status-dot{background:var(--slate);box-shadow:0 0 6px var(--slate);animation:blink 1s ease-in-out infinite alternate}
-        @keyframes breathe{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
-        @keyframes blink{from{opacity:.5}to{opacity:1}}
-        .status-text{font-size:11px;font-weight:500;letter-spacing:.06em;color:var(--slate);transition:color .3s}
-        .status-pill.speaking .status-text{color:var(--sand)}
-
-        /* ── HORIZONTAL DIVIDER ── */
-        .divider{
-          height:1px;background:var(--border);
-          margin:0 0 20px;flex-shrink:0;
-        }
-
-        /* ── TRANSCRIPT AREA ── */
-        .transcript-area{
-          flex:1;display:flex;flex-direction:column;
-          gap:12px;min-height:0;overflow:hidden;
-          margin-bottom:16px;
-        }
-        .transcript-card{
-          background:var(--card);
-          border:1px solid var(--border);
-          border-radius:var(--r);
-          padding:14px 16px;
-          position:relative;overflow:hidden;
-          flex:1;display:flex;flex-direction:column;
-        }
-        .transcript-card::before{
-          content:'';position:absolute;
-          left:0;top:16px;bottom:16px;width:2px;border-radius:2px;
-        }
-        .transcript-card.user::before{background:rgba(158,138,104,.35)}
-        .transcript-card.riggy::before{background:var(--slate-light)}
-        .card-label{
-          font-family:'DM Mono',monospace;
-          font-size:8px;font-weight:500;letter-spacing:.14em;
-          text-transform:uppercase;color:var(--muted);
-          margin-bottom:8px;flex-shrink:0;
-        }
-        .transcript-card.riggy .card-label{color:rgba(74,104,128,.6)}
-        .card-body{
-          font-size:14px;line-height:1.6;
-          color:var(--ink2);flex:1;overflow-y:auto;
-        }
-        .transcript-card.user .card-body{color:var(--muted);font-size:13px}
-        .fade-in{animation:fadeUp .25s ease forwards}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-
-        /* ── WAVE ── */
-        .wave-row{
-          display:flex;align-items:center;gap:6px;
+          display:flex;align-items:center;justify-content:space-between;
           margin-bottom:16px;flex-shrink:0;
         }
-        .wave-bars{display:flex;align-items:center;gap:2.5px}
-        .wb{width:2px;height:3px;border-radius:2px;background:rgba(74,104,128,.25);transition:background .3s}
+        .wordmark{display:flex;flex-direction:column;gap:3px}
+        .wordmark-title{
+          font-family:'Orbitron',monospace;
+          font-size:20px;font-weight:700;
+          letter-spacing:.12em;
+          color:var(--slate);
+          text-shadow:0 0 20px var(--slate-glow),0 0 40px rgba(74,104,128,0.1);
+        }
+        .wordmark-sub{
+          font-family:'DM Mono',monospace;
+          font-size:8px;font-weight:400;
+          letter-spacing:.22em;text-transform:uppercase;
+          color:var(--sand);opacity:.8;
+        }
+        .topbar-right{display:flex;align-items:center;gap:10px}
+
+        /* ── STATUS BADGE ── */
+        .status-badge{
+          display:inline-flex;align-items:center;gap:5px;
+          padding:5px 10px;border-radius:4px;
+          background:rgba(74,104,128,0.08);
+          border:1px solid var(--border-slate);
+          font-family:'DM Mono',monospace;
+          font-size:9px;letter-spacing:.1em;
+          color:var(--slate-light);
+          transition:all .3s;
+        }
+        .status-badge.speaking{background:rgba(158,138,104,.1);border-color:rgba(158,138,104,.25);color:var(--sand)}
+        .status-badge.live{background:rgba(74,104,128,.14);border-color:rgba(74,104,128,.35);color:var(--slate)}
+        .s-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:breathe 2.5s ease-in-out infinite}
+        .status-badge.speaking .s-dot,.status-badge.live .s-dot{animation:blink .8s ease-in-out infinite alternate}
+        @keyframes breathe{0%,100%{opacity:.4}50%{opacity:1}}
+        @keyframes blink{from{opacity:.4}to{opacity:1}}
+
+        /* ── GEAR BUTTON ── */
+        .gear-btn{
+          width:34px;height:34px;border-radius:4px;
+          background:rgba(74,104,128,.07);
+          border:1px solid var(--border-slate);
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;transition:all .2s;
+        }
+        .gear-btn:active{background:rgba(74,104,128,.15)}
+        .gear-btn svg{width:14px;height:14px;stroke:var(--slate);fill:none;stroke-width:1.8}
+
+        /* ── CORNER BRACKETS ── */
+        .bracket-box{
+          position:relative;border-radius:var(--r);
+          padding:14px 16px;
+          background:var(--card);
+        }
+        .bracket-box::before,.bracket-box::after,
+        .bracket-box .bc-br::before,.bracket-box .bc-br::after{
+          content:'';position:absolute;
+          width:10px;height:10px;
+        }
+        .bracket-box::before{top:0;left:0;border-top:1.5px solid var(--slate-light);border-left:1.5px solid var(--slate-light)}
+        .bracket-box::after{top:0;right:0;border-top:1.5px solid var(--slate-light);border-right:1.5px solid var(--slate-light)}
+        .bracket-box .bc-br::before{bottom:0;left:0;border-bottom:1.5px solid var(--slate-light);border-left:1.5px solid var(--slate-light)}
+        .bracket-box .bc-br::after{bottom:0;right:0;border-bottom:1.5px solid var(--slate-light);border-right:1.5px solid var(--slate-light)}
+
+        /* ── SCAN LINE SEPARATOR ── */
+        .scan-line{
+          height:1px;flex-shrink:0;margin:12px 0;
+          background:linear-gradient(90deg,transparent,var(--border),var(--border-slate),var(--border),transparent);
+        }
+
+        /* ── TRANSCRIPT CARDS ── */
+        .transcript-area{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
+        .tc{
+          flex:1;min-height:0;border-radius:var(--r);
+          background:var(--card);
+          border:1px solid var(--border);
+          padding:12px 14px;
+          position:relative;overflow:hidden;
+          display:flex;flex-direction:column;
+        }
+        .tc::before{
+          content:'';position:absolute;
+          left:0;top:0;bottom:0;width:2px;
+        }
+        .tc.user::before{background:linear-gradient(180deg,transparent,var(--sand-light),transparent)}
+        .tc.riggy::before{background:linear-gradient(180deg,transparent,var(--slate-light),transparent)}
+        .tc-label{
+          font-family:'DM Mono',monospace;
+          font-size:8px;letter-spacing:.14em;text-transform:uppercase;
+          color:var(--muted);margin-bottom:6px;flex-shrink:0;
+        }
+        .tc.riggy .tc-label{color:rgba(74,104,128,.55)}
+        .tc-text{font-size:13.5px;line-height:1.6;color:var(--ink2);flex:1;overflow-y:auto}
+        .tc.user .tc-text{color:var(--muted);font-size:12.5px}
+        .fade-in{animation:fadeUp .2s ease forwards}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
+        /* ── WAVE ROW ── */
+        .wave-row{
+          display:flex;align-items:center;gap:8px;
+          flex-shrink:0;padding:10px 0 8px;
+        }
+        .wbs{display:flex;align-items:center;gap:2px}
+        .wb{width:2px;height:3px;border-radius:2px;background:rgba(74,104,128,.2);transition:background .3s}
         body.speaking .wb{background:var(--sand);animation:wv .45s ease-in-out infinite alternate}
         body.live .wb{background:var(--slate-light);animation:wv-idle 2s ease-in-out infinite alternate}
         .wb:nth-child(1){animation-delay:0s}.wb:nth-child(2){animation-delay:.04s}.wb:nth-child(3){animation-delay:.08s}
         .wb:nth-child(4){animation-delay:.12s}.wb:nth-child(5){animation-delay:.16s}.wb:nth-child(6){animation-delay:.2s}
         .wb:nth-child(7){animation-delay:.24s}.wb:nth-child(8){animation-delay:.2s}.wb:nth-child(9){animation-delay:.16s}
         .wb:nth-child(10){animation-delay:.12s}.wb:nth-child(11){animation-delay:.08s}
-        @keyframes wv{from{height:3px}to{height:18px}}
+        @keyframes wv{from{height:3px}to{height:16px}}
         @keyframes wv-idle{from{height:3px}to{height:7px}}
-        .state-label{
-          font-size:10px;font-weight:400;letter-spacing:.12em;
-          text-transform:uppercase;color:var(--muted);
+        .state-lbl{
+          font-family:'DM Mono',monospace;
+          font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+          color:var(--muted);transition:color .3s;
         }
-        body.speaking .state-label{color:var(--sand)}
-        body.live .state-label{color:var(--slate-light)}
-        .commander-tag{
-          font-size:9px;letter-spacing:.1em;text-transform:uppercase;
-          color:rgba(74,104,128,.35);margin-left:auto;
+        body.speaking .state-lbl{color:var(--sand)}
+        body.live .state-lbl{color:var(--slate-light)}
+        .cmd-tag{
+          margin-left:auto;
+          font-family:'Orbitron',monospace;
+          font-size:8px;letter-spacing:.08em;
+          color:rgba(74,104,128,.4);
         }
 
         /* ── BOTTOM BAR ── */
         .bottom-bar{flex-shrink:0;display:flex;flex-direction:column;gap:8px}
         .input-row{
           display:flex;align-items:center;gap:8px;
-          background:var(--card);border:1px solid var(--border);
-          border-radius:var(--r);padding:10px 12px;
+          background:var(--card);
+          border:1px solid var(--border-slate);
+          border-radius:var(--r);padding:9px 12px;
           transition:border-color .25s;
         }
-        .input-row:focus-within{border-color:var(--slate-light)}
+        .input-row:focus-within{border-color:var(--slate-light);box-shadow:0 0 0 3px rgba(74,104,128,.06)}
         .cmd-input{
           flex:1;background:transparent;border:none;outline:none;
-          font-family:'DM Sans',sans-serif;font-size:14px;
+          font-family:'DM Sans',sans-serif;font-size:13.5px;
           color:var(--ink);caret-color:var(--slate);
         }
         .cmd-input::placeholder{color:var(--muted);font-size:13px}
         .send-btn{
-          background:var(--slate);border:none;border-radius:8px;
-          padding:7px 16px;font-family:'DM Sans',sans-serif;
-          font-size:12px;font-weight:500;color:#fff;
-          cursor:pointer;transition:all .2s;flex-shrink:0;
-          box-shadow:0 2px 8px rgba(74,104,128,.2);
+          background:var(--slate);border:none;border-radius:6px;
+          padding:7px 14px;font-family:'DM Mono',monospace;
+          font-size:10px;font-weight:500;letter-spacing:.06em;
+          color:#fff;cursor:pointer;transition:all .2s;flex-shrink:0;
+          box-shadow:0 2px 8px rgba(74,104,128,.22);
         }
         .send-btn:active{opacity:.8;transform:scale(.96)}
         .action-row{display:flex;gap:8px}
-        .action-btn{
-          flex:1;padding:10px;border-radius:10px;
-          border:1px solid var(--border);background:transparent;
-          font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;
-          letter-spacing:.04em;cursor:pointer;transition:all .2s;
+        .act-btn{
+          flex:1;padding:9px 8px;
+          border-radius:6px;
+          border:1px solid var(--border-slate);
+          background:rgba(74,104,128,.06);
+          font-family:'DM Mono',monospace;
+          font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--slate);cursor:pointer;transition:all .2s;
           display:flex;align-items:center;justify-content:center;gap:5px;
         }
-        .action-btn.live-btn{
-          color:var(--slate);border-color:var(--border2);
-          background:rgba(74,104,128,.06);
+        .act-btn.sand{
+          border-color:rgba(158,138,104,.2);
+          background:var(--sand-dim);color:var(--sand);
         }
-        .action-btn.live-btn.active{
-          background:rgba(74,104,128,.14);
-          border-color:rgba(74,104,128,.4);color:var(--slate2);
+        .act-btn.active{
+          background:rgba(74,104,128,.16);
+          border-color:rgba(74,104,128,.4);
+          box-shadow:0 0 10px rgba(74,104,128,.12);
         }
-        .action-btn.chime-btn{
-          color:var(--sand);border-color:rgba(158,138,104,.2);
-          background:var(--sand-dim);
-        }
-        .action-btn:active{opacity:.75;transform:scale(.97)}
+        .act-btn:active{opacity:.7}
 
-        /* ── SETTINGS SCREEN ── */
-        #settingsScreen{
-          overflow-y:auto;
-          -webkit-overflow-scrolling:touch;
-        }
-        .settings-topbar{
+        /* ════════════════════════════════
+           SETTINGS — full page scrollable
+           ════════════════════════════════ */
+        #settingsScreen{padding-bottom:40px}
+
+        .s-topbar{
           display:flex;align-items:center;justify-content:space-between;
-          margin-bottom:28px;flex-shrink:0;
+          margin-bottom:24px;flex-shrink:0;
+          position:sticky;top:0;
+          background:var(--cream);
+          padding-top:4px;padding-bottom:12px;
+          border-bottom:1px solid var(--border);
+          z-index:10;
         }
         .back-btn{
           display:flex;align-items:center;gap:4px;
-          font-size:14px;color:var(--slate);cursor:pointer;
-          transition:opacity .2s;
+          font-family:'DM Mono',monospace;
+          font-size:10px;letter-spacing:.08em;
+          color:var(--slate);cursor:pointer;transition:opacity .2s;
         }
-        .back-btn:active{opacity:.6}
-        .back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
-        .settings-title{
-          font-family:'Cormorant Garamond',serif;
-          font-size:20px;font-weight:400;letter-spacing:.04em;
-          color:var(--ink);
+        .back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2}
+        .back-btn:active{opacity:.5}
+        .s-page-title{
+          font-family:'Orbitron',monospace;
+          font-size:13px;font-weight:500;
+          letter-spacing:.12em;color:var(--slate);
         }
-        .s-section-label{
-          font-size:9px;font-weight:500;letter-spacing:.16em;
-          text-transform:uppercase;color:var(--sand);
-          margin:20px 0 8px 2px;
+
+        .s-group-label{
+          font-family:'DM Mono',monospace;
+          font-size:8px;letter-spacing:.2em;text-transform:uppercase;
+          color:var(--sand);margin:18px 0 6px 2px;
         }
-        .s-section-label:first-of-type{margin-top:0}
-        .s-card{
-          background:var(--card);border:1px solid var(--border);
-          border-radius:var(--r);overflow:hidden;
-          margin-bottom:0;
+        .s-group-label:first-of-type{margin-top:0}
+
+        .s-group{
+          background:var(--card);
+          border:1px solid var(--border);
+          border-radius:var(--r);
+          overflow:visible;
+          margin-bottom:4px;
         }
+
         .s-row{
-          display:flex;align-items:center;justify-content:space-between;
-          padding:14px 16px;border-bottom:1px solid rgba(158,138,104,.1);
+          display:flex;align-items:center;
+          padding:13px 14px;
+          border-bottom:1px solid rgba(158,138,104,.1);
           gap:12px;
         }
         .s-row:last-child{border-bottom:none}
-        .s-row-col{flex:1}
-        .s-row-title{font-size:14px;font-weight:400;color:var(--ink);margin-bottom:2px}
-        .s-row-desc{font-size:11px;color:var(--muted);line-height:1.4}
-        /* Full-width input rows */
-        .s-row.col{flex-direction:column;align-items:stretch;gap:10px}
-        .s-input{
-          width:100%;background:var(--cream2);
-          border:1px solid var(--border);border-radius:8px;
-          padding:10px 12px;
-          font-family:'DM Sans',sans-serif;font-size:14px;
-          color:var(--ink);outline:none;
-          transition:border-color .2s;
+        .s-row.col{
+          flex-direction:column;align-items:stretch;gap:8px;
         }
-        .s-input:focus{border-color:var(--slate-light)}
-        .s-input::placeholder{color:var(--muted)}
-        /* Slider row */
-        .s-slider-wrap{padding:14px 16px;border-bottom:1px solid rgba(158,138,104,.1)}
-        .s-slider-wrap:last-child{border-bottom:none}
-        .s-slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+        .s-lbl{font-size:13.5px;font-weight:400;color:var(--ink);flex:1}
+        .s-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
+
+        /* Full-width text input */
+        .s-input{
+          width:100%;
+          background:rgba(74,104,128,.05);
+          border:1px solid var(--border-slate);
+          border-radius:8px;
+          padding:10px 12px;
+          font-family:'DM Sans',sans-serif;font-size:13.5px;
+          color:var(--ink);outline:none;
+          transition:border-color .2s,box-shadow .2s;
+        }
+        .s-input:focus{
+          border-color:var(--slate-light);
+          box-shadow:0 0 0 3px rgba(74,104,128,.07);
+        }
+        .s-input::placeholder{color:var(--muted);font-size:12.5px}
+
+        /* Slider */
+        .s-slider-row{padding:13px 14px;border-bottom:1px solid rgba(158,138,104,.1)}
+        .s-slider-row:last-child{border-bottom:none}
+        .s-slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
         .s-slider-val{
-          font-family:'DM Mono',monospace;font-size:18px;
-          font-weight:400;color:var(--slate);
+          font-family:'Orbitron',monospace;
+          font-size:20px;font-weight:400;
+          color:var(--slate);
         }
         input[type=range]{
           -webkit-appearance:none;width:100%;height:2px;
           background:rgba(74,104,128,.15);border-radius:2px;outline:none;
         }
         input[type=range]::-webkit-slider-thumb{
-          -webkit-appearance:none;width:20px;height:20px;
-          border-radius:50%;background:var(--slate);
-          box-shadow:0 1px 6px rgba(74,104,128,.3);cursor:pointer;
+          -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+          background:var(--slate);
+          box-shadow:0 2px 8px rgba(74,104,128,.3);cursor:pointer;
         }
+
         /* Toggle */
         .toggle{position:relative;width:44px;height:26px;cursor:pointer;flex-shrink:0}
         .toggle input{opacity:0;width:0;height:0;position:absolute}
@@ -295,67 +352,71 @@
           transition:transform .3s cubic-bezier(.4,0,.2,1);
         }
         .toggle input:checked~.t-track~.t-thumb{transform:translateX(18px)}
-        /* Save button */
+
+        /* Save */
         .save-btn{
-          width:100%;margin-top:24px;padding:15px;
+          width:100%;margin-top:20px;padding:14px;
           background:var(--slate);border:none;
           border-radius:var(--r);
-          font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
+          font-family:'Orbitron',monospace;
+          font-size:11px;font-weight:500;letter-spacing:.12em;
           color:#fff;cursor:pointer;transition:all .2s;
-          box-shadow:0 3px 14px rgba(74,104,128,.25);
-          flex-shrink:0;
+          box-shadow:0 3px 16px rgba(74,104,128,.25);
         }
         .save-btn:active{opacity:.85;transform:scale(.98)}
         .saved-toast{
-          text-align:center;font-size:12px;color:var(--slate);
-          margin-top:10px;opacity:0;transition:opacity .3s;flex-shrink:0;
+          text-align:center;font-family:'DM Mono',monospace;
+          font-size:10px;letter-spacing:.1em;
+          color:var(--slate);margin-top:10px;
+          opacity:0;transition:opacity .3s;
         }
         .saved-toast.show{opacity:1}
-        /* bottom padding for settings scroll */
-        .settings-scroll-pad{height:32px;flex-shrink:0}
     </style>
 </head>
 <body>
 
-<!-- MAIN -->
+<!-- ── MAIN ── -->
 <div id="mainScreen" class="screen">
     <div class="topbar">
         <div class="wordmark">
-            <h1>Mr. Riggy</h1>
-            <p>Private Digital Assistant</p>
+            <div class="wordmark-title">MR. RIGGY</div>
+            <div class="wordmark-sub">Private Digital Assistant</div>
         </div>
-        <div class="gear-btn" onclick="openSettings()">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <div class="topbar-right">
+            <div class="status-badge" id="statusBadge">
+                <div class="s-dot"></div>
+                <span id="statusText">ONLINE</span>
+            </div>
+            <div class="gear-btn" onclick="openSettings()">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </div>
         </div>
     </div>
 
-    <div class="status-pill" id="statusPill">
-        <div class="status-dot"></div>
-        <span class="status-text" id="statusText">Online</span>
-    </div>
-
-    <div class="divider"></div>
+    <div class="scan-line"></div>
 
     <div class="transcript-area">
-        <div class="transcript-card user">
-            <div class="card-label">You said</div>
-            <div class="card-body" id="userText">Awaiting your command...</div>
+        <div class="tc user">
+            <div class="tc-label">// You said</div>
+            <div class="tc-text" id="userText">Awaiting your command...</div>
+            <div class="bc-br"></div>
         </div>
-        <div class="transcript-card riggy">
-            <div class="card-label">Mr. Riggy</div>
-            <div class="card-body" id="riggyText">Online and ready, Commander.</div>
+        <div class="tc riggy">
+            <div class="tc-label">// Mr. Riggy</div>
+            <div class="tc-text" id="riggyText">Online and ready, Commander.</div>
+            <div class="bc-br"></div>
         </div>
     </div>
 
     <div class="wave-row">
-        <div class="wave-bars">
+        <div class="wbs">
             <div class="wb"></div><div class="wb"></div><div class="wb"></div>
             <div class="wb"></div><div class="wb"></div><div class="wb"></div>
             <div class="wb"></div><div class="wb"></div><div class="wb"></div>
             <div class="wb"></div><div class="wb"></div>
         </div>
-        <span class="state-label" id="stateLabel">Standby</span>
-        <span class="commander-tag" id="commanderTag"></span>
+        <span class="state-lbl" id="stateLbl">STANDBY</span>
+        <span class="cmd-tag" id="cmdTag"></span>
     </div>
 
     <div class="bottom-bar">
@@ -363,57 +424,58 @@
             <input class="cmd-input" id="commandInput" type="text"
                    placeholder="Type your command, Commander..."
                    autocomplete="off" autocorrect="off" spellcheck="false"/>
-            <button class="send-btn" onclick="sendTextCommand()">Send</button>
+            <button class="send-btn" onclick="sendTextCommand()">SEND</button>
         </div>
         <div class="action-row">
-            <button class="action-btn live-btn" id="liveBtn" onclick="toggleLive()">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M1.05 12a10.95 10.95 0 0 1 21.9 0"/></svg>
-                Go Live
+            <button class="act-btn" id="liveBtn" onclick="toggleLive()">
+                ◉ GO LIVE
             </button>
-            <button class="action-btn chime-btn" onclick="testChime()">
-                🔔 Test Chime
+            <button class="act-btn sand" onclick="testChime()">
+                🔔 CHIME
             </button>
         </div>
     </div>
 </div>
 
-<!-- SETTINGS -->
+<!-- ── SETTINGS ── -->
 <div id="settingsScreen" class="screen">
-    <div class="settings-topbar">
+
+    <div class="s-topbar">
         <div class="back-btn" onclick="closeSettings()">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            Back
+            BACK
         </div>
-        <div class="settings-title">Settings</div>
+        <div class="s-page-title">SETTINGS</div>
         <div style="width:48px"></div>
     </div>
 
-    <div class="s-section-label">Identity</div>
-    <div class="s-card">
+    <div class="s-group-label">Identity</div>
+    <div class="s-group">
         <div class="s-row col">
-            <div class="s-row-title">Your Call Sign</div>
+            <div class="s-lbl">Your Call Sign</div>
             <input class="s-input" id="commanderName" type="text"
-                   placeholder="First name — Riggy will call you Commander [Name]" maxlength="20"/>
+                   placeholder="First name — Riggy will address you as Commander [Name]"
+                   maxlength="20"/>
         </div>
     </div>
 
-    <div class="s-section-label">Chime</div>
-    <div class="s-card">
+    <div class="s-group-label">Chime</div>
+    <div class="s-group">
         <div class="s-row">
-            <div class="s-row-col">
-                <div class="s-row-title">Enable Chime</div>
-                <div class="s-row-desc">Riggy checks in on you throughout your session.</div>
+            <div style="flex:1">
+                <div class="s-lbl">Enable Chime</div>
+                <div class="s-desc">Riggy checks in throughout your session.</div>
             </div>
             <label class="toggle">
                 <input type="checkbox" id="chimeEnabled"/>
                 <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
-        <div class="s-slider-wrap">
+        <div class="s-slider-row">
             <div class="s-slider-header">
                 <div>
-                    <div class="s-row-title">Daily Limit</div>
-                    <div class="s-row-desc">Max chimes per day.</div>
+                    <div class="s-lbl">Daily Limit</div>
+                    <div class="s-desc">Max chimes per session.</div>
                 </div>
                 <div class="s-slider-val" id="chimeVal">10</div>
             </div>
@@ -422,12 +484,12 @@
         </div>
     </div>
 
-    <div class="s-section-label">Notifications</div>
-    <div class="s-card">
+    <div class="s-group-label">Notifications</div>
+    <div class="s-group">
         <div class="s-row">
-            <div class="s-row-col">
-                <div class="s-row-title">Read Aloud</div>
-                <div class="s-row-desc">Riggy reads incoming texts and calls through your glasses.</div>
+            <div style="flex:1">
+                <div class="s-lbl">Read Aloud</div>
+                <div class="s-desc">Incoming texts and calls read through glasses.</div>
             </div>
             <label class="toggle">
                 <input type="checkbox" id="notifsEnabled" checked/>
@@ -435,14 +497,14 @@
             </label>
         </div>
         <div class="s-row">
-            <div class="s-row-col"><div class="s-row-title">Phone Calls</div></div>
+            <div class="s-lbl" style="flex:1">Phone Calls</div>
             <label class="toggle">
                 <input type="checkbox" id="notifCalls" checked/>
                 <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
         <div class="s-row">
-            <div class="s-row-col"><div class="s-row-title">Text Messages</div></div>
+            <div class="s-lbl" style="flex:1">Text Messages</div>
             <label class="toggle">
                 <input type="checkbox" id="notifTexts" checked/>
                 <div class="t-track"></div><div class="t-thumb"></div>
@@ -450,12 +512,12 @@
         </div>
     </div>
 
-    <div class="s-section-label">General</div>
-    <div class="s-card">
+    <div class="s-group-label">General</div>
+    <div class="s-group">
         <div class="s-row">
-            <div class="s-row-col">
-                <div class="s-row-title">Wake Word</div>
-                <div class="s-row-desc">Riggy activates when he hears his name.</div>
+            <div style="flex:1">
+                <div class="s-lbl">Wake Word</div>
+                <div class="s-desc">Activates when Riggy hears his name.</div>
             </div>
             <label class="toggle">
                 <input type="checkbox" id="wakeWordEnabled" checked/>
@@ -463,32 +525,32 @@
             </label>
         </div>
         <div class="s-row col">
-            <div class="s-row-title">Default City</div>
+            <div class="s-lbl">Default City</div>
             <input class="s-input" id="defaultCity" type="text"
                    placeholder="City, State, Country — e.g. Deltona, FL, US"/>
         </div>
     </div>
 
-    <button class="save-btn" onclick="saveSettings()">Save Settings</button>
-    <div class="saved-toast" id="savedToast">Settings saved</div>
-    <div class="settings-scroll-pad"></div>
+    <button class="save-btn" onclick="saveSettings()">SAVE SETTINGS</button>
+    <div class="saved-toast" id="savedToast">// SETTINGS SAVED</div>
+
 </div>
 
 <script>
-    const pill      = document.getElementById('statusPill');
-    const statusTxt = document.getElementById('statusText');
-    const stateLabel= document.getElementById('stateLabel');
-    const riggyTxt  = document.getElementById('riggyText');
-    const userTxt   = document.getElementById('userText');
-    const liveBtn   = document.getElementById('liveBtn');
-    const cmdInput  = document.getElementById('commandInput');
-    const cmdTag    = document.getElementById('commanderTag');
+    const badge=document.getElementById('statusBadge');
+    const statusTxt=document.getElementById('statusText');
+    const stateLbl=document.getElementById('stateLbl');
+    const riggyTxt=document.getElementById('riggyText');
+    const userTxt=document.getElementById('userText');
+    const liveBtn=document.getElementById('liveBtn');
+    const cmdInput=document.getElementById('commandInput');
+    const cmdTag=document.getElementById('cmdTag');
 
-    let lastRiggy='', lastUser='', isLive=false, speakTimer=null;
+    let lastRiggy='',lastUser='',isLive=false,speakTimer=null;
 
     function loadSettings(){
-      const name = localStorage.getItem('commanderName')||'';
-      if(name){document.getElementById('commanderName').value=name;cmdTag.textContent='Commander '+name;}
+      const name=localStorage.getItem('commanderName')||'';
+      if(name){document.getElementById('commanderName').value=name;cmdTag.textContent='CDR '+name.toUpperCase();}
       document.getElementById('chimeEnabled').checked=localStorage.getItem('chimeEnabled')==='true';
       const cl=localStorage.getItem('chimeLimit')||'10';
       document.getElementById('chimeLimit').value=cl;
@@ -511,14 +573,16 @@
       localStorage.setItem('notifTexts',document.getElementById('notifTexts').checked);
       localStorage.setItem('wakeWordEnabled',document.getElementById('wakeWordEnabled').checked);
       localStorage.setItem('defaultCity',document.getElementById('defaultCity').value.trim());
-      if(name)cmdTag.textContent='Commander '+name; else cmdTag.textContent='';
-      const toast=document.getElementById('savedToast');
-      toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
+      if(name)cmdTag.textContent='CDR '+name.toUpperCase(); else cmdTag.textContent='';
+      const t=document.getElementById('savedToast');
+      t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);
     }
 
     function openSettings(){
       document.getElementById('mainScreen').classList.add('hidden');
-      document.getElementById('settingsScreen').classList.add('open');
+      const s=document.getElementById('settingsScreen');
+      s.classList.add('open');
+      s.scrollTop=0;
     }
     function closeSettings(){
       document.getElementById('settingsScreen').classList.remove('open');
@@ -541,23 +605,21 @@
     async function toggleLive(){
       try{
         const res=await fetch('/toggle-live',{method:'POST'});
-        const data=await res.json();
-        isLive=data.live;updateLiveUI();
+        const d=await res.json();isLive=d.live;updateLiveUI();
       }catch(e){}
     }
 
     function updateLiveUI(){
       if(isLive){
         document.body.classList.add('live');document.body.classList.remove('speaking');
-        pill.classList.add('live');pill.classList.remove('speaking');
-        statusTxt.textContent='Live';stateLabel.textContent='Listening';
-        liveBtn.textContent='Stop Live';liveBtn.classList.add('active');
+        badge.className='status-badge live';statusTxt.textContent='LIVE';
+        stateLbl.textContent='LISTENING';
+        liveBtn.textContent='◉ STOP LIVE';liveBtn.classList.add('active');
       }else{
         document.body.classList.remove('live');
-        pill.classList.remove('live');
-        statusTxt.textContent='Online';stateLabel.textContent='Standby';
-        liveBtn.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M1.05 12a10.95 10.95 0 0 1 21.9 0"/></svg> Go Live';
-        liveBtn.classList.remove('active');
+        badge.className='status-badge';statusTxt.textContent='ONLINE';
+        stateLbl.textContent='STANDBY';
+        liveBtn.textContent='◉ GO LIVE';liveBtn.classList.remove('active');
       }
     }
 
@@ -565,12 +627,12 @@
       if(isLive)return;
       if(on){
         document.body.classList.add('speaking');
-        pill.classList.add('speaking');
-        statusTxt.textContent='Speaking';stateLabel.textContent='Transmitting';
+        badge.className='status-badge speaking';
+        statusTxt.textContent='SPEAKING';stateLbl.textContent='TRANSMITTING';
       }else{
         document.body.classList.remove('speaking');
-        pill.classList.remove('speaking');
-        statusTxt.textContent='Online';stateLabel.textContent='Listening';
+        badge.className='status-badge';
+        statusTxt.textContent='ONLINE';stateLbl.textContent='LISTENING';
       }
     }
 
@@ -578,22 +640,22 @@
       try{
         const res=await fetch('/webview-state');
         if(res.ok){
-          const data=await res.json();
-          if(data.emergencyCall){window.location.href='tel:911';}
-          if(data.liveMode!==undefined&&data.liveMode!==isLive){isLive=data.liveMode;updateLiveUI();}
-          if(data.userSaid&&data.userSaid!==lastUser){
-            lastUser=data.userSaid;
-            userTxt.textContent=data.userSaid;
+          const d=await res.json();
+          if(d.emergencyCall){window.location.href='tel:911';}
+          if(d.liveMode!==undefined&&d.liveMode!==isLive){isLive=d.liveMode;updateLiveUI();}
+          if(d.userSaid&&d.userSaid!==lastUser){
+            lastUser=d.userSaid;
+            userTxt.textContent=d.userSaid;
             userTxt.classList.remove('fade-in');void userTxt.offsetWidth;userTxt.classList.add('fade-in');
           }
-          if(data.riggySaid&&data.riggySaid!==lastRiggy){
-            lastRiggy=data.riggySaid;
-            riggyTxt.textContent=data.riggySaid;
+          if(d.riggySaid&&d.riggySaid!==lastRiggy){
+            lastRiggy=d.riggySaid;
+            riggyTxt.textContent=d.riggySaid;
             riggyTxt.classList.remove('fade-in');void riggyTxt.offsetWidth;riggyTxt.classList.add('fade-in');
             if(!isLive){
               setSpeaking(true);
               if(speakTimer)clearTimeout(speakTimer);
-              speakTimer=setTimeout(()=>setSpeaking(false),Math.max(2500,data.riggySaid.length*55));
+              speakTimer=setTimeout(()=>setSpeaking(false),Math.max(2500,d.riggySaid.length*55));
             }
           }
         }
@@ -601,9 +663,7 @@
       setTimeout(pollUpdates,1200);
     }
 
-    loadSettings();
-    updateLiveUI();
-    pollUpdates();
+    loadSettings();updateLiveUI();pollUpdates();
 </script>
 </body>
 </html>
