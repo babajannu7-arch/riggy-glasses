@@ -641,6 +641,103 @@ function buildVisorMyDay(weather, forecast, remindersList, fact) {
   return html;
 }
 
+// ─── SHOW ME ABOUT ───────────────────────────────────────────────────────────
+function isShowMeAboutRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('show me about') || l.includes('show me everything about') ||
+         l.includes('show me info about') || (l.includes('pull up') && l.includes('about'));
+}
+
+function parseShowMeAboutTopic(text) {
+  return text.toLowerCase()
+    .replace(/riggy/gi, '')
+    .replace(/show me (everything |info |more )?about/i, '')
+    .replace(/pull up.*?about\s*/i, '')
+    .trim() || null;
+}
+
+async function fetchWikiImages(topic, limit = 3) {
+  try {
+    const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&srlimit=1&origin=*`);
+    const searchData = await searchRes.json();
+    const pageTitle = searchData?.query?.search?.[0]?.title;
+    if (!pageTitle) return [];
+
+    const imgRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&piprop=thumbnail|original&pithumbsize=400&format=json&origin=*`);
+    const imgData = await imgRes.json();
+    const pages = Object.values(imgData?.query?.pages || {});
+    const imgs = [];
+    for (const page of pages) {
+      if (page.thumbnail?.source) imgs.push({ url: page.thumbnail.source, title: page.title });
+    }
+
+    const moreRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=images&imlimit=10&format=json&origin=*`);
+    const moreData = await moreRes.json();
+    const morePages = Object.values(moreData?.query?.pages || {});
+    const imageNames = (morePages[0]?.images || []).map(i => i.title).filter(t => /\.(jpg|jpeg|png|webp)/i.test(t)).slice(0, 6);
+
+    for (const imgName of imageNames) {
+      if (imgs.length >= limit) break;
+      try {
+        const infoRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(imgName)}&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=400&format=json&origin=*`);
+        const infoData = await infoRes.json();
+        const infoPages = Object.values(infoData?.query?.pages || {});
+        const thumbUrl = infoPages[0]?.imageinfo?.[0]?.thumburl;
+        if (thumbUrl && !imgs.find(i => i.url === thumbUrl)) imgs.push({ url: thumbUrl, title: imgName.replace('File:', '').replace(/\.[^.]+$/, '') });
+      } catch(e) {}
+    }
+    return imgs.slice(0, limit);
+  } catch(e) { console.error('Wiki image fetch error:', e.message); return []; }
+}
+
+async function fetchWikiSummary(topic) {
+  try {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.extract ? data.extract.slice(0, 300) : null;
+  } catch(e) { return null; }
+}
+
+function buildVisorShowMe(topic, images, summary, riggyResponse) {
+  const titleCase = topic.charAt(0).toUpperCase() + topic.slice(1);
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.8">${titleCase}</div>`;
+
+  if (images && images.length > 0) {
+    if (images.length === 1) {
+      html += `<div style="margin-bottom:14px;border-radius:12px;overflow:hidden">`;
+      html += `<img src="${images[0].url}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'"/>`;
+      html += `</div>`;
+    } else {
+      html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(images.length, 3)},1fr);gap:6px;margin-bottom:14px">`;
+      images.forEach(img => {
+        html += `<div style="border-radius:10px;overflow:hidden;aspect-ratio:1;background:rgba(255,255,255,0.04)">`;
+        html += `<img src="${img.url}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'"/>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+  }
+
+  if (riggyResponse) {
+    html += `<div style="padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-bottom:10px">`;
+    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace">Riggy Said</div>`;
+    html += `<div style="font-size:14px;color:#6B8FA8;line-height:1.6;font-weight:300">${riggyResponse}</div>`;
+    html += `</div>`;
+  }
+
+  if (summary) {
+    html += `<div style="padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px">`;
+    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace">Background</div>`;
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.7);line-height:1.65">${summary}</div>`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
 const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
 
 function needsSearchGrounding(text) {
@@ -1166,6 +1263,30 @@ class RiggyGlasses extends AppServer {
           const label = parseReminderLabel(userSaid); setReminder(label, fireAtMs);
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
+        }
+
+        // ── SHOW ME ABOUT — images + wiki + riggy talks ──
+        if (isShowMeAboutRequest(userSaid)) {
+          const topic = parseShowMeAboutTopic(userSaid);
+          if (topic) {
+            // Kick off wiki fetch and Gemini in parallel
+            const [images, summary, riggyReply] = await Promise.all([
+              fetchWikiImages(topic, 3),
+              fetchWikiSummary(topic),
+              askGemini(
+                `Tell me about ${topic} in your voice. Two sentences max. Be interesting, drop a surprising fact.`,
+                sessionId, userId, null, null, null, ''
+              )
+            ]);
+            // Speak while visor loads
+            if (riggyReply) { await speakSafe(riggyReply); latestState.riggySaid = riggyReply; }
+            latestState.visor = {
+              type: 'html',
+              label: topic.toUpperCase(),
+              html: buildVisorShowMe(topic, images, summary, riggyReply)
+            };
+            return;
+          }
         }
 
         // ── SHOW ME / VISOR — lower is already defined above ──
