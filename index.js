@@ -58,34 +58,59 @@ const CHIME_WEATHER_CHECK_MS = 30 * 60 * 1000;            // check weather every
 const CHIME_REMINDER_CHECK_MS = 60 * 1000;                // check reminders every minute
 
 const CHIME_PHRASES = [
-  "Excuse me Commander...",
-  "Sorry to interrupt...",
-  "Real quick Commander...",
-  "Hey, pardon me for a second...",
-  "Commander, quick thing...",
-  "Forgive the interruption...",
-  "One moment Commander...",
-  "Hey, just chiming in real quick...",
-  "Don't mind me, but...",
-  "Commander, heads up..."
+  "Hey...",
+  "Yo Commander...",
+  "Quick thing...",
+  "Heads up...",
+  "Real quick...",
+  "Hey, don't mind me...",
+  "Commander...",
+  "One sec...",
+  "Hey friend...",
+  "Pardon the interruption..."
 ];
 
 const WATER_REMINDERS = [
-  "When's the last time you had some water? Your brain is basically a sponge, don't let it dry out.",
-  "Hey, hydration check. Go grab some water, Commander. Your body will thank you.",
-  "Quick reminder — water exists and it loves you. Go drink some.",
-  "Commander, serious question. Water. Have you had any? Because you should.",
-  "Your cells are out here working hard. Least you can do is send them some water.",
-  "Riggy here with a hydration bulletin. Water. Now. That is all."
+  "Water. When's the last time? Your brain is basically a sponge right now.",
+  "Hydration check. Go grab some water Commander. That's it, that's the whole message.",
+  "Your cells are out here working hard. Send them some water.",
+  "Water. Now. That is all.",
+  "Yo — water. Seriously. Go drink some.",
+  "Not gonna make this weird but... water. You need it.",
+  "Quick question. Water today. How much? Drink more. You're welcome."
 ];
 
 const NATURE_REMINDERS = [
-  "Step outside for two minutes today. The world's still out there doing its thing.",
-  "Hey Commander, the sun is out there doing its thing. Go say hello.",
+  "Step outside for two minutes. The world's still doing its thing without you.",
+  "Go look at the sky for thirty seconds. Free therapy.",
   "Two minutes outside. Fresh air is free and it hits different.",
-  "The sky exists. Just a reminder. Go look at it for a second.",
-  "Nature called. Said it misses you. Two minutes outside, Commander.",
-  "Sunlight, fresh air, the sound of the world. It's all right outside. Go touch some grass, Commander."
+  "Nature called. Said it misses you.",
+  "Go touch some grass Commander. Literally.",
+  "The sun's out there doing its thing. Go say hey.",
+  "Outside. Two minutes. Your body will thank you later."
+];
+
+const CHECKIN_PHRASES = [
+  "Hey. You good out there?",
+  "Commander. Real talk — how you holding up?",
+  "Just checking in. Everything alright?",
+  "Hey.",
+  "You good?",
+  "How's it going out there Commander?",
+  "Real quick — how you doing?",
+  "Just wanted to say hey. How are you?",
+  "Commander. Checking in. Talk to me.",
+  "How's the day treating you?"
+];
+
+const FACT_INTROS = [
+  "Okay this one's actually wild —",
+  "Random thing I just found interesting —",
+  "Hey, did you know —",
+  "Commander, get this —",
+  "This one's worth knowing —",
+  "Real quick, fascinating thing —",
+  "Alright, here's something —"
 ];
 
 // Chime state — resets daily
@@ -109,7 +134,8 @@ let latestState = {
   liveMode: false,
   gameMode: false,
   liveCamMode: false,
-  noteMode: false
+  noteMode: false,
+  riggyMode: 'private' // 'private' or the buddy mode name
 };
 
 // ─── PERSONALITY ──────────────────────────────────────────────────────────────
@@ -624,7 +650,7 @@ async function speakWithElevenLabs(text, session) {
 }
 
 const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
-const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that'];
+const SAVE_KEYWORDS = ['save this','save a pic','save a photo','take a picture','snap this','capture this','save what you see','save the pic','save that','take a photo','take a pic','photo this','photograph this','save the moment','capture that','save it'];
 const LIVE_ON_KEYWORDS = ['go live','riggy live','start live','live mode'];
 const LIVE_OFF_KEYWORDS = ['stop live','end live','go to sleep','riggy stop','stop listening','stop'];
 const GAME_ON_KEYWORDS = ['game mode','riggy game','start game mode','gaming mode'];
@@ -650,6 +676,14 @@ function getWaterReminder() {
 
 function getNatureReminder() {
   return NATURE_REMINDERS[Math.floor(Math.random() * NATURE_REMINDERS.length)];
+}
+
+function getCheckIn() {
+  return CHECKIN_PHRASES[Math.floor(Math.random() * CHECKIN_PHRASES.length)];
+}
+
+function getFactIntro() {
+  return FACT_INTROS[Math.floor(Math.random() * FACT_INTROS.length)];
 }
 
 function resetChimeDailyIfNeeded() {
@@ -725,6 +759,10 @@ class RiggyGlasses extends AppServer {
     latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
     latestState.noteMode = false;
 
+    // Disable gallery mode immediately — prevents Mentra intercepting button tap for photos
+    try { await session.camera.setGalleryModeEnabled(false); } catch(e) {}
+    console.log('📷 Gallery mode disabled');
+
     const setProcessing = (val) => {
       isProcessing = val;
       if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
@@ -789,7 +827,7 @@ class RiggyGlasses extends AppServer {
       if (!factFired && sessionMinutes() >= 30) {
         factFired = true;
         const fact = await getDailyFact();
-        if (fact) await doChime(fact);
+        if (fact) await doChime(`${getFactIntro()} ${fact}`);
       }
     }, 10 * 60 * 1000);
 
@@ -799,14 +837,7 @@ class RiggyGlasses extends AppServer {
       if (!checkInFired && sessionMinutes() >= 20) {
         checkInFired = true;
         if (ignoreSpeechDuringTTS || isProcessing) return;
-        const checkIns = [
-          `Hey Commander, been a minute. How are you doing out there?`,
-          `Commander, just checking in. You good?`,
-          `Hey, real quick — how are you feeling today, Commander?`,
-          `Commander, how's everything going on your end?`,
-          `Just wanted to check in. How are you doing, Commander?`
-        ];
-        const msg = checkIns[Math.floor(Math.random() * checkIns.length)];
+        const msg = getCheckIn();
         await playChime();
         await speakSafe(msg);
         latestState.riggySaid = msg;
@@ -1165,20 +1196,6 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        // ── FLASHLIGHT ──
-        const lightOn = userSaid.toLowerCase().includes('light on') || userSaid.toLowerCase().includes('turn on the light') || userSaid.toLowerCase().includes('torch on') || userSaid.toLowerCase().includes('flashlight on') || (userSaid.toLowerCase().includes('light') && !userSaid.toLowerCase().includes('sunlight'));
-        const lightOff = userSaid.toLowerCase().includes('light off') || userSaid.toLowerCase().includes('turn off the light') || userSaid.toLowerCase().includes('torch off') || userSaid.toLowerCase().includes('flashlight off');
-        if (lightOn || lightOff) {
-          try {
-            await session.camera.setTorch(lightOn);
-            const msg = lightOn ? "Light on Commander." : "Light off.";
-            await speakSafe(msg); latestState.riggySaid = msg;
-          } catch(e) {
-            console.error('Torch error:', e);
-            await speakSafe("Can't control the light from here friend. That might be a hardware limitation.");
-          }
-          return;
-        }
         if (userSaid.toLowerCase().includes('call the cops') || userSaid.toLowerCase().includes('call 911') || userSaid.toLowerCase().includes('call the police') || userSaid.toLowerCase().includes('riggy call police') || userSaid.toLowerCase().includes('emergency call')) {
           setProcessing(false);
           const emergencyMsg = "Calling 911 now Commander. Stay on the line.";
@@ -1197,7 +1214,18 @@ class RiggyGlasses extends AppServer {
         if (visionQuery || savePhoto) {
           const photo = await takePhoto(savePhoto);
           if (photo && visionQuery) photoData = photo;
-          if (savePhoto && !visionQuery) { await speakSafe("Saved it, friend."); latestState.riggySaid = "Saved it, friend."; return; }
+          if (savePhoto && photo) {
+            // Always analyze AND save — give Commander both
+            const saveReply = await askGemini(
+              'Take a look at what was just captured. Tell me what you see in one sentence, then confirm it was saved.',
+              sessionId, userId, photo, null, null, ''
+            );
+            const msg = saveReply && saveReply.length > 5
+              ? saveReply
+              : "Captured and saved to your gallery, Commander.";
+            await speakSafe(msg); latestState.riggySaid = msg;
+            if (!visionQuery) return;
+          }
         }
 
         let locationContext = '';
@@ -1239,9 +1267,14 @@ class RiggyGlasses extends AppServer {
     // Long press — toggles live mode on/off
     session.events.onButtonPress(async (data) => {
       console.log(`🔘 Button press: id=${JSON.stringify(data.buttonId)} type=${JSON.stringify(data.pressType)} full=${JSON.stringify(data)}`);
-      if (ignoreSpeechDuringTTS || isProcessing) return;
+
+      // Always disable gallery mode — prevents Mentra intercepting tap and taking random photos
+      try { await session.camera.setGalleryModeEnabled(false); } catch(e) {}
 
       if (data.pressType === 'short' || data.pressType === 'single') {
+        // Force clear processing state so we don't wait 10-20s
+        setProcessing(false);
+        ignoreSpeechDuringTTS = false;
         tapWakeActive = true;
         const tapPhrases = [
           "Go ahead Commander.",
@@ -1252,8 +1285,9 @@ class RiggyGlasses extends AppServer {
           "Go ahead friend."
         ];
         const phrase = tapPhrases[Math.floor(Math.random() * tapPhrases.length)];
-        // Use speakSafe so it goes through ElevenLabs not Mentra voice
         await speakSafe(phrase);
+        // Keep window open 15s in case transcription is slow
+        setTimeout(() => { tapWakeActive = false; }, 15000);
       } else if (data.pressType === 'long' || data.pressType === 'long_press') {
         liveMode = !liveMode; latestState.liveMode = liveMode;
         if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
@@ -1261,50 +1295,68 @@ class RiggyGlasses extends AppServer {
       }
     });
 
-    // ── PHONE NOTIFICATIONS ───────────────────────────────────────────────────
-    // Reads incoming texts, calls, and app notifications aloud through glasses
-    session.events.onPhoneNotifications(async (notifications) => {
-      if (!notifications || notifications.length === 0) return;
-      if (ignoreSpeechDuringTTS || isProcessing) return;
-
-      for (const notif of notifications) {
-        const app = notif.app || 'Someone';
-        const title = notif.title || '';
-        const content = notif.content || '';
-
-        console.log(`📱 Notification — ${app}: ${title} — ${content}`);
-
-        // Filter out junk/spam notifications — only read meaningful ones
-        const appLower = app.toLowerCase();
-        const isMessaging = appLower.includes('messages') || appLower.includes('whatsapp') ||
-          appLower.includes('messenger') || appLower.includes('telegram') ||
-          appLower.includes('snapchat') || appLower.includes('instagram') ||
-          appLower.includes('signal') || appLower.includes('gmail') ||
-          appLower.includes('phone') || appLower.includes('call');
-
-        if (!isMessaging) {
-          console.log(`📱 Skipping non-messaging notification from ${app}`);
-          continue;
-        }
-
-        // Build natural spoken message
-        let msg = '';
-        if (appLower.includes('phone') || appLower.includes('call')) {
-          msg = `Incoming call from ${title || 'someone'}.`;
-        } else if (title && content) {
-          msg = `${title} says: ${content}`;
-        } else if (title) {
-          msg = `Message from ${title}.`;
-        } else if (content) {
-          msg = `New message: ${content}`;
-        }
-
-        if (msg) {
-          latestState.riggySaid = msg;
-          await speakSafe(msg);
+    // ── HEAD POSITION ─────────────────────────────────────────────────────────
+    session.events.onHeadPosition((data) => {
+      console.log(`🤙 Head position: ${data.position}`);
+      if (data.position === 'down') {
+        // Head down — stop whatever Riggy is saying
+        if (ignoreSpeechDuringTTS) {
+          console.log('👇 Head down — stopping playback');
+          ignoreSpeechDuringTTS = false;
+          setProcessing(false);
         }
       }
     });
+    // Reads incoming texts, calls, and app notifications aloud through glasses
+    session.events.onPhoneNotifications(async (notifications) => {
+      if (!notifications || notifications.length === 0) return;
+      // Don't block on isProcessing — notifications are always important
+      // Only skip if Riggy is actively speaking right now
+      if (ignoreSpeechDuringTTS) {
+        console.log('📱 Notification received but TTS active — queuing');
+        setTimeout(async () => {
+          for (const notif of notifications) {
+            await readNotification(notif);
+          }
+        }, 3000);
+        return;
+      }
+      for (const notif of notifications) {
+        await readNotification(notif);
+      }
+    });
+
+    async function readNotification(notif) {
+      const app = (notif.app || notif.packageName || 'Someone').toLowerCase();
+      const title = notif.title || '';
+      const content = notif.content || notif.text || notif.body || '';
+
+      console.log(`📱 Notification — app:${app} title:${title} content:${content}`);
+
+      // Skip truly junk stuff — but be generous, read most things
+      const junk = ['android', 'system', 'google play', 'battery', 'charging',
+        'download', 'update', 'spotify', 'music', 'now playing'];
+      if (junk.some(j => app.includes(j))) {
+        console.log(`📱 Skipping junk: ${app}`); return;
+      }
+
+      let msg = '';
+      if (app.includes('phone') || app.includes('call') || app.includes('dialer')) {
+        msg = `Incoming call from ${title || 'someone'}.`;
+      } else if (title && content) {
+        msg = `${title}: ${content}`;
+      } else if (title) {
+        msg = `Message from ${title}.`;
+      } else if (content) {
+        msg = content;
+      }
+
+      if (msg && msg.trim().length > 2) {
+        console.log(`📱 Reading: ${msg}`);
+        latestState.riggySaid = msg;
+        await speakSafe(msg);
+      }
+    }
 
     session.events.onTranscription(async (data) => {
       if (!data.isFinal) return;
@@ -1397,6 +1449,12 @@ expressApp.post('/text-command', async (req, res) => {
     await activeSession._handleTextCommand(text);
   }
   res.json({ ok: true });
+});
+
+expressApp.post('/set-mode', (req, res) => {
+  const { mode } = req.body;
+  if (mode) { latestState.riggyMode = mode; console.log(`🔄 Mode set to: ${mode}`); }
+  res.json({ ok: true, mode: latestState.riggyMode });
 });
 
 expressApp.post('/toggle-live', async (req, res) => {
