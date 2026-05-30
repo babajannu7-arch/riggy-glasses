@@ -269,6 +269,14 @@ function isDistanceRequest(text) { return /how far/i.test(text); }
 function isLocationRequest(text) { const l = text.toLowerCase(); return l.includes('where am i')||l.includes('what street')||l.includes('my location')||l.includes('where are we'); }
 function isIntelRequest(text) { const l = text.toLowerCase(); return l.includes('intel') || (l.includes('run') && l.includes('sweep')) || l.includes('intel mode'); }
 function isShopRequest(text) { const l = text.toLowerCase(); return (l.includes('shop mode')||l.includes('riggy shop')||l.includes('price check')||l.includes('how much is this')||l.includes('should i buy this'))&&!l.includes('stop'); }
+function isWhereToBuyRequest(text) { const l = text.toLowerCase(); return l.includes('where to buy')||l.includes('where can i buy')||l.includes('where do i buy')||l.includes('buy this')||l.includes('get this')||l.includes('find this online'); }
+function isWhatIsItWorthRequest(text) { const l = text.toLowerCase(); return l.includes('what is this worth')||l.includes('what's this worth')||l.includes('how much is this worth')||l.includes('resale value')||l.includes('worth anything'); }
+function isGoodDealRequest(text) { const l = text.toLowerCase(); return l.includes('good deal')||l.includes('is this a deal')||l.includes('worth buying')||l.includes('should i get this')||l.includes('is this worth it'); }
+function isTranslateRequest(text) { const l = text.toLowerCase(); return l.includes('translate this')||l.includes('what does this say')||l.includes('what language is this')||l.includes('translate that'); }
+function isPlantRequest(text) { const l = text.toLowerCase(); return l.includes('what plant')||l.includes('what kind of plant')||l.includes('plant need')||l.includes('care for this plant')||l.includes('what is this plant'); }
+function isBugRequest(text) { const l = text.toLowerCase(); return l.includes('what is this bug')||l.includes('what bug')||l.includes('what insect')||l.includes('what spider')||l.includes('identify this bug'); }
+function isNutritionRequest(text) { const l = text.toLowerCase(); return l.includes('nutrition')||l.includes('calories in this')||l.includes('what's in this')||l.includes('healthy')||l.includes('macro'); }
+function isWhoMadeRequest(text) { const l = text.toLowerCase(); return l.includes('who made this')||l.includes('who makes this')||l.includes('what brand')||l.includes('where is this made'); }
 function isMorningGreeting(text) { const l = text.toLowerCase(); return l.includes('good morning')&&l.includes('riggy'); }
 function isAfternoonGreeting(text){ const l = text.toLowerCase(); return l.includes('good afternoon')&&l.includes('riggy'); }
 function isNightGreeting(text) { const l = text.toLowerCase(); return (l.includes('good night')||l.includes('goodnight'))&&l.includes('riggy'); }
@@ -775,6 +783,83 @@ function buildVisorShowMe(topic, images, facts, summary) {
   return html;
 }
 
+// ─── CAMERA VISOR BUILDERS ───────────────────────────────────────────────────
+
+async function identifyProduct(photoData) {
+  try {
+    const body = {
+      system_instruction: { parts: [{ text: 'You are a product identification AI. Look at this image and return ONLY a JSON object with: {"productName":"exact product name","brand":"brand name","category":"category","estimatedPrice":"$XX-$XX"} . Raw JSON only, no markdown.' }] },
+      contents: [{ role: 'user', parts: [{ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } }, { text: 'Identify this product precisely.' }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 150, thinkingConfig: { thinkingBudget: 0 } }
+    };
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return JSON.parse(text.replace(/```json|```/g, '').trim());
+  } catch(e) { return null; }
+}
+
+function buildVisorWhereToBuy(product) {
+  if (!product) return '<div style="color:#E8D5B0;padding:16px;font-family:DM Sans,sans-serif">Could not identify product.</div>';
+  const q = encodeURIComponent(`${product.brand || ''} ${product.productName}`.trim());
+  const stores = [
+    { name: 'Google Shopping', url: `https://www.google.com/search?tbm=shop&q=${q}`, color: '#6B8FA8', icon: '🛒' },
+    { name: 'Amazon', url: `https://www.amazon.com/s?k=${q}`, color: '#9E8A68', icon: '📦' },
+    { name: 'eBay', url: `https://www.ebay.com/sch/i.html?_nkw=${q}`, color: '#6B8FA8', icon: '🏷️' },
+    { name: 'Walmart', url: `https://www.walmart.com/search?q=${q}`, color: '#9E8A68', icon: '🏪' },
+  ];
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#9E8A68;margin-bottom:6px;opacity:.7">WHERE TO BUY</div>`;
+  html += `<div style="font-size:18px;font-weight:500;color:#E8D5B0;margin-bottom:4px;line-height:1.3">${product.productName || 'Unknown Product'}</div>`;
+  if (product.brand) html += `<div style="font-size:12px;color:#9E8A68;margin-bottom:4px">${product.brand}</div>`;
+  if (product.estimatedPrice) html += `<div style="font-size:13px;color:#6B8FA8;margin-bottom:16px">Est. ${product.estimatedPrice}</div>`;
+  stores.forEach(s => {
+    html += `<a href="${s.url}" target="_blank" style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;margin-bottom:8px;text-decoration:none">`;
+    html += `<span style="font-size:18px">${s.icon}</span>`;
+    html += `<div style="flex:1"><div style="font-size:14px;color:#E8D5B0;font-weight:400">${s.name}</div><div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">Tap to search</div></div>`;
+    html += `<div style="font-size:10px;color:${s.color};font-family:'DM Mono',monospace;letter-spacing:.05em">↗</div>`;
+    html += `</a>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorWorth(product, analysis) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">RESALE VALUE</div>`;
+  if (product?.productName) html += `<div style="font-size:18px;font-weight:500;color:#E8D5B0;margin-bottom:14px;line-height:1.3">${product.productName}</div>`;
+  if (analysis) {
+    html += `<div style="padding:14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-bottom:12px">`;
+    html += `<div style="font-size:15px;color:#6B8FA8;line-height:1.6">${analysis}</div>`;
+    html += `</div>`;
+  }
+  if (product?.productName) {
+    const q = encodeURIComponent(product.productName);
+    html += `<a href="https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;text-decoration:none">`;
+    html += `<span style="font-size:16px">🏷️</span><div style="flex:1"><div style="font-size:13px;color:#E8D5B0">eBay Sold Listings</div><div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">See real sold prices</div></div><div style="font-size:10px;color:#6B8FA8;font-family:'DM Mono',monospace">↗</div>`;
+    html += `</a>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorCameraAnalysis(label, icon, analysis, extraLinks = []) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#9E8A68;margin-bottom:14px;opacity:.7">${icon} ${label}</div>`;
+  if (analysis) {
+    html += `<div style="padding:14px 16px;background:rgba(107,143,168,0.05);border:1px solid rgba(107,143,168,0.1);border-radius:12px;margin-bottom:12px">`;
+    html += `<div style="font-size:14px;color:rgba(232,213,176,0.85);line-height:1.7">${analysis.replace(/\n/g, '<br/>')}</div>`;
+    html += `</div>`;
+  }
+  extraLinks.forEach(l => {
+    html += `<a href="${l.url}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:7px;text-decoration:none">`;
+    html += `<span style="font-size:15px">${l.icon}</span><div style="flex:1;font-size:13px;color:#E8D5B0">${l.label}</div><div style="font-size:10px;color:#6B8FA8;font-family:'DM Mono',monospace">↗</div>`;
+    html += `</a>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
 const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
 
 function needsSearchGrounding(text) {
@@ -1227,6 +1312,109 @@ class RiggyGlasses extends AppServer {
           return;
         }
 
+        if (isWhereToBuyRequest(userSaid)) {
+          latestState.visor = { type:'html', label:'WHERE TO BUY', html: buildVisorShowMeSkeleton('Finding product...') };
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          await speakSafe("On it — identifying and finding where to buy.");
+          const product = await identifyProduct(photo);
+          if (!product || !product.productName) { await speakSafe("Couldn't identify it clearly. Try getting closer."); return; }
+          latestState.visor = { type:'html', label:'WHERE TO BUY', html: buildVisorWhereToBuy(product) };
+          const msg = `That looks like ${product.brand ? product.brand + ' ' : ''}${product.productName}. Check your visor for buy links.`;
+          await speakSafe(msg); latestState.riggySaid = msg; return;
+        }
+
+        if (isWhatIsItWorthRequest(userSaid)) {
+          latestState.visor = { type:'html', label:'RESALE VALUE', html: buildVisorShowMeSkeleton('Checking value...') };
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          await speakSafe("Let me take a look at what that's worth.");
+          const [product, analysis] = await Promise.all([
+            identifyProduct(photo),
+            askGemini('What is this item worth on the resale market? Give a specific price range, where to sell it, and if prices are going up or down. Two sentences.', sessionId, userId, photo, null, null, '')
+          ]);
+          if (analysis) { await speakSafe(analysis); latestState.riggySaid = analysis; }
+          latestState.visor = { type:'html', label:'RESALE VALUE', html: buildVisorWorth(product, analysis) };
+          return;
+        }
+
+        if (isGoodDealRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'DEAL CHECK', html: buildVisorShowMeSkeleton('Analyzing deal...') };
+          const [product, verdict] = await Promise.all([
+            identifyProduct(photo),
+            askGemini('Is this a good deal? Identify the product and price if visible, compare to market average, give a straight yes or no verdict and why. Two sentences max.', sessionId, userId, photo, null, null, '')
+          ]);
+          if (verdict) { await speakSafe(verdict); latestState.riggySaid = verdict; }
+          if (product?.productName) {
+            const q = encodeURIComponent(product.productName);
+            latestState.visor = { type:'html', label:'DEAL CHECK', html: buildVisorCameraAnalysis('DEAL CHECK', '🏷️', verdict, [
+              { url: `https://www.google.com/search?tbm=shop&q=${q}`, icon: '🛒', label: 'Compare prices on Google Shopping' },
+              { url: `https://camelcamelcamel.com/search?sq=${q}`, icon: '📈', label: 'Price history on CamelCamelCamel' }
+            ]) };
+          }
+          return;
+        }
+
+        if (isTranslateRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'TRANSLATE', html: buildVisorShowMeSkeleton('Translating...') };
+          const translation = await askGemini('What language is this and what does it say? Give the original text, the language, then the English translation. Be exact.', sessionId, userId, photo, null, null, '');
+          if (translation) { await speakSafe(translation.slice(0, 200)); latestState.riggySaid = translation; }
+          latestState.visor = { type:'html', label:'TRANSLATE', html: buildVisorCameraAnalysis('TRANSLATION', '🌐', translation) };
+          return;
+        }
+
+        if (isPlantRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'PLANT ID', html: buildVisorShowMeSkeleton('Identifying plant...') };
+          const analysis = await askGemini('Identify this plant. Give its common name, scientific name, and 3-4 care tips (water, light, soil, common issues). Format as plain text.', sessionId, userId, photo, null, null, '');
+          const spoken = await askGemini('Identify this plant in one sentence and give one surprising fact about it.', sessionId, userId, photo, null, null, '');
+          if (spoken) { await speakSafe(spoken); latestState.riggySaid = spoken; }
+          latestState.visor = { type:'html', label:'PLANT ID', html: buildVisorCameraAnalysis('PLANT ID', '🌿', analysis) };
+          return;
+        }
+
+        if (isBugRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'BUG ID', html: buildVisorShowMeSkeleton('Identifying...') };
+          const analysis = await askGemini('Identify this insect or bug. Give its name, is it dangerous or harmless, where it is commonly found, and one interesting fact. Plain text.', sessionId, userId, photo, null, null, '');
+          const spoken = await askGemini('What is this bug and should I be worried? One sentence, straight answer.', sessionId, userId, photo, null, null, '');
+          if (spoken) { await speakSafe(spoken); latestState.riggySaid = spoken; }
+          latestState.visor = { type:'html', label:'BUG ID', html: buildVisorCameraAnalysis('BUG ID', '🐛', analysis) };
+          return;
+        }
+
+        if (isNutritionRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'NUTRITION', html: buildVisorShowMeSkeleton('Reading nutrition...') };
+          const analysis = await askGemini('Read this nutrition label or food item. Give: calories, protein, carbs, fat, sugar. Then tell me if this is healthy or not in one honest sentence. Plain text.', sessionId, userId, photo, null, null, '');
+          const spoken = await askGemini('Look at this food. Is it healthy? Give me the quick answer in one sentence.', sessionId, userId, photo, null, null, '');
+          if (spoken) { await speakSafe(spoken); latestState.riggySaid = spoken; }
+          latestState.visor = { type:'html', label:'NUTRITION', html: buildVisorCameraAnalysis('NUTRITION', '🥗', analysis) };
+          return;
+        }
+
+        if (isWhoMadeRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot friend. Try again."); return; }
+          latestState.visor = { type:'html', label:'BRAND INFO', html: buildVisorShowMeSkeleton('Looking up brand...') };
+          const [product, brandInfo] = await Promise.all([
+            identifyProduct(photo),
+            askGemini('Who made this product? Identify the brand, where it is manufactured, and one thing most people don't know about this company. Plain text.', sessionId, userId, photo, null, null, '')
+          ]);
+          const spoken = await askGemini('Who made this and where? One sentence.', sessionId, userId, photo, null, null, '');
+          if (spoken) { await speakSafe(spoken); latestState.riggySaid = spoken; }
+          const links = product?.brand ? [{ url: `https://en.wikipedia.org/wiki/${encodeURIComponent(product.brand)}`, icon: '📖', label: `${product.brand} on Wikipedia` }] : [];
+          latestState.visor = { type:'html', label:'BRAND INFO', html: buildVisorCameraAnalysis('BRAND INFO', '🏭', brandInfo, links) };
+          return;
+        }
+
         if (isShopRequest(userSaid)) {
           const photo = await takePhoto(); if (!photo) { await speakSafe("Can't get a clear shot friend. Try again."); return; }
           await speakSafe("Scanning it now.");
@@ -1600,8 +1788,9 @@ RULES:
       const userSaid = data.text.trim();
       if (!userSaid) return;
       const now = Date.now();
-      if (userSaid === lastProcessedText && now - lastProcessedTime < 180000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
-      if (lastProcessedText && now - lastProcessedTime < 180000 && looksLikeEcho(userSaid, lastProcessedText)) { console.log('🔇 Fuzzy duplicate — ignoring:', userSaid); return; }
+      if (userSaid === lastProcessedText && now - lastProcessedTime < 3000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
+      // Only block fuzzy duplicates within 3 seconds (catches STT double-fire, not similar commands)
+      if (lastProcessedText && now - lastProcessedTime < 3000 && looksLikeEcho(userSaid, lastProcessedText)) { console.log('🔇 Fuzzy duplicate — ignoring:', userSaid); return; }
       lastProcessedText = userSaid; lastProcessedTime = now;
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
       if (noteMode) { await handleInput(userSaid); return; }
