@@ -1165,7 +1165,20 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        // ── CALL COPS / EMERGENCY ──
+        // ── FLASHLIGHT ──
+        const lightOn = userSaid.toLowerCase().includes('light on') || userSaid.toLowerCase().includes('turn on the light') || userSaid.toLowerCase().includes('torch on') || userSaid.toLowerCase().includes('flashlight on') || (userSaid.toLowerCase().includes('light') && !userSaid.toLowerCase().includes('sunlight'));
+        const lightOff = userSaid.toLowerCase().includes('light off') || userSaid.toLowerCase().includes('turn off the light') || userSaid.toLowerCase().includes('torch off') || userSaid.toLowerCase().includes('flashlight off');
+        if (lightOn || lightOff) {
+          try {
+            await session.camera.setTorch(lightOn);
+            const msg = lightOn ? "Light on Commander." : "Light off.";
+            await speakSafe(msg); latestState.riggySaid = msg;
+          } catch(e) {
+            console.error('Torch error:', e);
+            await speakSafe("Can't control the light from here friend. That might be a hardware limitation.");
+          }
+          return;
+        }
         if (userSaid.toLowerCase().includes('call the cops') || userSaid.toLowerCase().includes('call 911') || userSaid.toLowerCase().includes('call the police') || userSaid.toLowerCase().includes('riggy call police') || userSaid.toLowerCase().includes('emergency call')) {
           setProcessing(false);
           const emergencyMsg = "Calling 911 now Commander. Stay on the line.";
