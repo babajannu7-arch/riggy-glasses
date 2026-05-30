@@ -3,583 +3,543 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1A1C1E">
+    <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Mr. Riggy</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         :root {
-          --bg:        #1A1C1E;
-          --panel:     #1E2124;
-          --card:      #141618;
-          --border:    #2A2D31;
-          --border2:   #1E2124;
-          --sand:      #C4B697;
-          --sand-dim:  #7A6E57;
-          --silver:    #B8BEC4;
-          --silver-dim:#6E7478;
-          --slate:     #3D5060;
-          --slate-dim: #2D3D4A;
-          --text:      #A8ADB2;
-          --green:     #5EA87A;
-          --red:       #CC4444;
-          --accent:    #4A7FA0;
+            --black:   #f0f2f5;
+            --dark:    #e8eaed;
+            --surface: #ffffff;
+            --card:    #f5f6f8;
+            --border:  rgba(0,0,0,0.07);
+            --border2: rgba(0,0,0,0.04);
+            --white:   #1a1f2e;
+            --dim:     rgba(30,40,60,0.45);
+            --muted:   rgba(30,40,60,0.3);
+            --slate:   #4a6880;
+            --slate-bright: #5a7f9a;
+            --sand:    #9e8a68;
+            --sand-dim: rgba(158,138,104,0.2);
+            --green:   #5a9a84;
+            --green-dim: rgba(90,154,132,0.1);
+            --amber:   #a8865a;
+            --r: 16px;
         }
 
         html, body {
-          width: 100%; height: 100%;
-          min-height: 100dvh;
-          background: #1A1C1E;
-          overflow: hidden;
-          font-family: 'Share Tech Mono', monospace;
-          color: var(--text);
+            width: 100%; height: 100%;
+            min-height: 100dvh;
+            background: var(--black);
+            color: var(--white);
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        body {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          position: relative;
-          padding-top: env(safe-area-inset-top);
-          padding-bottom: env(safe-area-inset-bottom);
-          background: var(--bg);
+        html, body {
+            width: 100%; height: 100%;
+            min-height: 100dvh;
+            background: var(--black);
+            color: var(--white);
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* Scanline overlay */
-        body::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background: repeating-linear-gradient(
-            0deg, transparent, transparent 2px,
-            rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px
-          );
-          pointer-events: none;
-          z-index: 100;
-        }
-
-        /* Vignette */
-        body::after {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        /* Corner brackets */
-        .corner {
-          position: fixed;
-          width: 18px; height: 18px;
-          z-index: 20; opacity: 0.25;
-          transition: opacity 0.4s, border-color 0.4s;
-        }
-        .corner-tl { top: 12px; left: 12px; border-top: 1px solid var(--sand); border-left: 1px solid var(--sand); }
-        .corner-tr { top: 12px; right: 12px; border-top: 1px solid var(--sand); border-right: 1px solid var(--sand); }
-        .corner-bl { bottom: 12px; left: 12px; border-bottom: 1px solid var(--sand); border-left: 1px solid var(--sand); }
-        .corner-br { bottom: 12px; right: 12px; border-bottom: 1px solid var(--sand); border-right: 1px solid var(--sand); }
-        body.speaking .corner { opacity: 0.55; }
-        body.live .corner { opacity: 0.45; border-color: var(--green); }
-
-        /* ── MAIN SCREEN ─────────────────────────────── */
+        /* ── MAIN ─────────────────────────────────────── */
         #mainScreen {
-          width: 100%; height: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 40px 20px 16px;
-          transition: transform 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.4s;
-          z-index: 10;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px);
+            transition: transform 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.45s;
         }
-        #mainScreen.hidden {
-          transform: translateX(-100%);
-          opacity: 0;
-          pointer-events: none;
-          position: absolute;
+        #mainScreen.hidden { transform: translateX(-100%); opacity: 0; pointer-events: none; position: absolute; }
+
+        /* ── TOP BAR ──────────────────────────────────── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            flex-shrink: 0;
         }
 
-        /* HEADER */
-        .header {
-          width: 100%;
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 4px;
-          z-index: 10;
+        .wordmark {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+        .wordmark-main {
+            font-family: 'DM Mono', monospace;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            color: var(--white);
+        }
+        .wordmark-sub {
+            font-size: 10px;
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            text-transform: uppercase;
         }
 
-        .header-center {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
+        .topbar-right { display: flex; align-items: center; gap: 10px; }
 
-        .brand {
-          font-family: 'Orbitron', sans-serif;
-          font-weight: 900;
-          font-size: 22px;
-          letter-spacing: 9px;
-          color: var(--silver);
-          text-align: center;
-          text-shadow: 0 0 20px rgba(61,80,96,0.4);
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(74,104,128,0.12);
+            border: 1px solid rgba(74,104,128,0.25);
+            border-radius: 20px;
+            padding: 5px 10px;
+            transition: all 0.3s;
         }
-
-        .brand-sub {
-          font-family: 'VT323', monospace;
-          font-size: 13px;
-          letter-spacing: 4px;
-          color: var(--sand-dim);
-          opacity: 0.65;
-          text-align: center;
-          margin-top: 2px;
-          text-transform: uppercase;
-        }
-
-        .commander-tag {
-          font-family: 'VT323', monospace;
-          font-size: 11px;
-          letter-spacing: 4px;
-          color: var(--sand-dim);
-          text-transform: uppercase;
-          margin-top: 4px;
-          opacity: 0.6;
-          min-height: 14px;
-        }
-
-        /* Settings icon — muted sand so it reads */
-        .settings-btn {
-          width: 36px; height: 36px;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer;
-          opacity: 0.65;
-          transition: opacity 0.3s;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-        .settings-btn:active { opacity: 1; }
-        .settings-btn svg { width: 20px; height: 20px; stroke: var(--sand); fill: none; stroke-width: 1.5; }
-
-        /* Spacer for symmetry */
-        .header-spacer { width: 36px; flex-shrink: 0; }
-
-        /* Status pill */
-        .status-pill {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          background: rgba(94,168,122,0.07);
-          border: 1px solid rgba(94,168,122,0.18);
-          border-radius: 30px;
-          padding: 4px 12px;
-          margin-top: 8px;
-          transition: all 0.4s ease;
-        }
-        .status-pill.speaking { background: rgba(196,182,151,0.07); border-color: rgba(196,182,151,0.22); }
-        .status-pill.live { background: rgba(94,168,122,0.1); border-color: rgba(94,168,122,0.35); }
+        .status-badge.speaking { background: rgba(184,168,130,0.1); border-color: rgba(184,168,130,0.25); }
+        .status-badge.live { background: rgba(122,184,160,0.1); border-color: rgba(122,184,160,0.3); }
 
         .status-dot {
-          width: 7px; height: 7px;
-          border-radius: 50%;
-          background: var(--green);
-          box-shadow: 0 0 7px var(--green);
-          animation: dot-breathe 2s ease-in-out infinite;
-          transition: all 0.4s ease;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--slate-bright);
+            animation: pulse 2.5s ease-in-out infinite;
         }
-        .status-pill.speaking .status-dot { background: var(--sand); box-shadow: 0 0 7px var(--sand); animation: dot-flash 0.5s ease-in-out infinite alternate; }
-        .status-pill.live .status-dot { background: var(--green); box-shadow: 0 0 10px var(--green), 0 0 20px var(--green); animation: dot-flash 0.8s ease-in-out infinite alternate; }
+        .status-badge.speaking .status-dot { background: var(--sand); animation: blink 0.6s ease-in-out infinite alternate; }
+        .status-badge.live .status-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1s ease-in-out infinite alternate; }
+        @keyframes pulse { 0%,100%{opacity:0.5;transform:scale(1);} 50%{opacity:1;transform:scale(1.15);} }
+        @keyframes blink { from{opacity:0.6;} to{opacity:1;} }
 
-        @keyframes dot-breathe { 0%,100%{opacity:0.6;transform:scale(1);} 50%{opacity:1;transform:scale(1.2);} }
-        @keyframes dot-flash { from{opacity:0.7;transform:scale(1);} to{opacity:1;transform:scale(1.3);} }
-
-        .status-text {
-          font-family: 'VT323', monospace;
-          font-size: 14px;
-          letter-spacing: 3px;
-          color: var(--green);
-          text-transform: uppercase;
-          transition: color 0.4s ease;
+        .status-label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            color: var(--slate-bright);
         }
-        .status-pill.speaking .status-text { color: var(--sand); }
+        .status-badge.speaking .status-label { color: var(--sand); }
+        .status-badge.live .status-label { color: var(--green); }
 
-        /* ORB SECTION */
+        .icon-btn {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .icon-btn:active { transform: scale(0.93); background: var(--card); }
+        .icon-btn svg { width: 15px; height: 15px; stroke: rgba(30,40,60,0.4); fill: none; stroke-width: 1.6; }
+
+        /* ── ORB ──────────────────────────────────────── */
         .orb-section {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          z-index: 5;
-          width: 100%;
-          min-height: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            gap: 20px;
         }
 
-        .orb-wrap {
-          position: relative;
-          width: 180px; height: 180px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+        .orb-container {
+            position: relative;
+            width: 200px; height: 200px;
         }
 
-        .ring { position: absolute; border-radius: 50%; }
-        .ring-1 { width: 180px; height: 180px; border: 1px solid rgba(61,80,96,0.32); animation: spin 20s linear infinite; transition: border-color 0.5s, box-shadow 0.5s; }
-        .ring-1::before { content:''; position:absolute; top:-3px; left:50%; width:7px; height:7px; background:var(--slate); border-radius:50%; box-shadow:0 0 8px var(--slate),0 0 16px var(--slate); transform:translateX(-50%); }
-        .ring-2 { width: 136px; height: 136px; border: 1px solid rgba(196,182,151,0.18); animation: spin 13s linear infinite reverse; transition: border-color 0.5s; }
-        .ring-2::before { content:''; position:absolute; bottom:-3px; left:50%; width:5px; height:5px; background:var(--sand); border-radius:50%; box-shadow:0 0 7px var(--sand),0 0 14px var(--sand); transform:translateX(-50%); }
-        .ring-3 { width: 96px; height: 96px; border: 1px solid rgba(184,190,196,0.08); animation: spin 9s linear infinite; }
-        body.speaking .ring-1 { border-color:rgba(61,80,96,0.55); box-shadow:0 0 18px rgba(61,80,96,0.12); }
-        body.speaking .ring-2 { border-color:rgba(196,182,151,0.4); }
-        body.live .ring-1 { border-color:rgba(94,168,122,0.35); box-shadow:0 0 18px rgba(94,168,122,0.08); }
-        @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+        .orb-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(74,104,128,0.15); transition: border-color 0.5s; }
+        .orb-ring-1 { inset: 0; animation: rot 25s linear infinite; }
+        .orb-ring-1::after { content:''; position:absolute; top:-3px; left:50%; width:6px; height:6px; background:rgba(74,104,128,0.4); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 10px rgba(74,104,128,0.2); }
+        .orb-ring-2 { inset: 28px; border-color: rgba(158,138,104,0.15); animation: rot 18s linear infinite reverse; }
+        .orb-ring-2::after { content:''; position:absolute; bottom:-3px; left:50%; width:5px; height:5px; background:rgba(158,138,104,0.5); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 8px rgba(158,138,104,0.2); }
+        .orb-ring-3 { inset: 56px; border-color: rgba(74,104,128,0.08); animation: rot 12s linear infinite; }
+        @keyframes rot { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+        body.speaking .orb-ring-1 { border-color: rgba(158,138,104,0.25); }
+        body.speaking .orb-ring-2 { border-color: rgba(158,138,104,0.15); }
+        body.live .orb-ring-1 { border-color: rgba(90,154,132,0.2); }
 
         .orb-core {
-          width: 56px; height: 56px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(61,80,96,0.14) 0%, transparent 70%);
-          box-shadow: 0 0 18px rgba(61,80,96,0.08);
-          transition: all 0.5s ease;
+            position: absolute;
+            inset: 74px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(74,104,128,0.08) 0%, transparent 70%);
+            transition: all 0.6s ease;
         }
-        body.speaking .orb-core { background:radial-gradient(circle,rgba(196,182,151,0.18) 0%,rgba(61,80,96,0.08) 50%,transparent 100%); box-shadow:0 0 28px rgba(196,182,151,0.18),0 0 50px rgba(61,80,96,0.08); animation:core-pulse 0.9s ease-in-out infinite alternate; }
-        body.live .orb-core { background:radial-gradient(circle,rgba(94,168,122,0.18) 0%,rgba(61,80,96,0.08) 50%,transparent 100%); box-shadow:0 0 28px rgba(94,168,122,0.18); animation:core-pulse 1.5s ease-in-out infinite alternate; }
-        @keyframes core-pulse { from{transform:scale(1);} to{transform:scale(1.12);} }
+        body.speaking .orb-core { background: radial-gradient(circle, rgba(158,138,104,0.12) 0%, transparent 70%); box-shadow: 0 0 30px rgba(158,138,104,0.08); animation: breathe 0.8s ease-in-out infinite alternate; }
+        body.live .orb-core { background: radial-gradient(circle, rgba(90,154,132,0.1) 0%, transparent 70%); box-shadow: 0 0 30px rgba(90,154,132,0.06); animation: breathe 1.5s ease-in-out infinite alternate; }
+        @keyframes breathe { from{transform:scale(1);} to{transform:scale(1.15);} }
 
-        /* Voice wave */
-        .voice-wave { display:flex; align-items:center; justify-content:center; gap:3px; height:36px; margin-top:14px; width:160px; }
-        .bar { width:3px; border-radius:3px; background:linear-gradient(to top,var(--sand-dim),var(--slate)); height:4px; opacity:0.2; transition:opacity 0.3s ease; }
-        body.speaking .bar { opacity:1; background:linear-gradient(to top,var(--sand),var(--silver)); animation:bar-wave 0.5s ease-in-out infinite alternate; }
-        body.live .bar { opacity:0.5; background:linear-gradient(to top,var(--green),var(--slate)); animation:bar-idle 2s ease-in-out infinite alternate; }
-        .bar:nth-child(1){animation-delay:0.00s;} .bar:nth-child(2){animation-delay:0.04s;} .bar:nth-child(3){animation-delay:0.08s;} .bar:nth-child(4){animation-delay:0.12s;} .bar:nth-child(5){animation-delay:0.16s;} .bar:nth-child(6){animation-delay:0.20s;} .bar:nth-child(7){animation-delay:0.24s;} .bar:nth-child(8){animation-delay:0.20s;} .bar:nth-child(9){animation-delay:0.16s;} .bar:nth-child(10){animation-delay:0.12s;} .bar:nth-child(11){animation-delay:0.08s;} .bar:nth-child(12){animation-delay:0.04s;} .bar:nth-child(13){animation-delay:0.00s;}
-        @keyframes bar-wave { from{height:4px;} to{height:34px;} }
-        @keyframes bar-idle { from{height:4px;} to{height:10px;} }
-
-        .state-label { font-family:'VT323',monospace; font-size:12px; letter-spacing:4px; color:var(--slate-dim); text-transform:uppercase; margin-top:6px; transition:all 0.4s ease; }
-        body.speaking .state-label { color:var(--sand); text-shadow:0 0 8px rgba(196,182,151,0.25); }
-        body.live .state-label { color:var(--green); text-shadow:0 0 8px rgba(94,168,122,0.25); }
-
-        /* Live button */
-        .live-btn { margin-top:10px; padding:8px 24px; font-family:'VT323',monospace; font-size:15px; letter-spacing:4px; text-transform:uppercase; border-radius:30px; cursor:pointer; transition:all 0.3s ease; z-index:10; border:1px solid rgba(94,168,122,0.28); background:rgba(94,168,122,0.07); color:var(--green); }
-        .live-btn:active { transform:scale(0.96); }
-        .live-btn.active { background:rgba(94,168,122,0.13); border-color:rgba(94,168,122,0.55); box-shadow:0 0 14px rgba(94,168,122,0.18); }
-
-        /* RESPONSE CARDS */
-        .response-section { width:100%; z-index:10; display:flex; flex-direction:column; gap:6px; margin-top:10px; }
-        .card { background:var(--card); border-radius:3px; padding:9px 13px; border:1px solid var(--border); position:relative; overflow:hidden; }
-        .card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; }
-        .card.user::before { background:var(--slate); opacity:0.55; }
-        .card.riggy::before { background:var(--sand); opacity:0.65; }
-        .card-label { font-family:'VT323',monospace; font-size:13px; letter-spacing:3px; text-transform:uppercase; margin-bottom:4px; }
-        .card.user .card-label { color:var(--silver-dim); }
-        .card.riggy .card-label { color:var(--sand-dim); }
-        .card-text { font-family:'Share Tech Mono',monospace; font-size:14px; line-height:1.55; color:var(--text); opacity:0.85; min-height:18px; max-height:80px; overflow-y:auto; }
-        .card.user .card-text { opacity:0.55; font-size:13px; }
-        .fade-in { animation:fadeUp 0.3s ease forwards; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(3px);} to{opacity:1;transform:translateY(0);} }
-
-        /* ── TEXT COMMAND INPUT ──────────────────────── */
-        .command-section {
-          width: 100%;
-          z-index: 10;
-          margin-top: 10px;
-          position: relative;
+        /* Wave bars */
+        .wave {
+            display: flex; align-items: center; gap: 3px;
+            height: 28px;
         }
-
-        .command-wrap {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 4px;
-          padding: 8px 10px;
-          transition: border-color 0.3s;
+        .wave-bar {
+            width: 2.5px; height: 3px;
+            border-radius: 2px;
+            background: rgba(74,104,128,0.2);
+            transition: background 0.3s;
         }
-        .command-wrap:focus-within {
-          border-color: rgba(61,80,96,0.6);
-          box-shadow: 0 0 0 1px rgba(61,80,96,0.2);
+        body.speaking .wave-bar { background: var(--sand); animation: wave-anim 0.45s ease-in-out infinite alternate; }
+        body.live .wave-bar { background: rgba(90,154,132,0.5); animation: wave-idle 2s ease-in-out infinite alternate; }
+        .wave-bar:nth-child(1){animation-delay:0s;} .wave-bar:nth-child(2){animation-delay:.04s;} .wave-bar:nth-child(3){animation-delay:.08s;} .wave-bar:nth-child(4){animation-delay:.12s;} .wave-bar:nth-child(5){animation-delay:.16s;} .wave-bar:nth-child(6){animation-delay:.20s;} .wave-bar:nth-child(7){animation-delay:.24s;} .wave-bar:nth-child(8){animation-delay:.20s;} .wave-bar:nth-child(9){animation-delay:.16s;} .wave-bar:nth-child(10){animation-delay:.12s;} .wave-bar:nth-child(11){animation-delay:.08s;} .wave-bar:nth-child(12){animation-delay:.04s;} .wave-bar:nth-child(13){animation-delay:0s;}
+        @keyframes wave-anim { from{height:3px;} to{height:24px;} }
+        @keyframes wave-idle { from{height:3px;} to{height:8px;} }
+
+        .state-text {
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+        body.speaking .state-text { color: var(--sand); }
+        body.live .state-text { color: var(--slate-bright); }
+
+        /* ── LIVE BUTTON ──────────────────────────────── */
+        .live-btn {
+            padding: 10px 28px;
+            background: rgba(74,104,128,0.08);
+            border: 1px solid rgba(74,104,128,0.2);
+            border-radius: 40px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            color: var(--slate);
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .live-btn:active { transform: scale(0.96); }
+        .live-btn.active {
+            background: rgba(74,104,128,0.18);
+            border-color: rgba(74,104,128,0.45);
+            color: var(--slate-bright);
+            box-shadow: 0 2px 12px rgba(74,104,128,0.12);
         }
 
-        .command-input {
-          flex: 1;
-          background: transparent;
-          border: none;
-          outline: none;
-          font-family: 'Share Tech Mono', monospace;
-          font-size: 14px;
-          color: var(--text);
-          caret-color: var(--sand);
-        }
-        .command-input::placeholder {
-          color: var(--silver-dim);
-          opacity: 0.45;
-          font-size: 13px;
-          letter-spacing: 0.5px;
+        /* ── RESPONSE CARDS ───────────────────────────── */
+        .cards {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-shrink: 0;
         }
 
-        .command-send {
-          background: rgba(61,80,96,0.3);
-          border: 1px solid rgba(61,80,96,0.4);
-          border-radius: 3px;
-          padding: 5px 12px;
-          font-family: 'VT323', monospace;
-          font-size: 13px;
-          letter-spacing: 2px;
-          color: var(--silver);
-          cursor: pointer;
-          text-transform: uppercase;
-          transition: all 0.2s;
-          flex-shrink: 0;
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border2);
+            border-radius: var(--r);
+            padding: 12px 14px;
+            position: relative;
+            overflow: hidden;
         }
-        .command-send:active { background: rgba(61,80,96,0.5); transform: scale(0.97); }
+        .card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 2px;
+            border-radius: 2px 0 0 2px;
+        }
+        .card.user::before { background: rgba(74,104,128,0.3); }
+        .card.riggy::before { background: rgba(184,168,130,0.5); }
 
-        /* ── SETTINGS PANEL ──────────────────────────── */
+        .card-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+        .card.riggy .card-label { color: rgba(184,168,130,0.5); }
+
+        .card-text {
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.55;
+            color: rgba(26,31,46,0.75);
+            max-height: 72px;
+            overflow-y: auto;
+        }
+        .card.user .card-text { color: rgba(26,31,46,0.4); font-size: 13px; }
+
+        .fade-in { animation: fadeUp 0.25s ease forwards; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(4px);} to{opacity:1;transform:translateY(0);} }
+
+        /* ── COMMAND INPUT ────────────────────────────── */
+        .input-section { flex-shrink: 0; }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 12px;
+            transition: border-color 0.25s;
+        }
+        .input-row:focus-within { border-color: rgba(74,104,128,0.3); }
+
+        .cmd-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--white);
+            caret-color: var(--slate);
+        }
+        .cmd-input::placeholder { color: var(--muted); font-size: 13px; }
+
+        .send-btn {
+            background: var(--slate);
+            border: none;
+            border-radius: 8px;
+            padding: 6px 16px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(74,104,128,0.2);
+        }
+        .send-btn:active { transform: scale(0.95); opacity: 0.85; }
+
+        .chime-btn {
+            width: 100%;
+            margin-top: 8px;
+            padding: 10px;
+            background: rgba(158,138,104,0.08);
+            border: 1px solid rgba(158,138,104,0.2);
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--sand);
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: all 0.2s;
+        }
+        .chime-btn:active { background: rgba(158,138,104,0.15); }
+
+        /* ── COMMANDER TAG ────────────────────────────── */
+        .commander-tag {
+            font-size: 10px;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            color: rgba(74,104,128,0.4);
+            text-transform: uppercase;
+            text-align: center;
+            margin-top: 3px;
+            min-height: 12px;
+        }
+
+        /* ── SETTINGS PANEL ───────────────────────────── */
         #settingsScreen {
-          position: fixed;
-          inset: 0;
-          background: var(--bg);
-          z-index: 200;
-          display: flex;
-          flex-direction: column;
-          transform: translateX(100%);
-          transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
-          padding: 48px 22px 28px;
-          overflow-y: auto;
+            position: fixed;
+            inset: 0;
+            background: var(--black);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+            padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px);
+            overflow-y: auto;
         }
         #settingsScreen.open { transform: translateX(0); }
 
-        .settings-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 28px;
+        .settings-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            flex-shrink: 0;
         }
 
         .settings-title {
-          font-family: 'Orbitron', sans-serif;
-          font-weight: 600;
-          font-size: 16px;
-          letter-spacing: 6px;
-          color: var(--silver);
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            color: var(--white);
         }
 
-        .settings-back {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          cursor: pointer;
-          opacity: 0.5;
-          transition: opacity 0.3s;
-          font-family: 'VT323', monospace;
-          font-size: 14px;
-          letter-spacing: 3px;
-          color: var(--text);
-          text-transform: uppercase;
+        .back-btn {
+            display: flex; align-items: center; gap: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--dim);
+            transition: color 0.2s;
         }
-        .settings-back:active { opacity: 1; }
-        .settings-back svg { width: 14px; height: 14px; stroke: var(--text); fill: none; stroke-width: 2; }
+        .back-btn:active { color: var(--white); }
+        .back-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
 
-        /* Section label */
-        .s-section {
-          font-family: 'VT323', monospace;
-          font-size: 11px;
-          letter-spacing: 4px;
-          color: var(--slate);
-          text-transform: uppercase;
-          margin-bottom: 10px;
-          margin-top: 22px;
-          padding-bottom: 6px;
-          border-bottom: 1px solid var(--border);
+        .s-group {
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: var(--r);
+            overflow: hidden;
+            margin-bottom: 10px;
         }
-        .s-section:first-of-type { margin-top: 0; }
 
-        /* Setting row */
+        .s-group-label {
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 18px 0 6px 4px;
+        }
+        .s-group-label:first-child { margin-top: 0; }
+
         .s-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 0;
-          border-bottom: 1px solid rgba(42,45,49,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border2);
         }
+        .s-row:last-child { border-bottom: none; }
 
-        .s-row-info { flex: 1; margin-right: 16px; }
-        .s-label { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--silver); margin-bottom: 2px; }
-        .s-desc { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--silver-dim); opacity: 0.55; line-height: 1.4; }
-
-        /* Toggle switch */
-        .toggle-wrap { position: relative; width: 42px; height: 24px; flex-shrink: 0; cursor: pointer; }
-        .toggle-wrap input { opacity: 0; width: 0; height: 0; position: absolute; }
-        .toggle-track {
-          position: absolute; inset: 0;
-          background: var(--border);
-          border-radius: 12px;
-          border: 1px solid var(--border2);
-          transition: background 0.3s, border-color 0.3s;
-        }
-        .toggle-wrap input:checked ~ .toggle-track {
-          background: rgba(94,168,122,0.25);
-          border-color: rgba(94,168,122,0.4);
-        }
-        .toggle-thumb {
-          position: absolute;
-          top: 3px; left: 3px;
-          width: 16px; height: 16px;
-          background: var(--silver-dim);
-          border-radius: 50%;
-          transition: transform 0.3s, background 0.3s;
-        }
-        .toggle-wrap input:checked ~ .toggle-track ~ .toggle-thumb {
-          transform: translateX(18px);
-          background: var(--green);
-          box-shadow: 0 0 8px rgba(94,168,122,0.5);
-        }
+        .s-row-left { flex: 1; margin-right: 16px; }
+        .s-row-title { font-size: 14px; font-weight: 400; color: var(--white); margin-bottom: 2px; }
+        .s-row-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+        /* Toggle */
+        .toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
+        .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .toggle-track { position: absolute; inset: 0; background: rgba(160,175,195,0.1); border-radius: 13px; transition: background 0.3s; }
+        .toggle input:checked ~ .toggle-track { background: var(--slate); }
+        .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+        .toggle input:checked ~ .toggle-track ~ .toggle-thumb { transform: translateX(18px); }
 
         /* Text input in settings */
         .s-input {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 3px;
-          padding: 8px 10px;
-          font-family: 'Share Tech Mono', monospace;
-          font-size: 12px;
-          color: var(--text);
-          width: 100%;
-          margin-top: 8px;
-          outline: none;
-          transition: border-color 0.3s;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border);
+            padding: 10px 0;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: var(--white);
+            outline: none;
+            transition: border-color 0.2s;
         }
-        .s-input:focus { border-color: rgba(61,80,96,0.5); }
-        .s-input::placeholder { color: var(--silver-dim); opacity: 0.4; }
+        .s-input:focus { border-color: rgba(255,255,255,0.25); }
+        .s-input::placeholder { color: var(--muted); }
 
         /* Slider */
-        .s-slider-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid rgba(42,45,49,0.5); }
-        .s-slider-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .s-slider-val { font-family: 'VT323', monospace; font-size: 18px; color: var(--sand); letter-spacing: 2px; }
+        .s-slider-row { padding: 14px 16px; border-bottom: 1px solid var(--border2); }
+        .s-slider-row:last-child { border-bottom: none; }
+        .s-slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .s-slider-val { font-family: 'DM Mono', monospace; font-size: 16px; color: var(--white); }
+        input[type=range] { -webkit-appearance:none; width:100%; height:2px; background:rgba(74,104,128,0.15); border-radius:2px; outline:none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--slate); box-shadow:0 1px 4px rgba(0,0,0,0.2); cursor:pointer; }
 
-        input[type=range] {
-          -webkit-appearance: none;
-          width: 100%; height: 2px;
-          background: var(--border);
-          border-radius: 2px;
-          outline: none;
+        .save-btn {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            background: var(--slate);
+            border: none;
+            border-radius: var(--r);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            box-shadow: 0 2px 12px rgba(74,104,128,0.2);
         }
-        input[type=range]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 16px; height: 16px;
-          border-radius: 50%;
-          background: var(--sand);
-          box-shadow: 0 0 8px rgba(196,182,151,0.4);
-          cursor: pointer;
-        }
+        .save-btn:active { opacity: 0.85; transform: scale(0.98); }
 
-        /* Save button */
-        .s-save {
-          margin-top: 28px;
-          padding: 12px;
-          width: 100%;
-          background: rgba(94,168,122,0.1);
-          border: 1px solid rgba(94,168,122,0.3);
-          border-radius: 4px;
-          font-family: 'VT323', monospace;
-          font-size: 16px;
-          letter-spacing: 5px;
-          color: var(--green);
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: all 0.3s;
+        .saved-msg {
+            text-align: center;
+            font-size: 12px;
+            color: var(--green);
+            margin-top: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            flex-shrink: 0;
         }
-        .s-save:active { background: rgba(94,168,122,0.2); transform: scale(0.98); }
-
-        .s-saved-msg {
-          text-align: center;
-          font-family: 'VT323', monospace;
-          font-size: 13px;
-          letter-spacing: 3px;
-          color: var(--green);
-          margin-top: 10px;
-          opacity: 0;
-          transition: opacity 0.3s;
-          text-transform: uppercase;
-        }
-        .s-saved-msg.show { opacity: 1; }
+        .saved-msg.show { opacity: 1; }
     </style>
 </head>
 <body>
 
-<div class="corner corner-tl"></div>
-<div class="corner corner-tr"></div>
-<div class="corner corner-bl"></div>
-<div class="corner corner-br"></div>
-
 <!-- ── MAIN SCREEN ──────────────────────────────────── -->
 <div id="mainScreen">
 
-    <div class="header">
-        <div class="header-spacer"></div>
-        <div class="header-center">
-            <div class="brand">MR. RIGGY</div>
-            <div class="brand-sub">Private Digital Assistant</div>
-            <div class="status-pill" id="statusPill">
-                <div class="status-dot"></div>
-                <span class="status-text" id="statusText">Online</span>
-            </div>
-            <div class="commander-tag" id="commanderTag"></div>
+    <div class="topbar">
+        <div class="wordmark">
+            <div class="wordmark-main">MR. RIGGY</div>
+            <div class="wordmark-sub">Private Digital Assistant</div>
         </div>
-        <div class="settings-btn" onclick="openSettings()">
-            <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
+        <div class="topbar-right">
+            <div class="status-badge" id="statusBadge">
+                <div class="status-dot"></div>
+                <span class="status-label" id="statusLabel">Online</span>
+            </div>
+            <div class="icon-btn" onclick="openSettings()">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </div>
         </div>
     </div>
 
     <div class="orb-section">
-        <div class="orb-wrap">
-            <div class="ring ring-1"></div>
-            <div class="ring ring-2"></div>
-            <div class="ring ring-3"></div>
+        <div class="orb-container">
+            <div class="orb-ring orb-ring-1"></div>
+            <div class="orb-ring orb-ring-2"></div>
+            <div class="orb-ring orb-ring-3"></div>
             <div class="orb-core"></div>
         </div>
-        <div class="voice-wave">
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-            <div class="bar"></div>
+        <div class="wave">
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div>
         </div>
-        <div class="state-label" id="stateLabel">Standby</div>
+        <div class="state-text" id="stateText">Standby</div>
         <button class="live-btn" id="liveBtn" onclick="toggleLive()">Go Live</button>
+        <div class="commander-tag" id="commanderTag"></div>
     </div>
 
-    <div class="response-section">
+    <div class="cards">
         <div class="card user">
             <div class="card-label">You said</div>
-            <div class="card-text" id="userText">Awaiting your command...</div>
+            <div class="card-text" id="userText">Awaiting your command, Commander...</div>
         </div>
         <div class="card riggy">
             <div class="card-label">Mr. Riggy</div>
-            <div class="card-text" id="riggyText">Online and ready, Commander.</div>
+            <div class="card-text" id="riggyText">Online and ready.</div>
         </div>
     </div>
 
-    <!-- Text command input -->
-    <div class="command-section">
-        <div class="command-wrap">
-            <input
-                    class="command-input"
-                    id="commandInput"
-                    type="text"
-                    placeholder="Type your command, Commander..."
-                    autocomplete="off"
-                    autocorrect="off"
-                    spellcheck="false"
-            />
-            <button class="command-send" onclick="sendTextCommand()">Send</button>
+    <div class="input-section">
+        <div class="input-row">
+            <input class="cmd-input" id="commandInput" type="text"
+                   placeholder="Type your command, Commander..."
+                   autocomplete="off" autocorrect="off" spellcheck="false" />
+            <button class="send-btn" onclick="sendTextCommand()">Send</button>
         </div>
+        <button class="chime-btn" onclick="testChime()">🔔 Test Chime</button>
     </div>
 
 </div>
@@ -587,289 +547,246 @@
 <!-- ── SETTINGS PANEL ───────────────────────────────── -->
 <div id="settingsScreen">
 
-    <div class="settings-header">
-        <div class="settings-back" onclick="closeSettings()">
+    <div class="settings-topbar">
+        <div class="back-btn" onclick="closeSettings()">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             Back
         </div>
         <div class="settings-title">Settings</div>
-        <div style="width:50px"></div>
+        <div style="width:40px"></div>
     </div>
 
-    <!-- Commander identity -->
-    <div class="s-section">Identity</div>
-
-    <div class="s-row" style="flex-direction:column; align-items:flex-start; border-bottom:none;">
-        <div class="s-label">Your Call Sign</div>
-        <div class="s-desc">Riggy will address you as Commander [Name] by default.</div>
-        <input class="s-input" id="commanderName" type="text" placeholder="Your first name" maxlength="20" />
-    </div>
-
-    <!-- Chime In -->
-    <div class="s-section">Chime In</div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Enable Chime In</div>
-            <div class="s-desc">Riggy passively listens a few times a day and speaks up if something's worth saying.</div>
+    <div class="s-group-label">Identity</div>
+    <div class="s-group">
+        <div class="s-row" style="flex-direction:column; align-items:flex-start;">
+            <div class="s-row-title" style="margin-bottom:10px;">Your Call Sign</div>
+            <input class="s-input" id="commanderName" type="text" placeholder="First name — Riggy will call you Commander [Name]" maxlength="20" />
         </div>
-        <label class="toggle-wrap">
-            <input type="checkbox" id="chimeEnabled" />
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
-        </label>
     </div>
 
-    <div class="s-slider-row">
-        <div class="s-slider-top">
-            <div class="s-row-info">
-                <div class="s-label">Daily Chime Limit</div>
-                <div class="s-desc">Max times Riggy will chime in per day.</div>
+    <div class="s-group-label">Chime</div>
+    <div class="s-group">
+        <div class="s-row">
+            <div class="s-row-left">
+                <div class="s-row-title">Enable Chime</div>
+                <div class="s-row-desc">Riggy checks in on you throughout your session.</div>
             </div>
-            <div class="s-slider-val" id="chimeVal">3</div>
+            <label class="toggle">
+                <input type="checkbox" id="chimeEnabled" />
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+            </label>
         </div>
-        <input type="range" id="chimeLimit" min="1" max="10" value="3"
-               oninput="document.getElementById('chimeVal').textContent = this.value" />
-    </div>
-
-    <!-- Notifications -->
-    <div class="s-section">Notifications</div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Read Notifications Aloud</div>
-            <div class="s-desc">Riggy reads incoming texts and calls through your glasses.</div>
-        </div>
-        <label class="toggle-wrap">
-            <input type="checkbox" id="notifsEnabled" checked />
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
-        </label>
-    </div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Calls</div>
-            <div class="s-desc">Announce incoming phone calls.</div>
-        </div>
-        <label class="toggle-wrap">
-            <input type="checkbox" id="notifCalls" checked />
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
-        </label>
-    </div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Text Messages</div>
-            <div class="s-desc">Read SMS and messaging app texts.</div>
-        </div>
-        <label class="toggle-wrap">
-            <input type="checkbox" id="notifTexts" checked />
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
-        </label>
-    </div>
-
-    <!-- General -->
-    <div class="s-section">General</div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Wake Word</div>
-            <div class="s-desc">Riggy activates when he hears his name.</div>
-        </div>
-        <label class="toggle-wrap">
-            <input type="checkbox" id="wakeWordEnabled" checked />
-            <div class="toggle-track"></div>
-            <div class="toggle-thumb"></div>
-        </label>
-    </div>
-
-    <div class="s-row">
-        <div class="s-row-info">
-            <div class="s-label">Default City</div>
-            <div class="s-desc">Used for weather when GPS is unavailable.</div>
+        <div class="s-slider-row">
+            <div class="s-slider-header">
+                <div class="s-row-left">
+                    <div class="s-row-title">Daily Limit</div>
+                    <div class="s-row-desc">Max chimes per day.</div>
+                </div>
+                <div class="s-slider-val" id="chimeVal">10</div>
+            </div>
+            <input type="range" id="chimeLimit" min="1" max="20" value="10"
+                   oninput="document.getElementById('chimeVal').textContent = this.value" />
         </div>
     </div>
-    <input class="s-input" id="defaultCity" type="text" placeholder="City, State, Country (e.g. Deltona,FL,US)" style="margin-bottom:4px;" />
 
-    <button class="s-save" onclick="saveSettings()">Save Settings</button>
-    <div class="s-saved-msg" id="savedMsg">Settings Saved</div>
+    <div class="s-group-label">Notifications</div>
+    <div class="s-group">
+        <div class="s-row">
+            <div class="s-row-left">
+                <div class="s-row-title">Read Aloud</div>
+                <div class="s-row-desc">Riggy reads incoming texts and calls through your glasses.</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="notifsEnabled" checked />
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+            </label>
+        </div>
+        <div class="s-row">
+            <div class="s-row-left">
+                <div class="s-row-title">Phone Calls</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="notifCalls" checked />
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+            </label>
+        </div>
+        <div class="s-row">
+            <div class="s-row-left">
+                <div class="s-row-title">Text Messages</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="notifTexts" checked />
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+            </label>
+        </div>
+    </div>
+
+    <div class="s-group-label">General</div>
+    <div class="s-group">
+        <div class="s-row">
+            <div class="s-row-left">
+                <div class="s-row-title">Wake Word</div>
+                <div class="s-row-desc">Riggy activates when he hears his name.</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="wakeWordEnabled" checked />
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+            </label>
+        </div>
+        <div class="s-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+            <div class="s-row-title">Default City</div>
+            <input class="s-input" id="defaultCity" type="text" placeholder="City, State, Country (e.g. Deltona,FL,US)" />
+        </div>
+    </div>
+
+    <button class="save-btn" onclick="saveSettings()">Save</button>
+    <div class="saved-msg" id="savedMsg">Saved</div>
 
 </div>
 
 <script>
-    // ── State ─────────────────────────────────────────
-    const pill       = document.getElementById('statusPill');
-    const statusText = document.getElementById('statusText');
-    const stateLabel = document.getElementById('stateLabel');
-    const riggyText  = document.getElementById('riggyText');
-    const userText   = document.getElementById('userText');
-    const liveBtn    = document.getElementById('liveBtn');
-    const cmdInput   = document.getElementById('commandInput');
-    const cmdTag     = document.getElementById('commanderTag');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusLabel = document.getElementById('statusLabel');
+    const stateText   = document.getElementById('stateText');
+    const riggyText   = document.getElementById('riggyText');
+    const userText    = document.getElementById('userText');
+    const liveBtn     = document.getElementById('liveBtn');
+    const cmdInput    = document.getElementById('commandInput');
+    const cmdTag      = document.getElementById('commanderTag');
 
-    let speakTimer = null;
-    let lastRiggy = '';
-    let lastUser = '';
-    let isLive = false;
+    let speakTimer = null, lastRiggy = '', lastUser = '', isLive = false;
 
-    // ── Load saved settings ───────────────────────────
     function loadSettings() {
-      const name = localStorage.getItem('commanderName') || '';
-      if (name) {
-        document.getElementById('commanderName').value = name;
-        cmdTag.textContent = 'Commander ' + name;
-      }
-      const chimeOn = localStorage.getItem('chimeEnabled') === 'true';
-      document.getElementById('chimeEnabled').checked = chimeOn;
-      const chimeLimit = localStorage.getItem('chimeLimit') || '3';
-      document.getElementById('chimeLimit').value = chimeLimit;
-      document.getElementById('chimeVal').textContent = chimeLimit;
-      document.getElementById('notifsEnabled').checked = localStorage.getItem('notifsEnabled') !== 'false';
-      document.getElementById('notifCalls').checked = localStorage.getItem('notifCalls') !== 'false';
-      document.getElementById('notifTexts').checked = localStorage.getItem('notifTexts') !== 'false';
-      document.getElementById('wakeWordEnabled').checked = localStorage.getItem('wakeWordEnabled') !== 'false';
-      const city = localStorage.getItem('defaultCity') || '';
-      if (city) document.getElementById('defaultCity').value = city;
+        const name = localStorage.getItem('commanderName') || '';
+        if (name) { document.getElementById('commanderName').value = name; cmdTag.textContent = 'Commander ' + name; }
+        document.getElementById('chimeEnabled').checked = localStorage.getItem('chimeEnabled') === 'true';
+        const cl = localStorage.getItem('chimeLimit') || '10';
+        document.getElementById('chimeLimit').value = cl;
+        document.getElementById('chimeVal').textContent = cl;
+        document.getElementById('notifsEnabled').checked = localStorage.getItem('notifsEnabled') !== 'false';
+        document.getElementById('notifCalls').checked = localStorage.getItem('notifCalls') !== 'false';
+        document.getElementById('notifTexts').checked = localStorage.getItem('notifTexts') !== 'false';
+        document.getElementById('wakeWordEnabled').checked = localStorage.getItem('wakeWordEnabled') !== 'false';
+        const city = localStorage.getItem('defaultCity') || '';
+        if (city) document.getElementById('defaultCity').value = city;
     }
 
     function saveSettings() {
-      const name = document.getElementById('commanderName').value.trim();
-      localStorage.setItem('commanderName', name);
-      localStorage.setItem('chimeEnabled', document.getElementById('chimeEnabled').checked);
-      localStorage.setItem('chimeLimit', document.getElementById('chimeLimit').value);
-      localStorage.setItem('notifsEnabled', document.getElementById('notifsEnabled').checked);
-      localStorage.setItem('notifCalls', document.getElementById('notifCalls').checked);
-      localStorage.setItem('notifTexts', document.getElementById('notifTexts').checked);
-      localStorage.setItem('wakeWordEnabled', document.getElementById('wakeWordEnabled').checked);
-      localStorage.setItem('defaultCity', document.getElementById('defaultCity').value.trim());
-
-      if (name) cmdTag.textContent = 'Commander ' + name;
-      else cmdTag.textContent = 'Commander';
-
-      const msg = document.getElementById('savedMsg');
-      msg.classList.add('show');
-      setTimeout(() => msg.classList.remove('show'), 2000);
+        const name = document.getElementById('commanderName').value.trim();
+        localStorage.setItem('commanderName', name);
+        localStorage.setItem('chimeEnabled', document.getElementById('chimeEnabled').checked);
+        localStorage.setItem('chimeLimit', document.getElementById('chimeLimit').value);
+        localStorage.setItem('notifsEnabled', document.getElementById('notifsEnabled').checked);
+        localStorage.setItem('notifCalls', document.getElementById('notifCalls').checked);
+        localStorage.setItem('notifTexts', document.getElementById('notifTexts').checked);
+        localStorage.setItem('wakeWordEnabled', document.getElementById('wakeWordEnabled').checked);
+        localStorage.setItem('defaultCity', document.getElementById('defaultCity').value.trim());
+        if (name) cmdTag.textContent = 'Commander ' + name;
+        else cmdTag.textContent = '';
+        const msg = document.getElementById('savedMsg');
+        msg.classList.add('show');
+        setTimeout(() => msg.classList.remove('show'), 2000);
     }
 
-    // ── Settings panel ────────────────────────────────
     function openSettings() {
-      document.getElementById('settingsScreen').classList.add('open');
-      document.getElementById('mainScreen').classList.add('hidden');
+        document.getElementById('settingsScreen').classList.add('open');
+        document.getElementById('mainScreen').classList.add('hidden');
     }
 
     function closeSettings() {
-      document.getElementById('settingsScreen').classList.remove('open');
-      document.getElementById('mainScreen').classList.remove('hidden');
+        document.getElementById('settingsScreen').classList.remove('open');
+        document.getElementById('mainScreen').classList.remove('hidden');
     }
 
-    // ── Text command ──────────────────────────────────
     async function sendTextCommand() {
-      const text = cmdInput.value.trim();
-      if (!text) return;
-      cmdInput.value = '';
-
-      // Show in user card
-      userText.textContent = text;
-      userText.classList.remove('fade-in');
-      void userText.offsetWidth;
-      userText.classList.add('fade-in');
-
-      try {
-        await fetch('/text-command', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-      } catch(e) { console.error('Text command error:', e); }
+        const text = cmdInput.value.trim();
+        if (!text) return;
+        cmdInput.value = '';
+        userText.textContent = text;
+        userText.classList.remove('fade-in'); void userText.offsetWidth; userText.classList.add('fade-in');
+        try { await fetch('/text-command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }); } catch(e) {}
     }
 
-    // Enter key to send
-    cmdInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendTextCommand();
-    });
+    cmdInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextCommand(); });
 
-    // ── Live toggle ───────────────────────────────────
+    async function testChime() {
+        try { await fetch('/test-chime', { method: 'POST' }); } catch(e) {}
+    }
+
     async function toggleLive() {
-      try {
-        const res = await fetch('/toggle-live', { method: 'POST' });
-        const data = await res.json();
-        isLive = data.live;
-        updateLiveUI();
-      } catch(e) {}
+        try {
+            const res = await fetch('/toggle-live', { method: 'POST' });
+            const data = await res.json();
+            isLive = data.live;
+            updateLiveUI();
+        } catch(e) {}
     }
 
     function updateLiveUI() {
-      if (isLive) {
-        document.body.classList.add('live');
-        document.body.classList.remove('speaking');
-        pill.classList.add('live'); pill.classList.remove('speaking');
-        statusText.textContent = 'Live';
-        stateLabel.textContent = 'Listening Live';
-        liveBtn.textContent = 'Stop Live';
-        liveBtn.classList.add('active');
-      } else {
-        document.body.classList.remove('live');
-        pill.classList.remove('live');
-        statusText.textContent = 'Online';
-        stateLabel.textContent = 'Standby';
-        liveBtn.textContent = 'Go Live';
-        liveBtn.classList.remove('active');
-      }
+        if (isLive) {
+            document.body.classList.add('live'); document.body.classList.remove('speaking');
+            statusBadge.classList.add('live'); statusBadge.classList.remove('speaking');
+            statusLabel.textContent = 'Live';
+            stateText.textContent = 'Listening';
+            liveBtn.textContent = 'Stop Live'; liveBtn.classList.add('active');
+        } else {
+            document.body.classList.remove('live');
+            statusBadge.classList.remove('live');
+            statusLabel.textContent = 'Online';
+            stateText.textContent = 'Standby';
+            liveBtn.textContent = 'Go Live'; liveBtn.classList.remove('active');
+        }
     }
 
     function setSpeaking(on) {
-      if (isLive) return;
-      if (on) {
-        document.body.classList.add('speaking');
-        pill.classList.add('speaking');
-        statusText.textContent = 'Speaking';
-        stateLabel.textContent = 'Transmitting';
-      } else {
-        document.body.classList.remove('speaking');
-        pill.classList.remove('speaking');
-        statusText.textContent = 'Online';
-        stateLabel.textContent = 'Listening';
-      }
-    }
-
-    // ── Poll state ────────────────────────────────────
-    async function pollUpdates() {
-      try {
-        const res = await fetch('/webview-state');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.liveMode !== undefined && data.liveMode !== isLive) {
-            isLive = data.liveMode;
-            updateLiveUI();
-          }
-          if (data.userSaid && data.userSaid !== lastUser) {
-            lastUser = data.userSaid;
-            userText.textContent = data.userSaid;
-            userText.classList.remove('fade-in');
-            void userText.offsetWidth;
-            userText.classList.add('fade-in');
-          }
-          if (data.riggySaid && data.riggySaid !== lastRiggy) {
-            lastRiggy = data.riggySaid;
-            riggyText.textContent = data.riggySaid;
-            riggyText.classList.remove('fade-in');
-            void riggyText.offsetWidth;
-            riggyText.classList.add('fade-in');
-            if (!isLive) {
-              setSpeaking(true);
-              if (speakTimer) clearTimeout(speakTimer);
-              speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
-            }
-          }
+        if (isLive) return;
+        if (on) {
+            document.body.classList.add('speaking');
+            statusBadge.classList.add('speaking');
+            statusLabel.textContent = 'Speaking';
+            stateText.textContent = 'Transmitting';
+        } else {
+            document.body.classList.remove('speaking');
+            statusBadge.classList.remove('speaking');
+            statusLabel.textContent = 'Online';
+            stateText.textContent = 'Listening';
         }
-      } catch(e) {}
-      setTimeout(pollUpdates, 1200);
     }
 
-    // ── Init ──────────────────────────────────────────
+    async function pollUpdates() {
+        try {
+            const res = await fetch('/webview-state');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.emergencyCall) {
+            window.location.href = 'tel:911';
+        }
+        if (data.liveMode !== undefined && data.liveMode !== isLive) { isLive = data.liveMode; updateLiveUI(); }
+                if (data.userSaid && data.userSaid !== lastUser) {
+                    lastUser = data.userSaid;
+                    userText.textContent = data.userSaid;
+                    userText.classList.remove('fade-in'); void userText.offsetWidth; userText.classList.add('fade-in');
+                }
+                if (data.riggySaid && data.riggySaid !== lastRiggy) {
+                    lastRiggy = data.riggySaid;
+                    riggyText.textContent = data.riggySaid;
+                    riggyText.classList.remove('fade-in'); void riggyText.offsetWidth; riggyText.classList.add('fade-in');
+                    if (!isLive) {
+                        setSpeaking(true);
+                        if (speakTimer) clearTimeout(speakTimer);
+                        speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
+                    }
+                }
+            }
+        } catch(e) {}
+        setTimeout(pollUpdates, 1200);
+    }
+
     loadSettings();
     setSpeaking(false);
     pollUpdates();

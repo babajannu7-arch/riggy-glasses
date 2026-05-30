@@ -1165,7 +1165,17 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        if (wantsGameOn(userSaid)) { setProcessing(false); await startGameMode(); return; }
+        // ── CALL COPS / EMERGENCY ──
+        if (lower.includes('call the cops') || lower.includes('call 911') || lower.includes('call the police') || lower.includes('riggy call police') || lower.includes('emergency call')) {
+          setProcessing(false);
+          const emergencyMsg = "Calling 911 now Commander. Stay on the line.";
+          latestState.riggySaid = emergencyMsg;
+          await speakSafe(emergencyMsg);
+          // Trigger phone call via webview notification — user must confirm on phone
+          latestState.emergencyCall = true;
+          setTimeout(() => { latestState.emergencyCall = false; }, 10000);
+          return;
+        }
         if (wantsGameOff(userSaid)) { await stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { setProcessing(false); await startLiveCamMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) { liveMode = true; latestState.liveMode = true; await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return; }
@@ -1220,9 +1230,18 @@ class RiggyGlasses extends AppServer {
       if (ignoreSpeechDuringTTS || isProcessing) return;
 
       if (data.pressType === 'short' || data.pressType === 'single') {
-        console.log('👆 Short tap — listening for one response');
         tapWakeActive = true;
-        try { await session.audio.speak('Yeah?'); } catch(e) {}
+        const tapPhrases = [
+          "Go ahead Commander.",
+          "Listening.",
+          "I'm here. Go ahead.",
+          "Ready Commander.",
+          "Talk to me.",
+          "Go ahead friend."
+        ];
+        const phrase = tapPhrases[Math.floor(Math.random() * tapPhrases.length)];
+        // Use speakSafe so it goes through ElevenLabs not Mentra voice
+        await speakSafe(phrase);
       } else if (data.pressType === 'long' || data.pressType === 'long_press') {
         liveMode = !liveMode; latestState.liveMode = liveMode;
         if (liveMode) { await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; }
