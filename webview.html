@@ -403,7 +403,26 @@
 
 </div>
 
-<!-- SETTINGS -->
+<!-- VISOR PANEL -->
+<div id="visorPanel" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);display:none;flex-direction:column;padding:max(env(safe-area-inset-top),20px) 18px max(env(safe-area-inset-bottom),16px);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
+        <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:.18em;color:var(--slate-bright)">⬡ VISOR</div>
+        <div onclick="closeVisor()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--muted);cursor:pointer;padding:6px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:8px">CLOSE</div>
+    </div>
+    <div id="visorLabel" style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--sand);opacity:.7;margin-bottom:12px;flex-shrink:0"></div>
+    <div id="visorContent" style="flex:1;overflow-y:auto;min-height:0">
+        <!-- URL link -->
+        <div id="visorLink" style="display:none">
+            <div id="visorSummary" style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--slate-bright);line-height:1.6;margin-bottom:16px"></div>
+            <a id="visorUrl" href="#" target="_blank" style="display:block;padding:14px 16px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--slate-bright);text-decoration:none;word-break:break-all;margin-bottom:12px">Open Link</a>
+        </div>
+        <!-- Debug/text content -->
+        <div id="visorText" style="display:none">
+            <div id="visorTextContent" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text, #e8d5b0);line-height:1.7;white-space:pre-wrap;word-break:break-word;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:12px"></div>
+            <button onclick="copyVisor()" style="width:100%;padding:12px;background:var(--slate);border:none;border-radius:10px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;color:#fff;cursor:pointer">COPY TO CLIPBOARD</button>
+        </div>
+    </div>
+</div>
 <div id="settingsScreen" class="screen">
     <div class="s-topbar">
         <div class="back-btn" onclick="closeSettings()">
@@ -522,7 +541,59 @@
     const liveBtn=document.getElementById('liveBtn');
     const cmdInput=document.getElementById('commandInput');
     const cdrTag=document.getElementById('cdrTag');
-    let lastRiggy='',lastUser='',isLive=false,speakTimer=null;
+    let lastVisor=null;
+
+    function openVisor(data){
+      const panel=document.getElementById('visorPanel');
+      panel.style.display='flex';
+      document.getElementById('visorLabel').textContent=data.label||'VISOR';
+
+      if(data.type==='html'&&data.html){
+        document.getElementById('visorLink').style.display='none';
+        document.getElementById('visorText').style.display='none';
+        let htmlDiv=document.getElementById('visorHtml');
+        if(!htmlDiv){
+          htmlDiv=document.createElement('div');
+          htmlDiv.id='visorHtml';
+          document.getElementById('visorContent').appendChild(htmlDiv);
+        }
+        htmlDiv.style.display='block';
+        htmlDiv.innerHTML=data.html;
+      } else if(data.type==='text'||data.type==='debug'||(!data.url&&data.content)){
+        const htmlDiv=document.getElementById('visorHtml');
+        if(htmlDiv)htmlDiv.style.display='none';
+        document.getElementById('visorLink').style.display='none';
+        document.getElementById('visorText').style.display='block';
+        document.getElementById('visorTextContent').textContent=data.content||'';
+      } else {
+        const htmlDiv=document.getElementById('visorHtml');
+        if(htmlDiv)htmlDiv.style.display='none';
+        document.getElementById('visorText').style.display='none';
+        document.getElementById('visorLink').style.display='block';
+        document.getElementById('visorSummary').textContent=data.summary||'';
+        const link=document.getElementById('visorUrl');
+        link.href=data.url||'#';
+        link.textContent=data.url||'Open';
+      }
+    }
+
+    function closeVisor(){
+      document.getElementById('visorPanel').style.display='none';
+    }
+
+    function copyVisor(){
+      const text=document.getElementById('visorTextContent').textContent;
+      navigator.clipboard.writeText(text).then(()=>{
+        const btn=event.target;
+        btn.textContent='COPIED ✓';
+        setTimeout(()=>btn.textContent='COPY TO CLIPBOARD',2000);
+      }).catch(()=>{
+        const range=document.createRange();
+        range.selectNode(document.getElementById('visorTextContent'));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      });
+    }
 
     function updateClock(){
       const t=new Date().toTimeString().slice(0,8);
@@ -604,6 +675,10 @@
         if(res.ok){
           const d=await res.json();
           if(d.emergencyCall){window.location.href='tel:911';}
+          if(d.visor&&JSON.stringify(d.visor)!==JSON.stringify(lastVisor)){
+            lastVisor=d.visor;
+            openVisor(d.visor);
+          }
           if(d.liveMode!==undefined&&d.liveMode!==isLive){isLive=d.liveMode;updateLiveUI();}
           if(d.userSaid&&d.userSaid!==lastUser){
             lastUser=d.userSaid;

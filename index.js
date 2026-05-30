@@ -135,7 +135,8 @@ let latestState = {
   gameMode: false,
   liveCamMode: false,
   noteMode: false,
-  riggyMode: 'private' // 'private' or the buddy mode name
+  riggyMode: 'private',
+  visor: null // pushed to webview for reading — { type, content, url, label }
 };
 
 // ─── PERSONALITY ──────────────────────────────────────────────────────────────
@@ -264,12 +265,69 @@ Riggy's voice: direct, warm, genuinely useful. 3 sentences MAX. Pure spoken word
 // ─── WAV ENCODER — removed (sound check deleted) ──────────────────────────────
 
 // ─── LOCATION ─────────────────────────────────────────────────────────────────
+// ── IP GEOLOCATION — reliable, no GPS needed ──────────────────────────────────
+let cachedLocation = null;
+let locationCacheTime = 0;
+const LOCATION_CACHE_MS = 5 * 60 * 1000; // cache 5 minutes
+
+async function getIpLocation() {
+  const now = Date.now();
+  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) {
+    return cachedLocation;
+  }
+  try {
+    // Try ipapi.co first — free, no key needed
+    const res = await fetch('https://ipapi.co/json/', {
+      headers: { 'User-Agent': 'RiggyGlasses/1.0' }
+    });
+    const data = await res.json();
+    if (data.latitude && data.longitude) {
+      cachedLocation = {
+        lat: data.latitude,
+        lng: data.longitude,
+        city: data.city,
+        region: data.region,
+        country: data.country_name
+      };
+      locationCacheTime = now;
+      console.log(`📍 IP Location: ${data.city}, ${data.region} (${data.latitude}, ${data.longitude})`);
+      return cachedLocation;
+    }
+  } catch(e) { console.error('ipapi.co failed:', e.message); }
+
+  try {
+    // Fallback — ip-api.com
+    const res = await fetch('http://ip-api.com/json/?fields=lat,lon,city,regionName,country');
+    const data = await res.json();
+    if (data.lat && data.lon) {
+      cachedLocation = {
+        lat: data.lat,
+        lng: data.lon,
+        city: data.city,
+        region: data.regionName,
+        country: data.country
+      };
+      locationCacheTime = now;
+      console.log(`📍 IP Location fallback: ${data.city}, ${data.regionName}`);
+      return cachedLocation;
+    }
+  } catch(e) { console.error('ip-api.com failed:', e.message); }
+
+  // Last resort — return default
+  return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
+}
+
 async function getGlassesLocation(session) {
+  // Try glasses GPS first — most precise
   try {
     const location = await session.location.getLatestLocation({ accuracy: 'high' });
-    if (location && location.lat && location.lng) return { lat: location.lat, lng: location.lng };
-    return null;
-  } catch(e) { console.error('Location error:', e); return null; }
+    if (location && location.lat && location.lng) {
+      console.log(`📍 GPS Location: ${location.lat}, ${location.lng}`);
+      return { lat: location.lat, lng: location.lng };
+    }
+  } catch(e) { console.log('GPS unavailable, using IP location'); }
+  // Fall back to IP geolocation
+  return await getIpLocation();
 }
 
 async function reverseGeocode(lat, lng) {
@@ -551,7 +609,168 @@ async function getWeather(city) {
   } catch { return null; }
 }
 
-// Keywords that signal a factual query needing search grounding
+// ─── VISOR DATA FETCHERS ──────────────────────────────────────────────────────
+
+async function getHourlyForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_API_KEY}&units=imperial&cnt=8`);
+    const data = await res.json();
+    if (!data.list) return null;
+    return data.list.map(h => ({
+      time: new Date(h.dt * 1000).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }),
+      temp: Math.round(h.main.temp),
+      feels: Math.round(h.main.feels_like),
+      desc: h.weather[0].main,
+      rain: Math.round((h.pop || 0) * 100),
+      icon: h.weather[0].icon
+    }));
+  } catch { return null; }
+}
+
+async function getWeatherForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_API_KEY}&units=imperial&cnt=24`);
+    const data = await res.json();
+    if (!data.list) return null;
+    // Group by day
+    const days = {};
+    data.list.forEach(item => {
+      const date = new Date(item.dt * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!days[date]) days[date] = { temps: [], feels: [], descs: [], rain: [] };
+      days[date].temps.push(Math.round(item.main.temp));
+      days[date].feels.push(Math.round(item.main.feels_like));
+      days[date].descs.push(item.weather[0].main);
+      days[date].rain.push(Math.round((item.pop || 0) * 100));
+    });
+    return Object.entries(days).slice(0, 3).map(([date, d]) => ({
+      date,
+      high: Math.max(...d.temps),
+      low: Math.min(...d.temps),
+      feels: Math.round(d.feels.reduce((a, b) => a + b, 0) / d.feels.length),
+      desc: d.descs[Math.floor(d.descs.length / 2)],
+      rain: Math.max(...d.rain)
+    }));
+  } catch { return null; }
+}
+
+async function getNearbyGas(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=gas_station&key=${process.env.PLACES_API_KEY}`);
+    const data = await res.json();
+    if (!data.results) return null;
+    return data.results.slice(0, 4).map(p => ({
+      name: p.name,
+      address: p.vicinity,
+      rating: p.rating,
+      lat: p.geometry.location.lat,
+      lng: p.geometry.location.lng,
+      placeId: p.place_id
+    }));
+  } catch { return null; }
+}
+
+function buildVisorWeather(weather, forecast) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  if (weather) {
+    html += `<div style="font-size:48px;font-weight:300;color:#6B8FA8;line-height:1">${weather.temp}°F</div>`;
+    html += `<div style="font-size:13px;color:#9E8A68;margin:4px 0 2px;text-transform:capitalize">${weather.description}</div>`;
+    html += `<div style="font-size:11px;color:rgba(232,213,176,0.5)">Feels like ${weather.feels_like}°F · Humidity ${weather.humidity}%</div>`;
+  }
+  if (forecast && forecast.length) {
+    html += `<div style="margin-top:16px;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">`;
+    forecast.forEach(day => {
+      const rainColor = day.rain > 50 ? '#6B8FA8' : 'rgba(232,213,176,0.3)';
+      html += `<div style="flex-shrink:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 12px;min-width:90px;text-align:center">`;
+      html += `<div style="font-size:10px;color:rgba(232,213,176,0.5);margin-bottom:6px">${day.date}</div>`;
+      html += `<div style="font-size:18px;color:#6B8FA8;font-weight:500">${day.high}°</div>`;
+      html += `<div style="font-size:11px;color:rgba(232,213,176,0.4)">${day.low}°</div>`;
+      html += `<div style="font-size:9px;color:rgba(232,213,176,0.4);margin-top:4px">${day.desc}</div>`;
+      html += `<div style="font-size:9px;color:${rainColor};margin-top:4px">💧${day.rain}%</div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorHourly(hours) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0">`;
+  html += `<div style="font-size:11px;color:#9E8A68;margin-bottom:12px;letter-spacing:.1em;text-transform:uppercase">Next Few Hours</div>`;
+  hours.forEach(h => {
+    const rainColor = h.rain > 50 ? '#6B8FA8' : 'rgba(232,213,176,0.25)';
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05)">`;
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.6);width:70px">${h.time}</div>`;
+    html += `<div style="font-size:20px;color:#6B8FA8;font-weight:500;width:60px">${h.temp}°</div>`;
+    html += `<div style="font-size:11px;color:rgba(232,213,176,0.5);flex:1">${h.desc}</div>`;
+    html += `<div style="font-size:11px;color:${rainColor}">💧${h.rain}%</div>`;
+    html += `</div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorGas(stations) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0">`;
+  html += `<div style="font-size:11px;color:#9E8A68;margin-bottom:12px;letter-spacing:.1em;text-transform:uppercase">Nearest Gas Stations</div>`;
+  stations.forEach(s => {
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=driving`;
+    html += `<a href="${mapsUrl}" target="_blank" style="display:block;text-decoration:none;padding:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;margin-bottom:8px">`;
+    html += `<div style="font-size:14px;color:#6B8FA8;font-weight:500;margin-bottom:4px">⛽ ${s.name}</div>`;
+    html += `<div style="font-size:11px;color:rgba(232,213,176,0.5)">${s.address}</div>`;
+    if (s.rating) html += `<div style="font-size:10px;color:#9E8A68;margin-top:4px">★ ${s.rating} · Tap to navigate</div>`;
+    html += `</a>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorReminders(remindersList) {
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0">`;
+  html += `<div style="font-size:11px;color:#9E8A68;margin-bottom:12px;letter-spacing:.1em;text-transform:uppercase">Pending Reminders</div>`;
+  if (!remindersList.length) {
+    html += `<div style="font-size:16px;color:rgba(232,213,176,0.4);text-align:center;padding:24px 0">No reminders set</div>`;
+  } else {
+    remindersList.forEach(r => {
+      const timeStr = new Date(r.fireAtMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const dateStr = new Date(r.fireAtMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      html += `<div style="padding:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(107,143,168,0.2);border-radius:10px;margin-bottom:8px">`;
+      html += `<div style="font-size:14px;color:#E8D5B0;margin-bottom:4px">${r.label}</div>`;
+      html += `<div style="font-size:11px;color:#6B8FA8">${dateStr} at ${timeStr}</div>`;
+      html += `</div>`;
+    });
+  }
+  html += `</div>`;
+  return html;
+}
+
+function buildVisorMyDay(weather, forecast, remindersList, fact) {
+  const now = new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0">`;
+  html += `<div style="font-size:12px;color:rgba(232,213,176,0.4);margin-bottom:16px;letter-spacing:.08em">${now}</div>`;
+  if (weather) {
+    html += `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(74,104,128,0.08);border:1px solid rgba(74,104,128,0.15);border-radius:10px;margin-bottom:12px">`;
+    html += `<div style="font-size:36px;color:#6B8FA8;font-weight:300">${weather.temp}°</div>`;
+    html += `<div><div style="font-size:13px;text-transform:capitalize;color:#E8D5B0">${weather.description}</div>`;
+    html += `<div style="font-size:11px;color:rgba(232,213,176,0.4);margin-top:2px">Feels ${weather.feels_like}°F</div></div>`;
+    html += `</div>`;
+  }
+  if (remindersList.length) {
+    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Reminders Today</div>`;
+    remindersList.slice(0, 3).forEach(r => {
+      const timeStr = new Date(r.fireAtMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      html += `<div style="padding:8px 10px;border-left:2px solid #6B8FA8;margin-bottom:6px;font-size:13px;color:rgba(232,213,176,0.8)">${r.label} <span style="color:#6B8FA8;font-size:11px">· ${timeStr}</span></div>`;
+    });
+  }
+  if (fact) {
+    html += `<div style="margin-top:12px;padding:12px;background:rgba(158,138,104,0.08);border:1px solid rgba(158,138,104,0.15);border-radius:10px">`;
+    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Today's Fact</div>`;
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.8);line-height:1.6">${fact}</div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
 const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
 
 function needsSearchGrounding(text) {
@@ -1166,19 +1385,28 @@ class RiggyGlasses extends AppServer {
         }
 
         if (isLocationRequest(userSaid)) {
-          const loc = await getGlassesLocation(session);
-          if (loc) { const address = await reverseGeocode(loc.lat, loc.lng); const msg = address ? `You're at ${address}.` : `You're at ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}.`; await speakSafe(msg); latestState.riggySaid = msg; }
-          else { await speakSafe("GPS isn't available right now. You're near Deltona, Florida."); } return;
+          const loc = await getIpLocation();
+          if (loc && loc.city) {
+            const msg = `You're in ${loc.city}, ${loc.region} Commander.`;
+            await speakSafe(msg); latestState.riggySaid = msg;
+          } else if (loc) {
+            const address = await reverseGeocode(loc.lat, loc.lng);
+            const msg = address ? `You're near ${address}.` : `You're near ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}.`;
+            await speakSafe(msg); latestState.riggySaid = msg;
+          } else {
+            await speakSafe("Can't pin your location right now Commander.");
+          }
+          return;
         }
 
         if (isNearbyRequest(userSaid)) {
           const query = parseNearbyQuery(userSaid);
-          if (query) { const loc = await getGlassesLocation(session); const lat = loc?.lat||DEFAULT_LAT, lng = loc?.lng||DEFAULT_LNG; const results = await searchNearby(query, lat, lng); const msg = results ? `Nearest ${query}: ${results}.` : `Couldn't find ${query} nearby right now.`; await speakSafe(msg); latestState.riggySaid = msg; return; }
+          if (query) { const loc = await getIpLocation(); const lat = loc?.lat||DEFAULT_LAT, lng = loc?.lng||DEFAULT_LNG; const results = await searchNearby(query, lat, lng); const msg = results ? `Nearest ${query}: ${results}.` : `Couldn't find ${query} nearby right now.`; await speakSafe(msg); latestState.riggySaid = msg; return; }
         }
 
         if (isDistanceRequest(userSaid)) {
           const destination = parseDistanceQuery(userSaid);
-          if (destination) { const loc = await getGlassesLocation(session); const lat = loc?.lat||DEFAULT_LAT, lng = loc?.lng||DEFAULT_LNG; const results = await searchNearby(destination, lat, lng, 50000); const msg = results ? `${results}.` : `Couldn't find distance to ${destination} right now.`; await speakSafe(msg); latestState.riggySaid = msg; return; }
+          if (destination) { const loc = await getIpLocation(); const lat = loc?.lat||DEFAULT_LAT, lng = loc?.lng||DEFAULT_LNG; const results = await searchNearby(destination, lat, lng, 50000); const msg = results ? `${results}.` : `Couldn't find distance to ${destination} right now.`; await speakSafe(msg); latestState.riggySaid = msg; return; }
         }
 
         if (isSaveChatRequest(userSaid)) {
@@ -1200,6 +1428,134 @@ class RiggyGlasses extends AppServer {
           const label = parseReminderLabel(userSaid); setReminder(label, fireAtMs);
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
+        }
+
+        // ── SHOW ME / VISOR COMMANDS ──────────────────────────────────────────
+        const showMe = lower.includes('show me') || lower.includes('visor');
+
+        if (showMe) {
+          setProcessing(false);
+          const loc = await getIpLocation();
+          const lat = loc?.lat || DEFAULT_LAT;
+          const lng = loc?.lng || DEFAULT_LNG;
+
+          // WEATHER
+          if (lower.includes('weather') || lower.includes('show me weather')) {
+            const [weather, forecast] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng)]);
+            latestState.visor = { type:'html', label:'Weather', html: buildVisorWeather(weather, forecast) };
+            await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
+          }
+
+          // HOURLY
+          if (lower.includes('hourly') || lower.includes('show me hourly')) {
+            const hours = await getHourlyForecast(lat, lng);
+            if (hours) latestState.visor = { type:'html', label:'Hourly Forecast', html: buildVisorHourly(hours) };
+            else latestState.visor = { type:'html', label:'Hourly', html: '<p style="color:#E8D5B0">Could not load hourly forecast.</p>' };
+            await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
+          }
+
+          // RADAR
+          if (lower.includes('radar')) {
+            const radarUrl = `https://www.rainviewer.com/map.html?loc=${lat},${lng},8&oFa=0&oC=0&oU=0&oCS=1&oF=0&oAP=1&rmt=2&c=3&o=83&lm=0&th=0&sm=1&sn=1`;
+            latestState.visor = { type:'url', label:'Live Radar', url: radarUrl, summary: 'Animated rain radar — tap to open.' };
+            await speakSafe("Radar's on your visor Commander."); latestState.riggySaid = "Radar's on your visor."; return;
+          }
+
+          // MAP
+          if (lower.includes('map') && !lower.includes('traffic')) {
+            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
+            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${DEFAULT_CITY}. Tap to open Maps.` };
+            await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
+          }
+
+          // TRAFFIC
+          if (lower.includes('traffic')) {
+            const trafficUrl = `https://www.google.com/maps/@${lat},${lng},14z/data=!5m1!1e1`;
+            latestState.visor = { type:'url', label:'Live Traffic', url: trafficUrl, summary: 'Live traffic map — tap to open.' };
+            await speakSafe("Traffic's on your visor Commander."); latestState.riggySaid = "Traffic's on your visor."; return;
+          }
+
+          // GAS
+          if (lower.includes('gas')) {
+            const stations = await getNearbyGas(lat, lng);
+            if (stations) latestState.visor = { type:'html', label:'Nearest Gas', html: buildVisorGas(stations) };
+            else latestState.visor = { type:'url', label:'Gas Stations', url: `https://www.google.com/maps/search/gas+station/@${lat},${lng},14z`, summary: 'Tap to find nearby gas stations.' };
+            await speakSafe("Gas stations on your visor Commander."); latestState.riggySaid = "Gas stations on your visor."; return;
+          }
+
+          // REMINDERS
+          if (lower.includes('reminder')) {
+            const remindersList = [...reminders.values()];
+            latestState.visor = { type:'html', label:'Reminders', html: buildVisorReminders(remindersList) };
+            await speakSafe("Your reminders are on the visor Commander."); latestState.riggySaid = "Reminders on the visor."; return;
+          }
+
+          // MY DAY
+          if (lower.includes('my day') || lower.includes('show me my day')) {
+            const [weather, forecast, fact] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng), getDailyFact()]);
+            const remindersList = [...reminders.values()];
+            latestState.visor = { type:'html', label:'Your Day', html: buildVisorMyDay(weather, forecast, remindersList, fact) };
+            await speakSafe("Your day is on the visor Commander."); latestState.riggySaid = "Your day is on the visor."; return;
+          }
+
+          // STREET VIEW
+          if (lower.includes('street view') || lower.includes('street')) {
+            const svUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+            latestState.visor = { type:'url', label:'Street View', url: svUrl, summary: 'Street level view of your current location.' };
+            await speakSafe("Street view on your visor Commander."); return;
+          }
+
+          // INTEL — silent photo push to visor
+          if (lower.includes('intel')) {
+            const photo = await takePhoto(false);
+            if (!photo) { await speakSafe("Couldn't get a shot. Try again."); return; }
+            const analysis = await askGemini('Analyze what you see. Be detailed — this will be read not heard.', sessionId, userId, photo, INTEL_PERSONALITY);
+            latestState.visor = { type:'text', label:'Intel Report', content: analysis };
+            await speakSafe("Intel's on your visor Commander."); latestState.riggySaid = "Intel on your visor."; return;
+          }
+
+          // CONTEXT-AWARE fallback — what were we just talking about
+          const visorReply = await askGemini(
+            `Based on our last conversation, what should I show on the visor?
+             Return ONLY valid JSON: { "type": "url", "label": "short label", "url": "full URL", "summary": "one sentence" }
+             Wikipedia for people/places/history. Google Maps for locations. Google Search for everything else.
+             Return ONLY the JSON, nothing else.`,
+            sessionId, userId, null, null, null, ''
+          );
+          try {
+            const clean = visorReply.replace(/```json|```/g, '').trim();
+            latestState.visor = JSON.parse(clean);
+          } catch(e) {
+            const q = encodeURIComponent(lastRiggyText.slice(0, 60));
+            latestState.visor = { type:'url', label:'Search', url:`https://www.google.com/search?q=${q}`, summary:'Search results for what we discussed.' };
+          }
+          await speakSafe("Check your visor Commander.");
+          latestState.riggySaid = "Check your visor Commander.";
+          return;
+        }
+
+        // ── DEBUG / CODE VISOR ────────────────────────────────────────────────
+        const isDebug = lower.includes('debug this') || lower.includes('analyze this') ||
+          lower.includes('riggy code') || lower.includes('check this code') ||
+          lower.includes('what does this say') || lower.includes('read the screen') ||
+          lower.includes('read this error') || lower.includes('what is this error');
+
+        if (isDebug) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Couldn't get a clear shot. Try again."); return; }
+          const analysis = await askGemini(
+            'Analyze what you see. If code or error — explain the problem and give the fix clearly. If text — read and summarize. Be detailed, Ray will READ this on his visor screen.',
+            sessionId, userId, photo,
+            `You are Mr. Riggy analyzing a screen. Be thorough. Format clearly — problem first then solution. Ray reads this on his visor so be detailed and technical.`
+          );
+          if (analysis && analysis.trim().length > 5) {
+            latestState.visor = { type:'debug', label:'Screen Analysis', content:analysis, url:null };
+            await speakSafe("Check your visor Commander.");
+            latestState.riggySaid = "Check your visor Commander.";
+          } else {
+            await speakSafe("Couldn't read that clearly. Get closer to the screen and try again.");
+          }
+          return;
         }
 
         if (userSaid.toLowerCase().includes('call the cops') || userSaid.toLowerCase().includes('call 911') || userSaid.toLowerCase().includes('call the police') || userSaid.toLowerCase().includes('riggy call police') || userSaid.toLowerCase().includes('emergency call')) {
@@ -1302,18 +1658,32 @@ class RiggyGlasses extends AppServer {
     });
 
     // ── SCOUT MODE — ambient awareness ────────────────────────────────────────
-    // When Scout Mode is on: ambient photo every 3 min, more frequent check-ins,
-    // Riggy comments on surroundings unprompted when something worth saying
     let scoutPhotoJob = null;
+    let lastScoutObservation = '';
+    let lastScoutTime = 0;
 
     const SCOUT_PERSONALITY_ADDON = `
-SCOUT MODE IS ACTIVE — you are in full companion presence.
-You are not just an assistant right now. You are hanging out with Ray.
-You notice things. You comment on the environment naturally and casually.
-You are more talkative, more curious, more present.
-When you see something interesting in a photo, say something about it like a friend would.
-Not a tour guide. Not a report. Just real, dry, warm Riggy observations.
-Keep it short — one or two sentences. Then done.
+SCOUT MODE — you are physically present with Ray right now. You are IN THE ROOM.
+
+RULES:
+- Never describe what you see like a tour guide or a narrator. You are not explaining a scene.
+- React like a person who just noticed something. One dry, warm, real observation.
+- If nothing changed since last time — say PASS. Seriously. Silence is better than repeating yourself.
+- If Ray is just sitting there doing the same thing — PASS.
+- Only speak if something genuinely changed or caught your attention.
+- Never say "I see" or "I notice" or "I can see" or "it appears."
+- One sentence. Dry. Real. Then done.
+
+Examples of good reactions:
+"That coffee's been sitting there a while."
+"You've been staring at that screen for a minute."
+"Someone left the light on."
+"Looks like it got dark outside."
+
+Examples of bad reactions (never do these):
+"I can see you are in a room with various items."
+"The environment appears to be an indoor setting."
+"I notice there is a computer in front of you."
 `;
 
     const startScoutMode = () => {
@@ -1324,23 +1694,39 @@ Keep it short — one or two sentences. Then done.
         try {
           const photo = await takePhoto(false);
           if (!photo) return;
+
+          // Include last observation so Gemini knows what it already said
+          const contextNote = lastScoutObservation
+            ? `Last thing you said about this scene: "${lastScoutObservation}". If nothing changed, respond PASS.`
+            : 'First look at this scene.';
+
           const reply = await askGemini(
-            'Take a casual look at what you see. If something is genuinely interesting, funny, or worth saying — say it in one sentence like a friend hanging out. If nothing earns it, respond with just: PASS',
+            `${contextNote} React naturally if something earns it. One sentence max. If nothing worth saying: PASS`,
             sessionId, userId, photo,
             RIGGY_PERSONALITY + SCOUT_PERSONALITY_ADDON
           );
-          if (reply && reply.trim() !== 'PASS' && !reply.toLowerCase().includes('pass') && reply.trim().length > 5) {
-            chimeState.count++;
-            await playChime();
-            await speakSafe(reply);
-            latestState.riggySaid = reply;
+
+          if (!reply || reply.trim().toUpperCase() === 'PASS' ||
+              reply.toLowerCase().includes('nothing has changed') ||
+              reply.toLowerCase().includes('same as before') ||
+              reply.trim().length < 5) {
+            console.log('🔭 Scout — nothing new, staying quiet');
+            return;
           }
+
+          lastScoutObservation = reply.trim();
+          lastScoutTime = Date.now();
+          chimeState.count++;
+          await playChime();
+          await speakSafe(reply);
+          latestState.riggySaid = reply;
         } catch(e) { console.error('Scout ambient error:', e); }
-      }, 3 * 60 * 1000); // every 3 minutes
+      }, 3 * 60 * 1000);
     };
 
     const stopScoutMode = () => {
       if (scoutPhotoJob) { clearInterval(scoutPhotoJob); scoutPhotoJob = null; }
+      lastScoutObservation = '';
       console.log('🔭 Scout Mode deactivated');
     };
 
