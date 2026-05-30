@@ -214,42 +214,56 @@ async function getGlassesLocation(session) {
   return await getIpLocation();
 }
 
+// ─── GOOGLE PLACES + DIRECTIONS (replaces Overpass/Nominatim/OSRM) ──────────
+const GPLACES_KEY = process.env.PLACES_API_KEY;
+
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GPLACES_KEY}`);
     const data = await res.json();
-    if (data && data.display_name) return data.display_name.split(',').slice(0, 3).join(',').trim();
-  } catch(e) {}
+    if (data.status === 'OK' && data.results[0]) {
+      // Return neighborhood + city level — not full street address
+      const components = data.results[0].address_components;
+      const neighborhood = components.find(c => c.types.includes('neighborhood') || c.types.includes('sublocality'))?.long_name;
+      const city = components.find(c => c.types.includes('locality'))?.long_name;
+      const state = components.find(c => c.types.includes('administrative_area_level_1'))?.short_name;
+      return [neighborhood, city, state].filter(Boolean).join(', ');
+    }
+  } catch(e) { console.error('Geocode error:', e.message); }
   return null;
 }
 
 async function searchNearby(query, lat, lng, radiusMeters = 5000) {
   try {
-    const tagMap = {
-      'gas station':['amenity','fuel'],'gas':['amenity','fuel'],'fuel':['amenity','fuel'],
-      'restaurant':['amenity','restaurant'],'food':['amenity','restaurant'],'eat':['amenity','restaurant'],
-      'coffee':['amenity','cafe'],'cafe':['amenity','cafe'],'pharmacy':['amenity','pharmacy'],
-      'hospital':['amenity','hospital'],'atm':['amenity','atm'],'bank':['amenity','bank'],
-      'grocery':['shop','supermarket'],'supermarket':['shop','supermarket'],
-      'gym':['leisure','fitness_centre'],'park':['leisure','park'],'hotel':['tourism','hotel'],
-      'library':['amenity','library'],'church':['amenity','place_of_worship'],'school':['amenity','school'],
-      'walmart':['name','Walmart'],'publix':['name','Publix'],'target':['name','Target'],
-      'walgreens':['name','Walgreens'],'cvs':['name','CVS'],
-    };
-    const q = query.toLowerCase();
-    let tagKey = 'name', tagVal = query;
-    for (const [key, val] of Object.entries(tagMap)) { if (q.includes(key)) { [tagKey, tagVal] = val; break; } }
-    const overpassQuery = `[out:json][timeout:10];(node["${tagKey}"="${tagVal}"](around:${radiusMeters},${lat},${lng});way["${tagKey}"="${tagVal}"](around:${radiusMeters},${lat},${lng}););out center 3;`;
-    const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: overpassQuery, headers: { 'Content-Type': 'text/plain', 'User-Agent': 'RiggyGlasses/1.0' } });
+    // Google Places Text Search v2 — same API as Android app
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GPLACES_KEY,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating'
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        maxResultCount: 3,
+        locationBias: {
+          circle: {
+            center: { latitude: lat, longitude: lng },
+            radius: radiusMeters
+          }
+        }
+      })
+    });
     const data = await res.json();
-    if (!data.elements || data.elements.length === 0) return null;
-    return data.elements.slice(0, 3).map(el => {
-      const elLat = el.lat || el.center?.lat, elLng = el.lon || el.center?.lon;
-      const name = el.tags?.name || query;
-      const dist = elLat && elLng ? getDistanceMiles(lat, lng, elLat, elLng) : null;
-      return dist !== null ? `${name}, ${dist.toFixed(1)} miles away` : name;
+    if (!data.places || data.places.length === 0) return null;
+    return data.places.map(p => {
+      const name = p.displayName?.text || query;
+      const addr = p.formattedAddress ? p.formattedAddress.split(',').slice(0,2).join(',').trim() : '';
+      const dist = p.location ? getDistanceMiles(lat, lng, p.location.latitude, p.location.longitude) : null;
+      const rating = p.rating ? ` ★${p.rating}` : '';
+      return `${name}${addr ? ', ' + addr : ''}${dist !== null ? ', ' + dist.toFixed(1) + ' mi away' : ''}${rating}`;
     }).join('. ');
-  } catch(e) { return null; }
+  } catch(e) { console.error('Places search error:', e.message); return null; }
 }
 
 function getDistanceMiles(lat1, lng1, lat2, lng2) {
@@ -541,14 +555,29 @@ async function getWeatherForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
 
 async function getNearbyGas(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
   try {
-    const res = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=5000&type=gas_station&key=${process.env.PLACES_API_KEY}`);
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GPLACES_KEY,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating'
+      },
+      body: JSON.stringify({
+        textQuery: 'gas station',
+        maxResultCount: 4,
+        locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 8000 } }
+      })
+    });
     const data = await res.json();
-    if (!data.results) return null;
-    return data.results.slice(0, 4).map(p => ({
-      name: p.name, address: p.vicinity, rating: p.rating,
-      lat: p.geometry.location.lat, lng: p.geometry.location.lng, placeId: p.place_id
+    if (!data.places) return null;
+    return data.places.map(p => ({
+      name: p.displayName?.text || 'Gas Station',
+      address: p.formattedAddress?.split(',').slice(0,2).join(',').trim() || '',
+      rating: p.rating || null,
+      lat: p.location?.latitude || lat,
+      lng: p.location?.longitude || lng
     }));
-  } catch { return null; }
+  } catch(e) { console.error('getNearbyGas error:', e.message); return null; }
 }
 
 function buildVisorWeather(weather, forecast) {
@@ -861,36 +890,32 @@ function buildVisorCameraAnalysis(label, icon, analysis, extraLinks = []) {
 }
 
 // ─── DIRECTIONS ──────────────────────────────────────────────────────────────
-async function geocodeDestination(destination) {
+// Google Directions API — traffic-aware, same as Android app
+async function fetchGoogleDirections(fromLat, fromLng, destinationText) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`, {
-      headers: { 'User-Agent': 'RiggyGlasses/1.0' }
-    });
+    const origin = `${fromLat},${fromLng}`;
+    const dest = encodeURIComponent(destinationText);
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${dest}&mode=driving&departure_time=now&key=${GPLACES_KEY}`;
+    const res = await fetch(url);
     const data = await res.json();
-    if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name.split(',').slice(0,2).join(',').trim() };
-    return null;
-  } catch(e) { return null; }
-}
-
-async function fetchOSRMDirections(fromLat, fromLng, destinationText) {
-  try {
-    const dest = await geocodeDestination(destinationText);
-    if (!dest) return null;
-    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${dest.lng},${dest.lat}?steps=true&geometries=geojson&overview=false`);
-    const data = await res.json();
-    if (!data.routes || !data.routes[0]) return null;
-    const route = data.routes[0];
-    const steps = route.legs[0].steps.map(s => ({
-      instruction: s.maneuver.type === 'depart' ? 'Head ' + (s.maneuver.modifier || '') + ' on ' + (s.name || 'the road') :
-                   s.maneuver.type === 'arrive' ? 'Arrive at ' + destinationText :
-                   (s.maneuver.type.charAt(0).toUpperCase() + s.maneuver.type.slice(1)).replace(/-/g,' ') + (s.name ? ' onto ' + s.name : ''),
-      distance: s.distance > 1000 ? (s.distance/1609.34).toFixed(1) + ' mi' : Math.round(s.distance * 3.28084) + ' ft',
-      duration: Math.round(s.duration / 60)
-    })).filter(s => s.instruction && !s.instruction.includes('undefined'));
-    const totalMiles = (route.distance / 1609.34).toFixed(1);
-    const totalMins = Math.round(route.duration / 60);
-    return { steps, totalMiles, totalMins, destName: dest.name };
-  } catch(e) { console.error('OSRM error:', e.message); return null; }
+    if (data.status !== 'OK') { console.error('Directions status:', data.status); return null; }
+    const leg = data.routes[0].legs[0];
+    // Prefer traffic ETA like Android app
+    const durationObj = leg.duration_in_traffic || leg.duration;
+    const steps = leg.steps.map(s => ({
+      instruction: s.html_instructions.replace(/<[^>]*>/g, ''),
+      distance: s.distance.text,
+      duration: s.duration.text
+    }));
+    return {
+      steps,
+      totalTime: durationObj.text,
+      totalDist: leg.distance.text,
+      startAddress: leg.start_address,
+      endAddress: leg.end_address,
+      destName: leg.end_address.split(',').slice(0,2).join(',').trim()
+    };
+  } catch(e) { console.error('Google Directions error:', e.message); return null; }
 }
 
 function buildVisorDirections(destination, routeData) {
@@ -910,8 +935,8 @@ function buildVisorDirections(destination, routeData) {
 
   // Summary chips
   html += `<div style="display:flex;gap:8px;margin-bottom:16px;margin-top:4px">`;
-  html += `<div style="padding:8px 14px;background:rgba(107,143,168,0.08);border:1px solid rgba(107,143,168,0.15);border-radius:20px;font-size:13px;color:#6B8FA8">🕐 ${routeData.totalMins} min</div>`;
-  html += `<div style="padding:8px 14px;background:rgba(158,138,104,0.08);border:1px solid rgba(158,138,104,0.15);border-radius:20px;font-size:13px;color:#9E8A68">📍 ${routeData.totalMiles} mi</div>`;
+  html += `<div style="padding:8px 14px;background:rgba(107,143,168,0.08);border:1px solid rgba(107,143,168,0.15);border-radius:20px;font-size:13px;color:#6B8FA8">🕐 ${routeData.totalTime}</div>`;
+  html += `<div style="padding:8px 14px;background:rgba(158,138,104,0.08);border:1px solid rgba(158,138,104,0.15);border-radius:20px;font-size:13px;color:#9E8A68">📍 ${routeData.totalDist}</div>`;
   html += `</div>`;
 
   // Turn by turn steps
@@ -925,14 +950,15 @@ function buildVisorDirections(destination, routeData) {
     html += `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:flex-start">`;
     html += `<div style="width:24px;height:24px;border-radius:50%;background:${isLast ? 'rgba(107,143,168,0.2)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isLast ? 'rgba(107,143,168,0.3)' : 'rgba(255,255,255,0.06)'};display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px">${icon}</div>`;
     html += `<div style="flex:1"><div style="font-size:13px;color:${isLast ? '#6B8FA8' : '#E8D5B0'};line-height:1.4">${step.instruction}</div>`;
-    if (step.distance) html += `<div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">${step.distance}${step.duration > 0 ? ' · ' + step.duration + ' min' : ''}</div>`;
+    if (step.distance) html += `<div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">${step.distance}${step.duration ? ' · ' + step.duration : ''}</div>`;
     html += `</div></div>`;
   });
 
   // Open in maps button
-  const q = encodeURIComponent(routeData.destName || destination);
-  html += `<a href="https://maps.google.com/?q=${q}" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-top:14px;text-decoration:none">`;
-  html += `<span style="font-size:16px">🗺️</span><div style="flex:1;font-size:13px;color:#E8D5B0">Open in Google Maps</div><div style="color:#6B8FA8;font-family:'DM Mono',monospace;font-size:10px">↗</div></a>`;
+  const mapsQ = encodeURIComponent(routeData.endAddress || routeData.destName || destination);
+  const mapsOrigin = encodeURIComponent(routeData.startAddress || '');
+  html += `<a href="https://www.google.com/maps/dir/?api=1&origin=${mapsOrigin}&destination=${mapsQ}&travelmode=driving" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-top:14px;text-decoration:none">`;
+  html += `<span style="font-size:16px">🗺️</span><div style="flex:1"><div style="font-size:13px;color:#E8D5B0">Open in Google Maps</div><div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:2px">Full navigation with live traffic</div></div><div style="color:#6B8FA8;font-family:'DM Mono',monospace;font-size:10px">↗</div></a>`;
 
   html += `</div>`;
   return html;
@@ -1635,8 +1661,13 @@ class RiggyGlasses extends AppServer {
             if (destination) {
               latestState.visor = { type:'html', label:'DIRECTIONS', html: buildVisorShowMeSkeleton('Getting directions...') };
               await speakSafe(`Getting directions to ${destination}.`);
-              const steps = await fetchOSRMDirections(lat, lng, destination);
-              latestState.visor = { type:'html', label:'DIRECTIONS', html: buildVisorDirections(destination, steps) };
+              const routeData = await fetchGoogleDirections(lat, lng, destination);
+              if (routeData) {
+                const msg = `${destination} is ${routeData.totalDist} away, about ${routeData.totalTime} with traffic.`;
+                latestState.riggySaid = msg;
+                await speakSafe(msg);
+              }
+              latestState.visor = { type:'html', label:'DIRECTIONS', html: buildVisorDirections(destination, routeData) };
             } else {
               await speakSafe("Where do you want directions to Commander?");
             }
