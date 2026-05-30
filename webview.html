@@ -168,16 +168,16 @@
         <div onclick="closeVisor()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--muted);cursor:pointer;padding:6px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:8px">CLOSE</div>
     </div>
     <div id="visorLabel" style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--sand);opacity:.7;margin-bottom:12px;flex-shrink:0"></div>
-    <div id="visorContent" style="flex:1;overflow-y:auto;min-height:0">
-        <div id="visorLink" style="display:none">
-            <div id="visorSummary" style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--slate-bright);line-height:1.6;margin-bottom:16px"></div>
-            <a id="visorUrl" href="#" target="_blank" style="display:block;padding:14px 16px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--slate-bright);text-decoration:none;word-break:break-all;margin-bottom:12px">Open Link</a>
+    <div id="visorContent" style="flex:1;min-height:0;display:flex;flex-direction:column">
+        <div id="visorLink" style="display:none;flex-direction:column;height:calc(100vh - 140px)">
+            <iframe id="visorIframe" src="about:blank" style="flex:1;width:100%;height:100%;border:none;border-radius:12px;background:#000;display:block"></iframe>
+            <a id="visorUrl" href="#" target="_blank" style="display:block;margin-top:8px;padding:10px 14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--slate-bright);text-decoration:none;text-align:center;flex-shrink:0">↗ OPEN IN BROWSER</a>
         </div>
         <div id="visorText" style="display:none">
-            <div id="visorTextContent" style="font-family:'DM Mono',monospace;font-size:13px;color:#e8d5b0;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:12px"></div>
+            <div id="visorTextContent" style="font-family:'DM Mono',monospace;font-size:13px;color:#e8d5b0;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:12px;overflow-y:auto;max-height:70vh"></div>
             <button onclick="copyVisor()" style="width:100%;padding:12px;background:var(--slate);border:none;border-radius:10px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;color:#fff;cursor:pointer">COPY TO CLIPBOARD</button>
         </div>
-        <div id="visorHtml" style="display:none"></div>
+        <div id="visorHtml" style="display:none;flex:1;overflow-y:auto"></div>
     </div>
 </div>
 
@@ -280,18 +280,20 @@
         document.getElementById('visorText').style.display='block';
         document.getElementById('visorTextContent').textContent=data.content||'';
       } else {
-        document.getElementById('visorLink').style.display='block';
-        document.getElementById('visorSummary').textContent=data.summary||'';
+        const linkDiv=document.getElementById('visorLink');
+        linkDiv.style.display='flex';
+        // Load URL in iframe
+        document.getElementById('visorIframe').src=data.url||'about:blank';
         const link=document.getElementById('visorUrl');
         link.href=data.url||'#';
-        link.textContent=data.url||'Open';
+        link.textContent='↗ OPEN IN BROWSER';
       }
     }
 
     function closeVisor(){
       document.getElementById('visorPanel').style.display='none';
+      document.getElementById('visorIframe').src='about:blank'; // stop loading
       lastVisor=null;
-      // Tell the server to clear visor state so poll doesn't immediately reopen it
       fetch('/clear-visor',{method:'POST'}).catch(()=>{});
     }
 
