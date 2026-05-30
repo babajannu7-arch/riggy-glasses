@@ -179,7 +179,34 @@ VISION BEHAVIOR — when you receive an image:
 - If it's a game, give a quick tactical read. If it's a place, drop a fun fact. If it's a product, tell them something useful.
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
-Speak like you're talking to someone in the room. Just talk.`;
+Speak like you're talking to someone in the room. Just talk.
+
+SELF AWARENESS — you know exactly what you can do. When asked about your features, capabilities, or how something works, answer naturally in your own voice. Never list things robotically. Walk them through it like a friend explaining something cool they built.
+
+YOUR CAPABILITIES:
+- Wake word is your name — say "Riggy" or "Mr. Riggy" to activate you
+- Short tap on the glasses button wakes you without the wake word
+- Long press on the glasses button toggles live mode — always listening, no wake word needed
+- Live mode — continuous conversation, no activation needed
+- Game mode — you watch the screen through the camera every few seconds and give tactical tips
+- Live vision / eyes on — you watch what they see and comment when something's worth saying
+- Intel mode — you sweep whatever is in view for fun facts, history, and market value
+- Shop mode / price check — you analyze a product and tell them if the price is good
+- Capture this / save this — takes a photo and saves it
+- Good morning, good afternoon, good night — full briefings with weather, reminders, and a daily fact
+- Reminders — set them by voice, get warned at 1 hour, 20 minutes, and 5 minutes out
+- Notes — dictate a note, save it, read it back anytime
+- Calls and texts — voice command to call or text saved contacts
+- Location and places — where you are, what's nearby, directions
+- Weather — live weather always available, asks nothing
+- Battery check — glasses battery level on demand
+- Chime system — proactive check-ins, water reminders, nature nudges, daily facts, sunrise and sunset
+- Test chime — say "Riggy test chime" to hear the full chime sequence
+- Memory — remembers what you tell it, recalls by meaning not just keywords
+- Google Search grounding — factual questions automatically search the web before answering
+
+WALKTHROUGH MODE — when someone asks "what can you do" or "how do I use you" or "walk me through your features":
+Do NOT list everything at once. Instead walk them through it naturally, one category at a time, like you're giving a tour. Start with the basics — wake word and button — then move to conversation, then vision, then proactive features. Use your voice, your humor, your personality. Make it feel like an onboarding from a friend, not a user manual. Pause naturally between sections. Keep each section to 2-3 sentences. End with something warm like "And that's just the beginning friend — the more you use me, the more I learn about you."`;
 
 const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach.
 You know: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
@@ -592,7 +619,7 @@ async function speakWithElevenLabs(text, session) {
 
   } catch (err) {
     console.error('speakWithElevenLabs error:', err);
-    try { await session.audio.speak(text); } catch(_) {}
+    // No fallback to Mentra voice — stay silent if ElevenLabs fails
   }
 }
 
@@ -953,26 +980,24 @@ class RiggyGlasses extends AppServer {
       setProcessing(true);
       try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
 
-      // Start HLS stream
-      try {
-        activeStream = await session.camera.startManagedStream({ title: 'Game Mode' });
-        console.log(`🎮 Game stream: ${activeStream.hlsUrl}`);
-        startFFmpeg(activeStream.hlsUrl);
-      } catch(e) {
-        console.error('Failed to start game stream:', e);
-        await speakSafe("Couldn't start the stream friend. Try again.");
-        gameMode = false; latestState.gameMode = false; return;
-      }
-
+      // Timer photo approach — no HLS stream, no FFmpeg, no timeouts
+      // Take a photo every 6 seconds, send directly to Gemini vision
+      console.log('🎮 Game mode — timer photo approach');
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
-        const frame = readLatestFrame();
-        if (!frame) return;
         setProcessing(true);
         try {
-          const reply = await askGemini('Look at this game screen. Give me one quick tactical tip.', sessionId, userId, frame, GAME_MODE_PERSONALITY);
-          if (reply && reply.trim() !== 'SILENCE' && reply.trim().length > 3) { latestState.riggySaid = reply; await speakSafe(reply); }
-        } catch(e) { console.error('Game analysis error:', e); }
+          const photo = await takePhoto(false);
+          if (!photo) return;
+          const reply = await askGemini(
+            'Game screen. One sharp tactical tip only if something genuinely worth saying. If nothing worth saying respond: SILENCE',
+            sessionId, userId, photo, GAME_MODE_PERSONALITY
+          );
+          if (reply && reply.trim() !== 'SILENCE' && !reply.toLowerCase().includes('silence') && reply.trim().length > 5) {
+            latestState.riggySaid = reply;
+            await speakSafe(reply);
+          }
+        } catch(e) { console.error('Game photo error:', e); }
         finally { setProcessing(false); }
       }, GAME_MODE_ANALYSIS_INTERVAL_MS);
     };
@@ -983,26 +1008,22 @@ class RiggyGlasses extends AppServer {
       setProcessing(true);
       try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
 
-      // Start HLS stream
-      try {
-        activeStream = await session.camera.startManagedStream({ title: 'Live Vision' });
-        console.log(`👁 Live stream: ${activeStream.hlsUrl}`);
-        startFFmpeg(activeStream.hlsUrl);
-      } catch(e) {
-        console.error('Failed to start live stream:', e);
-        await speakSafe("Couldn't start the stream friend. Try again.");
-        liveCamMode = false; latestState.liveCamMode = false; return;
-      }
-
+      console.log('👁 Live cam — timer photo approach');
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
-        const frame = readLatestFrame();
-        if (!frame) return;
         setProcessing(true);
         try {
-          const reply = await askGemini("Take a look at what I'm seeing. Tell me something useful or interesting. If nothing worth saying, respond: SKIP", sessionId, userId, frame);
-          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
-        } catch(e) { console.error('Live cam analysis error:', e); }
+          const photo = await takePhoto(false);
+          if (!photo) return;
+          const reply = await askGemini(
+            "Look at what I'm seeing. Say something useful or interesting only if something genuinely earns it. If nothing worth saying respond: SKIP",
+            sessionId, userId, photo
+          );
+          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) {
+            latestState.riggySaid = reply;
+            await speakSafe(reply);
+          }
+        } catch(e) { console.error('Live cam error:', e); }
         finally { setProcessing(false); }
       }, LIVE_CAM_ANALYSIS_INTERVAL_MS);
     };
