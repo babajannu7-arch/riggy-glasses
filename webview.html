@@ -413,6 +413,20 @@
         <div style="width:44px"></div>
     </div>
 
+    <div class="s-section">Mode</div>
+    <div class="s-card">
+        <div class="s-row">
+            <div style="flex:1">
+                <div class="s-lbl" style="color:var(--slate-bright)">⬡ SCOUT MODE</div>
+                <div class="s-desc">More present. Takes ambient photos, chimes more freely, notices your surroundings. Like a friend hanging out with you.</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="scoutMode"/>
+                <div class="t-track"></div><div class="t-thumb"></div>
+            </label>
+        </div>
+    </div>
+
     <div class="s-section">Identity</div>
     <div class="s-card">
         <div class="s-row col">
@@ -531,6 +545,7 @@
       document.getElementById('wakeWordEnabled').checked=localStorage.getItem('wakeWordEnabled')!=='false';
       const city=localStorage.getItem('defaultCity')||'';
       if(city)document.getElementById('defaultCity').value=city;
+      document.getElementById('scoutMode').checked=localStorage.getItem('scoutMode')==='true';
     }
     function saveSettings(){
       const name=document.getElementById('commanderName').value.trim();
@@ -542,6 +557,9 @@
       localStorage.setItem('notifTexts',document.getElementById('notifTexts').checked);
       localStorage.setItem('wakeWordEnabled',document.getElementById('wakeWordEnabled').checked);
       localStorage.setItem('defaultCity',document.getElementById('defaultCity').value.trim());
+      const scout=document.getElementById('scoutMode').checked;
+      localStorage.setItem('scoutMode',scout);
+      try{fetch('/set-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:scout?'scout':'private'})})}catch(e){}
       if(name)cdrTag.textContent='CDR_'+name.toUpperCase(); else cdrTag.textContent='';
       const m=document.getElementById('savedMsg');
       m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2200);

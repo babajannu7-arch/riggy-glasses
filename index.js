@@ -837,10 +837,14 @@ class RiggyGlasses extends AppServer {
       if (!checkInFired && sessionMinutes() >= 20) {
         checkInFired = true;
         if (ignoreSpeechDuringTTS || isProcessing) return;
-        const msg = getCheckIn();
+        const isScout = latestState.riggyMode === 'scout';
+        const phrases = isScout ? SCOUT_CHECKINS : CHECKIN_PHRASES;
+        const msg = phrases[Math.floor(Math.random() * phrases.length)];
         await playChime();
         await speakSafe(msg);
         latestState.riggySaid = msg;
+        // In scout mode reset so another check-in can fire later
+        if (isScout) setTimeout(() => { checkInFired = false; }, 30 * 60 * 1000);
       }
     }, 5 * 60 * 1000);
 
@@ -922,6 +926,8 @@ class RiggyGlasses extends AppServer {
       clearInterval(sunInterval);
       clearInterval(reminderChimeInterval);
       clearInterval(checkInInterval);
+      clearInterval(scoutModeWatcher);
+      stopScoutMode();
     };
 
     const finishNote = async () => {
@@ -1295,7 +1301,68 @@ class RiggyGlasses extends AppServer {
       }
     });
 
-    // ── HEAD POSITION ─────────────────────────────────────────────────────────
+    // ── SCOUT MODE — ambient awareness ────────────────────────────────────────
+    // When Scout Mode is on: ambient photo every 3 min, more frequent check-ins,
+    // Riggy comments on surroundings unprompted when something worth saying
+    let scoutPhotoJob = null;
+
+    const SCOUT_PERSONALITY_ADDON = `
+SCOUT MODE IS ACTIVE — you are in full companion presence.
+You are not just an assistant right now. You are hanging out with Ray.
+You notice things. You comment on the environment naturally and casually.
+You are more talkative, more curious, more present.
+When you see something interesting in a photo, say something about it like a friend would.
+Not a tour guide. Not a report. Just real, dry, warm Riggy observations.
+Keep it short — one or two sentences. Then done.
+`;
+
+    const startScoutMode = () => {
+      console.log('🔭 Scout Mode activated');
+      scoutPhotoJob = setInterval(async () => {
+        if (ignoreSpeechDuringTTS || isProcessing) return;
+        if (chimeState.count >= CHIME_MAX_PER_DAY) return;
+        try {
+          const photo = await takePhoto(false);
+          if (!photo) return;
+          const reply = await askGemini(
+            'Take a casual look at what you see. If something is genuinely interesting, funny, or worth saying — say it in one sentence like a friend hanging out. If nothing earns it, respond with just: PASS',
+            sessionId, userId, photo,
+            RIGGY_PERSONALITY + SCOUT_PERSONALITY_ADDON
+          );
+          if (reply && reply.trim() !== 'PASS' && !reply.toLowerCase().includes('pass') && reply.trim().length > 5) {
+            chimeState.count++;
+            await playChime();
+            await speakSafe(reply);
+            latestState.riggySaid = reply;
+          }
+        } catch(e) { console.error('Scout ambient error:', e); }
+      }, 3 * 60 * 1000); // every 3 minutes
+    };
+
+    const stopScoutMode = () => {
+      if (scoutPhotoJob) { clearInterval(scoutPhotoJob); scoutPhotoJob = null; }
+      console.log('🔭 Scout Mode deactivated');
+    };
+
+    // Check mode on session start and when mode changes
+    if (latestState.riggyMode === 'scout') startScoutMode();
+
+    // Watch for mode changes from webview
+    const scoutModeWatcher = setInterval(() => {
+      if (latestState.riggyMode === 'scout' && !scoutPhotoJob) startScoutMode();
+      if (latestState.riggyMode !== 'scout' && scoutPhotoJob) stopScoutMode();
+    }, 10000);
+
+    // Scout mode also gets more casual check-in phrases
+    const SCOUT_CHECKINS = [
+      "Hey. What are we looking at?",
+      "You good out there Commander?",
+      "What's the move?",
+      "I'm here. What's going on?",
+      "Anything interesting happening?",
+      "Talk to me Commander.",
+      "I'm watching. What do you need?"
+    ];
     session.events.onHeadPosition((data) => {
       console.log(`🤙 Head position: ${data.position}`);
       if (data.position === 'down') {
