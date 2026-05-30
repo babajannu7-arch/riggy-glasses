@@ -163,72 +163,162 @@
         }
 
         /* ── TX CARD ── */
+        /* ── TX CARD — TACTICAL HUD ── */
         .tx-card{
-          background:var(--surface);
+          background:linear-gradient(135deg,rgba(196,113,58,0.07) 0%,rgba(26,22,18,0.97) 70%);
           border:1px solid var(--orange-border);
-          border-radius:var(--r);
-          padding:12px 14px;
+          border-radius:3px;
+          padding:14px 16px;
           margin-bottom:10px;
           flex-shrink:0;
           position:relative;
           overflow:hidden;
-          box-shadow:inset 0 0 30px rgba(196,113,58,0.04),0 2px 16px rgba(0,0,0,0.3);
+          box-shadow:
+            inset 0 0 50px rgba(196,113,58,0.04),
+            0 4px 24px rgba(0,0,0,0.6),
+            0 0 0 1px rgba(196,113,58,0.06);
         }
-        /* top edge glow */
+        /* tick marks top */
         .tx-card::before{
-          content:'';position:absolute;top:0;left:0;right:0;height:1px;
-          background:linear-gradient(90deg,transparent,var(--orange),transparent);
-          opacity:.5;
+          content:'';position:absolute;
+          top:0;left:18px;right:18px;height:1px;
+          background:repeating-linear-gradient(90deg,
+            var(--orange) 0px,var(--orange) 3px,
+            transparent 3px,transparent 10px
+          );
+          opacity:.4;
         }
-        /* corner marks */
+        /* tick marks bottom */
         .tx-card::after{
-          content:'TX';
-          position:absolute;top:8px;right:10px;
-          font-family:'Orbitron',monospace;font-size:9px;font-weight:700;
-          letter-spacing:.15em;color:var(--orange);opacity:.4;
-        }
-        .card-label{
-          font-size:8px;letter-spacing:.2em;text-transform:uppercase;
-          color:var(--orange);opacity:.6;margin-bottom:8px;
-        }
-        .tx-text{
-          font-family:'Share Tech Mono',monospace;
-          font-size:18px;line-height:1.55;
-          color:var(--text2);
-          min-height:44px;
-          word-break:break-word;
+          content:'';position:absolute;
+          bottom:0;left:18px;right:18px;height:1px;
+          background:repeating-linear-gradient(90deg,
+            var(--orange) 0px,var(--orange) 3px,
+            transparent 3px,transparent 10px
+          );
+          opacity:.25;
         }
 
-        /* ── RX CARD ── */
+        /* ── RX CARD — TACTICAL HUD ── */
         .rx-card{
-          background:var(--surface);
+          background:linear-gradient(135deg,rgba(74,104,128,0.09) 0%,rgba(26,22,18,0.97) 70%);
           border:1px solid var(--slate-border);
-          border-radius:var(--r);
-          padding:12px 14px;
+          border-radius:3px;
+          padding:14px 16px;
           flex:1;min-height:0;
           position:relative;overflow:hidden;
           display:flex;flex-direction:column;
-          box-shadow:inset 0 0 30px rgba(74,104,128,0.06),0 2px 16px rgba(0,0,0,0.3);
+          box-shadow:
+            inset 0 0 50px rgba(74,104,128,0.06),
+            0 4px 24px rgba(0,0,0,0.6),
+            0 0 0 1px rgba(74,104,128,0.06);
         }
         .rx-card::before{
-          content:'';position:absolute;top:0;left:0;right:0;height:1px;
-          background:linear-gradient(90deg,transparent,var(--slate-bright),transparent);
-          opacity:.5;
+          content:'';position:absolute;
+          top:0;left:18px;right:18px;height:1px;
+          background:repeating-linear-gradient(90deg,
+            var(--slate-bright) 0px,var(--slate-bright) 3px,
+            transparent 3px,transparent 10px
+          );
+          opacity:.4;
         }
         .rx-card::after{
-          content:'RX';
-          position:absolute;top:8px;right:10px;
-          font-family:'Orbitron',monospace;font-size:9px;font-weight:700;
-          letter-spacing:.15em;color:var(--slate-bright);opacity:.4;
+          content:'';position:absolute;
+          bottom:0;left:18px;right:18px;height:1px;
+          background:repeating-linear-gradient(90deg,
+            var(--slate-bright) 0px,var(--slate-bright) 3px,
+            transparent 3px,transparent 10px
+          );
+          opacity:.25;
         }
-        .card-label.rx-lbl{color:var(--slate-bright);opacity:.6}
+
+        /* side tick marks */
+        .tick-v{
+          position:absolute;top:18px;bottom:18px;width:1px;
+        }
+        .tx-card .tick-v{
+          background:repeating-linear-gradient(180deg,
+            var(--orange) 0px,var(--orange) 3px,
+            transparent 3px,transparent 10px
+          );opacity:.3;
+        }
+        .rx-card .tick-v{
+          background:repeating-linear-gradient(180deg,
+            var(--slate-bright) 0px,var(--slate-bright) 3px,
+            transparent 3px,transparent 10px
+          );opacity:.3;
+        }
+        .tick-v.left{left:0}
+        .tick-v.right{right:0}
+
+        /* reticle corners */
+        .rc{position:absolute;width:14px;height:14px}
+        .rc-tl{top:5px;left:5px;border-top:2px solid currentColor;border-left:2px solid currentColor}
+        .rc-tr{top:5px;right:5px;border-top:2px solid currentColor;border-right:2px solid currentColor}
+        .rc-bl{bottom:5px;left:5px;border-bottom:2px solid currentColor;border-left:2px solid currentColor}
+        .rc-br{bottom:5px;right:5px;border-bottom:2px solid currentColor;border-right:2px solid currentColor}
+        .tx-card .rc{color:var(--orange);opacity:.6}
+        .rx-card .rc{color:var(--slate-bright);opacity:.6}
+
+        /* data readouts */
+        .d-tl{position:absolute;top:7px;left:22px;font-size:7px;letter-spacing:.1em;font-family:'Share Tech Mono',monospace;opacity:.3}
+        .d-tr{position:absolute;top:7px;right:22px;font-size:7px;letter-spacing:.1em;font-family:'Share Tech Mono',monospace;opacity:.3;text-align:right}
+        .d-bl{position:absolute;bottom:7px;left:22px;font-size:7px;letter-spacing:.1em;font-family:'Share Tech Mono',monospace;opacity:.25}
+        .d-br{position:absolute;bottom:7px;right:22px;font-size:7px;letter-spacing:.1em;font-family:'Share Tech Mono',monospace;opacity:.25;text-align:right}
+        .tx-card .d-tl,.tx-card .d-tr,.tx-card .d-bl,.tx-card .d-br{color:var(--orange)}
+        .rx-card .d-tl,.rx-card .d-tr,.rx-card .d-bl,.rx-card .d-br{color:var(--slate-bright)}
+
+        /* faint crosshair watermark */
+        .xhair{
+          position:absolute;top:50%;left:50%;
+          transform:translate(-50%,-50%);
+          pointer-events:none;opacity:.025;
+        }
+        .xhair::before{content:'';position:absolute;top:50%;left:-25px;right:-25px;height:1px;background:currentColor;transform:translateY(-50%)}
+        .xhair::after{content:'';position:absolute;left:50%;top:-25px;bottom:-25px;width:1px;background:currentColor;transform:translateX(-50%)}
+        .xhair-ring{
+          position:absolute;top:50%;left:50%;
+          transform:translate(-50%,-50%);
+          width:50px;height:50px;border-radius:50%;
+          border:1px solid currentColor;
+          opacity:.02;pointer-events:none;
+        }
+        .tx-card .xhair,.tx-card .xhair-ring{color:var(--orange)}
+        .rx-card .xhair,.rx-card .xhair-ring{color:var(--slate-bright)}
+
+        /* scan overlay */
+        .scan{
+          position:absolute;inset:0;
+          background:repeating-linear-gradient(
+            0deg,transparent,transparent 3px,
+            rgba(0,0,0,0.07) 3px,rgba(0,0,0,0.07) 4px
+          );
+          pointer-events:none;z-index:0;
+        }
+
+        .card-label{
+          font-size:8px;letter-spacing:.22em;text-transform:uppercase;
+          color:var(--orange);opacity:.55;margin-bottom:10px;
+          position:relative;z-index:1;
+          font-family:'Orbitron',monospace;font-weight:500;
+        }
+        .card-label.rx-lbl{color:var(--slate-bright)}
+        .tx-text{
+          font-family:'Share Tech Mono',monospace;
+          font-size:18px;line-height:1.6;
+          color:var(--text2);
+          min-height:44px;
+          word-break:break-word;
+          position:relative;z-index:1;
+        }
         .rx-text{
           font-family:'Share Tech Mono',monospace;
-          font-size:18px;line-height:1.55;
+          font-size:18px;line-height:1.6;
           color:var(--slate-bright);
           flex:1;overflow-y:auto;
           word-break:break-word;
-          text-shadow:0 0 10px rgba(74,104,128,0.25);
+          text-shadow:0 0 12px rgba(74,104,128,0.2);
+          position:relative;z-index:1;
         }
 
         /* scan lines on cards */
@@ -240,15 +330,6 @@
           );
           pointer-events:none;
         }
-
-        /* corner brackets */
-        .br-tl,.br-tr,.br-bl,.br-br{position:absolute;width:12px;height:12px}
-        .br-tl{top:0;left:0;border-top:1.5px solid currentColor;border-left:1.5px solid currentColor}
-        .br-tr{top:0;right:0;border-top:1.5px solid currentColor;border-right:1.5px solid currentColor}
-        .br-bl{bottom:0;left:0;border-bottom:1.5px solid currentColor;border-left:1.5px solid currentColor}
-        .br-br{bottom:0;right:0;border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor}
-        .tx-card .br-tl,.tx-card .br-tr,.tx-card .br-bl,.tx-card .br-br{color:var(--orange);opacity:.35}
-        .rx-card .br-tl,.rx-card .br-tr,.rx-card .br-bl,.rx-card .br-br{color:var(--slate-bright);opacity:.35}
 
         .fade-in{animation:fadeUp .2s ease forwards}
         @keyframes fadeUp{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
@@ -427,17 +508,31 @@
     <!-- TX CARD -->
     <div class="tx-card">
         <div class="scan"></div>
-        <div class="br-tl"></div><div class="br-tr"></div>
-        <div class="br-bl"></div><div class="br-br"></div>
-        <div class="card-label">◈ Input / Transmit</div>
+        <div class="xhair"></div>
+        <div class="xhair-ring"></div>
+        <div class="tick-v left"></div><div class="tick-v right"></div>
+        <div class="rc rc-tl"></div><div class="rc rc-tr"></div>
+        <div class="rc rc-bl"></div><div class="rc rc-br"></div>
+        <div class="d-tl">TX·01</div>
+        <div class="d-tr" id="txCoord">28.4°N 81.3°W</div>
+        <div class="d-bl">INPUT</div>
+        <div class="d-br" id="txTime">--:--:--</div>
+        <div class="card-label">◈ Transmit / Input</div>
         <div class="tx-text" id="userText">Awaiting your command, Commander...</div>
     </div>
 
     <!-- RX CARD -->
     <div class="rx-card">
         <div class="scan"></div>
-        <div class="br-tl"></div><div class="br-tr"></div>
-        <div class="br-bl"></div><div class="br-br"></div>
+        <div class="xhair"></div>
+        <div class="xhair-ring"></div>
+        <div class="tick-v left"></div><div class="tick-v right"></div>
+        <div class="rc rc-tl"></div><div class="rc rc-tr"></div>
+        <div class="rc rc-bl"></div><div class="rc rc-br"></div>
+        <div class="d-tl">RX·01</div>
+        <div class="d-tr">MR·RIGGY</div>
+        <div class="d-bl">RESPONSE</div>
+        <div class="d-br" id="rxTime">--:--:--</div>
         <div class="card-label rx-lbl">◈ Mr. Riggy / Receive</div>
         <div class="rx-text" id="riggyText">Online and ready, Commander.</div>
     </div>
@@ -648,6 +743,18 @@
       setTimeout(pollUpdates,1200);
     }
     loadSettings();updateLiveUI();pollUpdates();
+
+    // Live clock for tactical readouts
+    function updateClock(){
+      const now=new Date();
+      const t=now.toTimeString().slice(0,8);
+      const el1=document.getElementById('txTime');
+      const el2=document.getElementById('rxTime');
+      if(el1)el1.textContent=t;
+      if(el2)el2.textContent=t;
+    }
+    updateClock();
+    setInterval(updateClock,1000);
 </script>
 </body>
 </html>
