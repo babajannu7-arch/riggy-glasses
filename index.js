@@ -1510,6 +1510,11 @@ expressApp.post('/text-command', async (req, res) => {
   res.json({ ok: true });
 });
 
+expressApp.post('/clear-visor', (req, res) => {
+  latestState.visor = null;
+  res.json({ ok: true });
+});
+
 expressApp.post('/set-mode', (req, res) => {
   const { mode } = req.body;
   if (mode) { latestState.riggyMode = mode; console.log(`🔄 Mode set to: ${mode}`); }

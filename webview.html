@@ -8,85 +8,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-
         :root{
-          --bg:#0C0E11;
-          --glass:rgba(255,255,255,0.04);
-          --glass-border:rgba(255,255,255,0.07);
-          --glass-hover:rgba(255,255,255,0.06);
-          --slate:#4A6880;
-          --slate-bright:#6B8FA8;
-          --slate-glow:rgba(107,143,168,0.3);
-          --sand:#9E8A68;
-          --sand-bright:#B8A07A;
-          --sand-glow:rgba(158,138,104,0.2);
-          --green:#27AE60;
-          --red:#C0392B;
-          --muted:rgba(255,255,255,0.18);
-          --muted2:rgba(255,255,255,0.08);
-          --white:rgba(255,255,255,0.85);
+          --bg:#0C0E11;--glass:rgba(255,255,255,0.04);--glass-border:rgba(255,255,255,0.07);
+          --glass-hover:rgba(255,255,255,0.06);--slate:#4A6880;--slate-bright:#6B8FA8;
+          --slate-glow:rgba(107,143,168,0.3);--sand:#9E8A68;--sand-bright:#B8A07A;
+          --sand-glow:rgba(158,138,104,0.2);--green:#27AE60;--red:#C0392B;
+          --muted:rgba(255,255,255,0.18);--muted2:rgba(255,255,255,0.08);--white:rgba(255,255,255,0.85);
         }
-
-        html,body{
-          width:100%;height:100%;
-          min-height:100dvh;
-          background:var(--bg);
-          font-family:'DM Sans',-apple-system,sans-serif;
-          overflow:hidden;
-          -webkit-font-smoothing:antialiased;
-        }
-
-        /* subtle vignette */
-        body::after{
-          content:'';position:fixed;inset:0;
-          background:radial-gradient(ellipse at 50% 0%,rgba(74,104,128,0.06) 0%,transparent 65%);
-          pointer-events:none;z-index:0;
-        }
-
-        .screen{
-          position:fixed;inset:0;z-index:1;
-          display:flex;flex-direction:column;
-          padding:max(env(safe-area-inset-top),22px) 18px max(env(safe-area-inset-bottom),16px);
-          transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .4s;
-        }
+        html,body{width:100%;height:100%;min-height:100dvh;background:var(--bg);font-family:'DM Sans',-apple-system,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased;}
+        body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(74,104,128,0.06) 0%,transparent 65%);pointer-events:none;z-index:0;}
+        .screen{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;padding:max(env(safe-area-inset-top),22px) 18px max(env(safe-area-inset-bottom),16px);transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .4s;}
         .screen.hidden{transform:translateX(-110%);opacity:0;pointer-events:none}
-        #settingsScreen{
-          transform:translateX(110%);opacity:0;pointer-events:none;
-          overflow-y:auto;-webkit-overflow-scrolling:touch;
-          overscroll-behavior:contain;
-          background:var(--bg);
-        }
+        #settingsScreen{transform:translateX(110%);opacity:0;pointer-events:none;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);}
         #settingsScreen.open{transform:translateX(0);opacity:1;pointer-events:auto}
-
-        /* ── TOPBAR ── */
-        .topbar{
-          display:flex;align-items:center;justify-content:space-between;
-          margin-bottom:18px;flex-shrink:0;
-        }
-        .wordmark-title{
-          font-family:'Orbitron',monospace;
-          font-size:22px;font-weight:900;
-          letter-spacing:.18em;
-          color:var(--slate-bright);
-          text-shadow:0 0 24px var(--slate-glow),0 0 48px rgba(107,143,168,0.12);
-        }
-        .wordmark-sub{
-          font-family:'DM Mono',monospace;
-          font-size:8px;letter-spacing:.28em;text-transform:uppercase;
-          color:var(--green);opacity:.55;margin-top:3px;
-        }
+        .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-shrink:0;}
+        .wordmark-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;letter-spacing:.18em;color:var(--slate-bright);text-shadow:0 0 24px var(--slate-glow),0 0 48px rgba(107,143,168,0.12);}
+        .wordmark-sub{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.28em;text-transform:uppercase;color:var(--green);opacity:.55;margin-top:3px;}
         .topbar-right{display:flex;align-items:center;gap:10px}
-
-        /* status */
-        .status-pill{
-          display:flex;align-items:center;gap:5px;
-          padding:4px 10px;border-radius:20px;
-          background:var(--glass);
-          border:1px solid var(--glass-border);
-          font-family:'DM Mono',monospace;
-          font-size:9px;letter-spacing:.1em;
-          color:var(--muted);transition:all .3s;
-        }
+        .status-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--glass);border:1px solid var(--glass-border);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--muted);transition:all .3s;}
         .s-dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px rgba(39,174,96,0.6);animation:breathe 2.5s ease-in-out infinite}
         .status-pill.speaking .s-dot{background:var(--sand-bright);box-shadow:0 0 5px var(--sand-glow);animation:blink .5s ease-in-out infinite alternate}
         .status-pill.live .s-dot{background:var(--slate-bright);box-shadow:0 0 6px var(--slate-glow)}
@@ -95,155 +34,38 @@
         .s-label{color:var(--muted)}
         .status-pill.speaking .s-label{color:var(--sand-bright)}
         .status-pill.live .s-label{color:var(--slate-bright)}
-
-        /* gear */
-        .gear-btn{
-          width:32px;height:32px;border-radius:50%;
-          background:var(--glass);border:1px solid var(--glass-border);
-          display:flex;align-items:center;justify-content:center;
-          cursor:pointer;transition:all .2s;
-        }
+        .gear-btn{width:32px;height:32px;border-radius:50%;background:var(--glass);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
         .gear-btn:active{background:var(--glass-hover)}
         .gear-btn svg{width:13px;height:13px;stroke:var(--muted);fill:none;stroke-width:1.8}
-
-        /* ── GLASS PANEL — single unified card ── */
-        .glass-panel{
-          flex:1;min-height:0;
-          background:var(--glass);
-          border:1px solid var(--glass-border);
-          border-radius:20px;
-          backdrop-filter:blur(20px);
-          -webkit-backdrop-filter:blur(20px);
-          display:flex;flex-direction:column;
-          overflow:hidden;
-          margin-bottom:14px;
-          box-shadow:
-            0 8px 40px rgba(0,0,0,0.4),
-            inset 0 1px 0 rgba(255,255,255,0.05);
-          position:relative;
-        }
-
-        /* very subtle inner top glow */
-        .glass-panel::before{
-          content:'';position:absolute;
-          top:0;left:15%;right:15%;height:1px;
-          background:linear-gradient(90deg,transparent,rgba(107,143,168,0.2),transparent);
-          pointer-events:none;
-        }
-
-        /* TX section */
-        .tx-section{
-          flex-shrink:0;
-          padding:18px 20px 14px;
-          border-bottom:1px solid var(--glass-border);
-          position:relative;
-        }
-        .section-tag{
-          font-family:'DM Mono',monospace;
-          font-size:8px;letter-spacing:.18em;text-transform:uppercase;
-          margin-bottom:10px;display:flex;align-items:center;gap:7px;
-        }
+        .glass-panel{flex:1;min-height:0;background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:flex;flex-direction:column;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 40px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.05);position:relative;}
+        .glass-panel::before{content:'';position:absolute;top:0;left:15%;right:15%;height:1px;background:linear-gradient(90deg,transparent,rgba(107,143,168,0.2),transparent);pointer-events:none;}
+        .tx-section{flex-shrink:0;padding:18px 20px 14px;border-bottom:1px solid var(--glass-border);position:relative;}
+        .section-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
         .section-tag.tx-tag{color:var(--sand);opacity:.6}
         .section-tag.rx-tag{color:var(--slate-bright);opacity:.6}
         .tag-line{flex:1;height:1px}
         .tx-tag .tag-line{background:linear-gradient(90deg,rgba(158,138,104,0.2),transparent)}
         .rx-tag .tag-line{background:linear-gradient(90deg,rgba(107,143,168,0.2),transparent)}
-
-        .tx-text{
-          font-family:'DM Sans',sans-serif;
-          font-size:17px;font-weight:300;
-          line-height:1.6;
-          color:var(--sand-bright);
-          word-break:break-word;
-          min-height:48px;
-        }
-
-        /* RX section */
-        .rx-section{
-          flex:1;min-height:0;
-          padding:14px 20px 18px;
-          display:flex;flex-direction:column;
-          position:relative;
-        }
-        .rx-text{
-          font-family:'DM Sans',sans-serif;
-          font-size:17px;font-weight:400;
-          line-height:1.65;
-          color:var(--slate-bright);
-          text-shadow:0 0 20px rgba(107,143,168,0.15);
-          flex:1;overflow-y:auto;
-          word-break:break-word;
-        }
-
-        /* mid divider dot */
-        .mid-dot{
-          position:absolute;
-          left:50%;top:-4px;
-          transform:translateX(-50%);
-          width:6px;height:6px;border-radius:50%;
-          background:var(--glass-border);
-          border:1px solid rgba(255,255,255,0.08);
-        }
-
+        .tx-text{font-family:'DM Sans',sans-serif;font-size:17px;font-weight:300;line-height:1.6;color:var(--sand-bright);word-break:break-word;min-height:48px;}
+        .rx-section{flex:1;min-height:0;padding:14px 20px 18px;display:flex;flex-direction:column;position:relative;}
+        .mid-dot{position:absolute;left:50%;top:-4px;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:var(--glass-border);border:1px solid rgba(255,255,255,0.08);}
+        .rx-text{font-family:'DM Sans',sans-serif;font-size:17px;font-weight:400;line-height:1.65;color:var(--slate-bright);text-shadow:0 0 20px rgba(107,143,168,0.15);flex:1;overflow-y:auto;word-break:break-word;}
         .fade-in{animation:fadeUp .25s ease forwards}
         @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-
-        /* ── BOTTOM BAR ── */
         .bottom-bar{flex-shrink:0;display:flex;flex-direction:column;gap:8px}
-        .input-wrap{
-          display:flex;align-items:center;gap:8px;
-          background:var(--glass);
-          border:1px solid var(--glass-border);
-          border-radius:14px;
-          padding:10px 14px;
-          backdrop-filter:blur(20px);
-          -webkit-backdrop-filter:blur(20px);
-          transition:border-color .25s,box-shadow .25s;
-        }
-        .input-wrap:focus-within{
-          border-color:rgba(107,143,168,0.3);
-          box-shadow:0 0 0 3px rgba(107,143,168,0.06),0 4px 20px rgba(0,0,0,0.3);
-        }
-        .cmd-input{
-          flex:1;background:transparent;border:none;outline:none;
-          font-family:'DM Sans',sans-serif;font-size:15px;font-weight:300;
-          color:var(--sand-bright);caret-color:var(--slate-bright);
-        }
+        .input-wrap{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:10px 14px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transition:border-color .25s,box-shadow .25s;}
+        .input-wrap:focus-within{border-color:rgba(107,143,168,0.3);box-shadow:0 0 0 3px rgba(107,143,168,0.06),0 4px 20px rgba(0,0,0,0.3);}
+        .cmd-input{flex:1;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:300;color:var(--sand-bright);caret-color:var(--slate-bright);}
         .cmd-input::placeholder{color:var(--muted2);font-size:13px}
-        .send-btn{
-          background:var(--slate);border:none;border-radius:9px;
-          padding:8px 16px;
-          font-family:'DM Mono',monospace;
-          font-size:10px;font-weight:500;letter-spacing:.08em;
-          color:#fff;cursor:pointer;transition:all .2s;flex-shrink:0;
-          box-shadow:0 2px 12px rgba(74,104,128,0.3);
-        }
+        .send-btn{background:var(--slate);border:none;border-radius:9px;padding:8px 16px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.08em;color:#fff;cursor:pointer;transition:all .2s;flex-shrink:0;box-shadow:0 2px 12px rgba(74,104,128,0.3);}
         .send-btn:active{opacity:.8;transform:scale(.95)}
-
         .action-row{display:flex;gap:8px}
-        .act-btn{
-          flex:1;padding:10px;border-radius:12px;
-          background:var(--glass);border:1px solid var(--glass-border);
-          font-family:'DM Mono',monospace;
-          font-size:9px;letter-spacing:.08em;
-          cursor:pointer;transition:all .2s;
-          display:flex;align-items:center;justify-content:center;gap:5px;
-          color:var(--muted);
-        }
+        .act-btn{flex:1;padding:10px;border-radius:12px;background:var(--glass);border:1px solid var(--glass-border);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;color:var(--muted);}
         .act-btn.live{color:var(--slate-bright);border-color:rgba(107,143,168,0.15)}
-        .act-btn.live.on{
-          background:rgba(74,104,128,0.12);
-          border-color:rgba(107,143,168,0.3);
-          box-shadow:0 0 12px rgba(107,143,168,0.1);
-        }
+        .act-btn.live.on{background:rgba(74,104,128,0.12);border-color:rgba(107,143,168,0.3);box-shadow:0 0 12px rgba(107,143,168,0.1);}
         .act-btn.chime{color:var(--sand);border-color:rgba(158,138,104,0.15)}
         .act-btn:active{opacity:.65}
-
-        /* ind lights row */
-        .ind-row{
-          display:flex;align-items:center;gap:8px;
-          padding:0 2px;flex-shrink:0;margin-bottom:10px;
-        }
+        .ind-row{display:flex;align-items:center;gap:8px;padding:0 2px;flex-shrink:0;margin-bottom:10px;}
         .ind{display:flex;align-items:center;gap:4px}
         .ind-dot{width:6px;height:6px;border-radius:50%;transition:all .25s}
         .ind-dot.pwr{background:var(--green);box-shadow:0 0 5px rgba(39,174,96,0.5)}
@@ -254,64 +76,28 @@
         .ind-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.1em;color:var(--muted2)}
         .ind-sep{flex:1;height:1px;background:var(--glass-border)}
         .cdr-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--muted2)}
-
-        /* ════ SETTINGS ════ */
+        /* SETTINGS */
         #settingsScreen{padding-bottom:40px}
-        .s-topbar{
-          display:flex;align-items:center;justify-content:space-between;
-          position:sticky;top:0;background:var(--bg);
-          padding:4px 0 14px;
-          border-bottom:1px solid var(--glass-border);
-          z-index:10;margin-bottom:18px;flex-shrink:0;
-        }
-        .back-btn{
-          display:flex;align-items:center;gap:4px;
-          font-family:'DM Mono',monospace;
-          font-size:10px;letter-spacing:.08em;
-          color:var(--slate-bright);cursor:pointer;transition:opacity .2s;
-        }
+        .s-topbar{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg);padding:4px 0 14px;border-bottom:1px solid var(--glass-border);z-index:10;margin-bottom:18px;flex-shrink:0;}
+        .back-btn{display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--slate-bright);cursor:pointer;transition:opacity .2s;}
         .back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2}
         .back-btn:active{opacity:.5}
-        .s-title{
-          font-family:'Orbitron',monospace;
-          font-size:12px;font-weight:600;
-          letter-spacing:.16em;color:var(--slate-bright);
-        }
-        .s-section{
-          font-family:'DM Mono',monospace;
-          font-size:8px;letter-spacing:.2em;text-transform:uppercase;
-          color:var(--sand);opacity:.6;margin:18px 0 7px 2px;
-        }
+        .s-title{font-family:'Orbitron',monospace;font-size:12px;font-weight:600;letter-spacing:.16em;color:var(--slate-bright);}
+        .s-section{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--sand);opacity:.6;margin:18px 0 7px 2px;}
         .s-section:first-of-type{margin-top:0}
-        .s-card{
-          background:var(--glass);border:1px solid var(--glass-border);
-          border-radius:14px;overflow:visible;margin-bottom:4px;
-        }
-        .s-row{
-          display:flex;align-items:center;
-          padding:13px 16px;
-          border-bottom:1px solid var(--glass-border);gap:12px;
-        }
+        .s-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;overflow:visible;margin-bottom:4px;}
+        .s-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--glass-border);gap:12px;}
         .s-row:last-child{border-bottom:none}
         .s-row.col{flex-direction:column;align-items:stretch;gap:9px}
         .s-lbl{font-size:14px;font-weight:400;color:var(--white);flex:1}
         .s-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
-        .s-input{
-          width:100%;background:rgba(255,255,255,0.04);
-          border:1px solid var(--glass-border);border-radius:9px;
-          padding:11px 13px;font-family:'DM Sans',sans-serif;font-size:14px;
-          color:var(--white);outline:none;
-          transition:border-color .2s,box-shadow .2s;
-        }
+        .s-input{width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--glass-border);border-radius:9px;padding:11px 13px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--white);outline:none;transition:border-color .2s,box-shadow .2s;}
         .s-input:focus{border-color:rgba(107,143,168,0.4);box-shadow:0 0 0 3px rgba(107,143,168,0.08)}
         .s-input::placeholder{color:var(--muted2);font-size:12.5px}
         .s-slider-row{padding:13px 16px;border-bottom:1px solid var(--glass-border)}
         .s-slider-row:last-child{border-bottom:none}
         .s-slider-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-        .s-slider-val{
-          font-family:'Orbitron',monospace;font-size:22px;
-          color:var(--slate-bright);
-        }
+        .s-slider-val{font-family:'Orbitron',monospace;font-size:22px;color:var(--slate-bright);}
         input[type=range]{-webkit-appearance:none;width:100%;height:2px;background:rgba(107,143,168,0.15);border-radius:2px;outline:none}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--slate-bright);box-shadow:0 2px 8px rgba(107,143,168,0.3);cursor:pointer}
         .toggle{position:relative;width:46px;height:27px;cursor:pointer;flex-shrink:0}
@@ -320,19 +106,9 @@
         .toggle input:checked~.t-track{background:var(--slate)}
         .t-thumb{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.4);transition:transform .3s cubic-bezier(.4,0,.2,1)}
         .toggle input:checked~.t-track~.t-thumb{transform:translateX(19px)}
-        .save-btn{
-          width:100%;margin-top:20px;padding:15px;
-          background:var(--slate);border:none;border-radius:14px;
-          font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.12em;
-          color:#fff;cursor:pointer;transition:all .2s;
-          box-shadow:0 3px 16px rgba(74,104,128,0.28);
-        }
+        .save-btn{width:100%;margin-top:20px;padding:15px;background:var(--slate);border:none;border-radius:14px;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.12em;color:#fff;cursor:pointer;transition:all .2s;box-shadow:0 3px 16px rgba(74,104,128,0.28);}
         .save-btn:active{opacity:.85;transform:scale(.98)}
-        .saved-msg{
-          text-align:center;font-family:'DM Mono',monospace;
-          font-size:9px;letter-spacing:.15em;
-          color:var(--slate-bright);margin-top:10px;opacity:0;transition:opacity .3s;
-        }
+        .saved-msg{text-align:center;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;color:var(--slate-bright);margin-top:10px;opacity:0;transition:opacity .3s;}
         .saved-msg.show{opacity:1}
     </style>
 </head>
@@ -340,7 +116,6 @@
 
 <!-- MAIN -->
 <div id="mainScreen" class="screen">
-
     <div class="topbar">
         <div>
             <div class="wordmark-title">MR. RIGGY</div>
@@ -356,8 +131,6 @@
             </div>
         </div>
     </div>
-
-    <!-- indicators -->
     <div class="ind-row">
         <div class="ind"><div class="ind-dot pwr"></div><span class="ind-lbl">PWR</span></div>
         <div class="ind"><div class="ind-dot tx" id="txDot"></div><span class="ind-lbl">TX</span></div>
@@ -365,34 +138,20 @@
         <div class="ind-sep"></div>
         <div class="cdr-tag" id="cdrTag"></div>
     </div>
-
-    <!-- SINGLE GLASS PANEL -->
     <div class="glass-panel">
         <div class="tx-section">
-            <div class="section-tag tx-tag">
-                TX
-                <div class="tag-line"></div>
-                <span style="font-size:7px;opacity:.5" id="txTime">--:--:--</span>
-            </div>
+            <div class="section-tag tx-tag">TX<div class="tag-line"></div><span style="font-size:7px;opacity:.5" id="txTime">--:--:--</span></div>
             <div class="tx-text" id="userText">Awaiting your command, Commander...</div>
         </div>
         <div class="rx-section">
             <div class="mid-dot"></div>
-            <div class="section-tag rx-tag">
-                RX
-                <div class="tag-line"></div>
-                <span style="font-size:7px;opacity:.5" id="rxTime">--:--:--</span>
-            </div>
+            <div class="section-tag rx-tag">RX<div class="tag-line"></div><span style="font-size:7px;opacity:.5" id="rxTime">--:--:--</span></div>
             <div class="rx-text" id="riggyText">Online and ready, Commander.</div>
         </div>
     </div>
-
-    <!-- BOTTOM -->
     <div class="bottom-bar">
         <div class="input-wrap">
-            <input class="cmd-input" id="commandInput" type="text"
-                   placeholder="Type your command, Commander..."
-                   autocomplete="off" autocorrect="off" spellcheck="false"/>
+            <input class="cmd-input" id="commandInput" type="text" placeholder="Type your command, Commander..." autocomplete="off" autocorrect="off" spellcheck="false"/>
             <button class="send-btn" onclick="sendTextCommand()">SEND</button>
         </div>
         <div class="action-row">
@@ -400,133 +159,92 @@
             <button class="act-btn chime" onclick="testChime()">🔔 CHIME</button>
         </div>
     </div>
-
 </div>
 
-<!-- VISOR PANEL -->
-<div id="visorPanel" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);display:none;flex-direction:column;padding:max(env(safe-area-inset-top),20px) 18px max(env(safe-area-inset-bottom),16px);">
+<!-- VISOR PANEL — FIX: display:none only once, no duplicate -->
+<div id="visorPanel" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);flex-direction:column;padding:max(env(safe-area-inset-top),20px) 18px max(env(safe-area-inset-bottom),16px);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
         <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:.18em;color:var(--slate-bright)">⬡ VISOR</div>
         <div onclick="closeVisor()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--muted);cursor:pointer;padding:6px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:8px">CLOSE</div>
     </div>
     <div id="visorLabel" style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--sand);opacity:.7;margin-bottom:12px;flex-shrink:0"></div>
     <div id="visorContent" style="flex:1;overflow-y:auto;min-height:0">
-        <!-- URL link -->
         <div id="visorLink" style="display:none">
             <div id="visorSummary" style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--slate-bright);line-height:1.6;margin-bottom:16px"></div>
             <a id="visorUrl" href="#" target="_blank" style="display:block;padding:14px 16px;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--slate-bright);text-decoration:none;word-break:break-all;margin-bottom:12px">Open Link</a>
         </div>
-        <!-- Debug/text content -->
         <div id="visorText" style="display:none">
-            <div id="visorTextContent" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text, #e8d5b0);line-height:1.7;white-space:pre-wrap;word-break:break-word;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:12px"></div>
+            <div id="visorTextContent" style="font-family:'DM Mono',monospace;font-size:13px;color:#e8d5b0;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:12px"></div>
             <button onclick="copyVisor()" style="width:100%;padding:12px;background:var(--slate);border:none;border-radius:10px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;color:#fff;cursor:pointer">COPY TO CLIPBOARD</button>
         </div>
+        <div id="visorHtml" style="display:none"></div>
     </div>
 </div>
+
+<!-- SETTINGS -->
 <div id="settingsScreen" class="screen">
     <div class="s-topbar">
-        <div class="back-btn" onclick="closeSettings()">
-            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Back
-        </div>
+        <div class="back-btn" onclick="closeSettings()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Back</div>
         <div class="s-title">SETTINGS</div>
         <div style="width:44px"></div>
     </div>
-
     <div class="s-section">Mode</div>
     <div class="s-card">
         <div class="s-row">
             <div style="flex:1">
                 <div class="s-lbl" style="color:var(--slate-bright)">⬡ SCOUT MODE</div>
-                <div class="s-desc">More present. Takes ambient photos, chimes more freely, notices your surroundings. Like a friend hanging out with you.</div>
+                <div class="s-desc">More present. Takes ambient photos, chimes more freely, notices your surroundings.</div>
             </div>
-            <label class="toggle">
-                <input type="checkbox" id="scoutMode"/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <label class="toggle"><input type="checkbox" id="scoutMode"/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
     </div>
-
     <div class="s-section">Identity</div>
     <div class="s-card">
         <div class="s-row col">
             <div class="s-lbl">Your Call Sign</div>
-            <input class="s-input" id="commanderName" type="text"
-                   placeholder="First name — Riggy addresses you as Commander [Name]" maxlength="20"/>
+            <input class="s-input" id="commanderName" type="text" placeholder="First name — Riggy addresses you as Commander [Name]" maxlength="20"/>
         </div>
     </div>
-
     <div class="s-section">Chime</div>
     <div class="s-card">
         <div class="s-row">
-            <div style="flex:1">
-                <div class="s-lbl">Enable Chime</div>
-                <div class="s-desc">Riggy checks in throughout your session.</div>
-            </div>
-            <label class="toggle">
-                <input type="checkbox" id="chimeEnabled"/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <div style="flex:1"><div class="s-lbl">Enable Chime</div><div class="s-desc">Riggy checks in throughout your session.</div></div>
+            <label class="toggle"><input type="checkbox" id="chimeEnabled"/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
         <div class="s-slider-row">
             <div class="s-slider-hdr">
-                <div>
-                    <div class="s-lbl">Daily Limit</div>
-                    <div class="s-desc">Max chimes per session.</div>
-                </div>
+                <div><div class="s-lbl">Daily Limit</div><div class="s-desc">Max chimes per session.</div></div>
                 <div class="s-slider-val" id="chimeVal">10</div>
             </div>
-            <input type="range" id="chimeLimit" min="1" max="20" value="10"
-                   oninput="document.getElementById('chimeVal').textContent=this.value"/>
+            <input type="range" id="chimeLimit" min="1" max="20" value="10" oninput="document.getElementById('chimeVal').textContent=this.value"/>
         </div>
     </div>
-
     <div class="s-section">Notifications</div>
     <div class="s-card">
         <div class="s-row">
-            <div style="flex:1">
-                <div class="s-lbl">Read Aloud</div>
-                <div class="s-desc">Incoming texts and calls read through glasses.</div>
-            </div>
-            <label class="toggle">
-                <input type="checkbox" id="notifsEnabled" checked/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <div style="flex:1"><div class="s-lbl">Read Aloud</div><div class="s-desc">Incoming texts and calls read through glasses.</div></div>
+            <label class="toggle"><input type="checkbox" id="notifsEnabled" checked/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
         <div class="s-row">
             <div class="s-lbl" style="flex:1">Phone Calls</div>
-            <label class="toggle">
-                <input type="checkbox" id="notifCalls" checked/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <label class="toggle"><input type="checkbox" id="notifCalls" checked/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
         <div class="s-row">
             <div class="s-lbl" style="flex:1">Text Messages</div>
-            <label class="toggle">
-                <input type="checkbox" id="notifTexts" checked/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <label class="toggle"><input type="checkbox" id="notifTexts" checked/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
     </div>
-
     <div class="s-section">General</div>
     <div class="s-card">
         <div class="s-row">
-            <div style="flex:1">
-                <div class="s-lbl">Wake Word</div>
-                <div class="s-desc">Activates when Riggy hears his name.</div>
-            </div>
-            <label class="toggle">
-                <input type="checkbox" id="wakeWordEnabled" checked/>
-                <div class="t-track"></div><div class="t-thumb"></div>
-            </label>
+            <div style="flex:1"><div class="s-lbl">Wake Word</div><div class="s-desc">Activates when Riggy hears his name.</div></div>
+            <label class="toggle"><input type="checkbox" id="wakeWordEnabled" checked/><div class="t-track"></div><div class="t-thumb"></div></label>
         </div>
         <div class="s-row col">
             <div class="s-lbl">Default City</div>
-            <input class="s-input" id="defaultCity" type="text"
-                   placeholder="City, State, Country — e.g. Deltona, FL, US"/>
+            <input class="s-input" id="defaultCity" type="text" placeholder="City, State, Country — e.g. Deltona, FL, US"/>
         </div>
     </div>
-
     <button class="save-btn" onclick="saveSettings()">Save Settings</button>
     <div class="saved-msg" id="savedMsg">Settings saved</div>
 </div>
@@ -541,34 +259,27 @@
     const liveBtn=document.getElementById('liveBtn');
     const cmdInput=document.getElementById('commandInput');
     const cdrTag=document.getElementById('cdrTag');
-    let lastVisor=null;
+    let lastVisor=null,lastUser='',lastRiggy='',isLive=false,speakTimer=null;
 
+    // ── VISOR ──
     function openVisor(data){
       const panel=document.getElementById('visorPanel');
+      // Show as flex
       panel.style.display='flex';
       document.getElementById('visorLabel').textContent=data.label||'VISOR';
+      // Hide all content zones first
+      document.getElementById('visorLink').style.display='none';
+      document.getElementById('visorText').style.display='none';
+      document.getElementById('visorHtml').style.display='none';
 
       if(data.type==='html'&&data.html){
-        document.getElementById('visorLink').style.display='none';
-        document.getElementById('visorText').style.display='none';
-        let htmlDiv=document.getElementById('visorHtml');
-        if(!htmlDiv){
-          htmlDiv=document.createElement('div');
-          htmlDiv.id='visorHtml';
-          document.getElementById('visorContent').appendChild(htmlDiv);
-        }
+        const htmlDiv=document.getElementById('visorHtml');
         htmlDiv.style.display='block';
         htmlDiv.innerHTML=data.html;
       } else if(data.type==='text'||data.type==='debug'||(!data.url&&data.content)){
-        const htmlDiv=document.getElementById('visorHtml');
-        if(htmlDiv)htmlDiv.style.display='none';
-        document.getElementById('visorLink').style.display='none';
         document.getElementById('visorText').style.display='block';
         document.getElementById('visorTextContent').textContent=data.content||'';
       } else {
-        const htmlDiv=document.getElementById('visorHtml');
-        if(htmlDiv)htmlDiv.style.display='none';
-        document.getElementById('visorText').style.display='none';
         document.getElementById('visorLink').style.display='block';
         document.getElementById('visorSummary').textContent=data.summary||'';
         const link=document.getElementById('visorUrl');
@@ -579,13 +290,15 @@
 
     function closeVisor(){
       document.getElementById('visorPanel').style.display='none';
+      lastVisor=null;
+      // Tell the server to clear visor state so poll doesn't immediately reopen it
+      fetch('/clear-visor',{method:'POST'}).catch(()=>{});
     }
 
     function copyVisor(){
       const text=document.getElementById('visorTextContent').textContent;
       navigator.clipboard.writeText(text).then(()=>{
-        const btn=event.target;
-        btn.textContent='COPIED ✓';
+        const btn=event.target;btn.textContent='COPIED ✓';
         setTimeout(()=>btn.textContent='COPY TO CLIPBOARD',2000);
       }).catch(()=>{
         const range=document.createRange();
@@ -597,8 +310,7 @@
 
     function updateClock(){
       const t=new Date().toTimeString().slice(0,8);
-      const a=document.getElementById('txTime');
-      const b=document.getElementById('rxTime');
+      const a=document.getElementById('txTime'),b=document.getElementById('rxTime');
       if(a)a.textContent=t;if(b)b.textContent=t;
     }
     setInterval(updateClock,1000);updateClock();
@@ -608,8 +320,7 @@
       if(name){document.getElementById('commanderName').value=name;cdrTag.textContent='CDR_'+name.toUpperCase();}
       document.getElementById('chimeEnabled').checked=localStorage.getItem('chimeEnabled')==='true';
       const cl=localStorage.getItem('chimeLimit')||'10';
-      document.getElementById('chimeLimit').value=cl;
-      document.getElementById('chimeVal').textContent=cl;
+      document.getElementById('chimeLimit').value=cl;document.getElementById('chimeVal').textContent=cl;
       document.getElementById('notifsEnabled').checked=localStorage.getItem('notifsEnabled')!=='false';
       document.getElementById('notifCalls').checked=localStorage.getItem('notifCalls')!=='false';
       document.getElementById('notifTexts').checked=localStorage.getItem('notifTexts')!=='false';
@@ -618,6 +329,7 @@
       if(city)document.getElementById('defaultCity').value=city;
       document.getElementById('scoutMode').checked=localStorage.getItem('scoutMode')==='true';
     }
+
     function saveSettings(){
       const name=document.getElementById('commanderName').value.trim();
       localStorage.setItem('commanderName',name);
@@ -631,19 +343,19 @@
       const scout=document.getElementById('scoutMode').checked;
       localStorage.setItem('scoutMode',scout);
       try{fetch('/set-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:scout?'scout':'private'})})}catch(e){}
-      if(name)cdrTag.textContent='CDR_'+name.toUpperCase(); else cdrTag.textContent='';
-      const m=document.getElementById('savedMsg');
-      m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2200);
+      if(name)cdrTag.textContent='CDR_'+name.toUpperCase();else cdrTag.textContent='';
+      const m=document.getElementById('savedMsg');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2200);
     }
+
     function openSettings(){
       document.getElementById('mainScreen').classList.add('hidden');
-      const s=document.getElementById('settingsScreen');
-      s.classList.add('open');s.scrollTop=0;
+      const s=document.getElementById('settingsScreen');s.classList.add('open');s.scrollTop=0;
     }
     function closeSettings(){
       document.getElementById('settingsScreen').classList.remove('open');
       document.getElementById('mainScreen').classList.remove('hidden');
     }
+
     async function sendTextCommand(){
       const text=cmdInput.value.trim();if(!text)return;
       cmdInput.value='';
@@ -653,13 +365,16 @@
       try{await fetch('/text-command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})}catch(e){}
     }
     cmdInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendTextCommand()});
+
     async function testChime(){try{await fetch('/test-chime',{method:'POST'})}catch(e){}}
+
     async function toggleLive(){
       try{
         const res=await fetch('/toggle-live',{method:'POST'});
         const d=await res.json();isLive=d.live;updateLiveUI();
       }catch(e){}
     }
+
     function updateLiveUI(){
       if(isLive){
         statusPill.classList.add('live');statusLabel.textContent='LIVE';
@@ -669,12 +384,14 @@
         liveBtn.textContent='◉ GO LIVE';liveBtn.classList.remove('on');
       }
     }
+
     async function pollUpdates(){
       try{
         const res=await fetch('/webview-state');
         if(res.ok){
           const d=await res.json();
           if(d.emergencyCall){window.location.href='tel:911';}
+          // Visor: open whenever server has new data (lastVisor resets on close)
           if(d.visor&&JSON.stringify(d.visor)!==JSON.stringify(lastVisor)){
             lastVisor=d.visor;
             openVisor(d.visor);
@@ -702,6 +419,7 @@
       }catch(e){}
       setTimeout(pollUpdates,1200);
     }
+
     loadSettings();updateLiveUI();pollUpdates();
 </script>
 </body>
