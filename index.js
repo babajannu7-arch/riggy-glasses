@@ -270,12 +270,12 @@ function isLocationRequest(text) { const l = text.toLowerCase(); return l.includ
 function isIntelRequest(text) { const l = text.toLowerCase(); return l.includes('intel') || (l.includes('run') && l.includes('sweep')) || l.includes('intel mode'); }
 function isShopRequest(text) { const l = text.toLowerCase(); return (l.includes('shop mode')||l.includes('riggy shop')||l.includes('price check')||l.includes('how much is this')||l.includes('should i buy this'))&&!l.includes('stop'); }
 function isWhereToBuyRequest(text) { const l = text.toLowerCase(); return l.includes('where to buy')||l.includes('where can i buy')||l.includes('where do i buy')||l.includes('buy this')||l.includes('get this')||l.includes('find this online'); }
-function isWhatIsItWorthRequest(text) { const l = text.toLowerCase(); return l.includes('what is this worth')||l.includes('what's this worth')||l.includes('how much is this worth')||l.includes('resale value')||l.includes('worth anything'); }
+function isWhatIsItWorthRequest(text) { const l = text.toLowerCase(); return l.includes('what is this worth')||l.includes("what's this worth")||l.includes('how much is this worth')||l.includes('resale value')||l.includes('worth anything'); }
 function isGoodDealRequest(text) { const l = text.toLowerCase(); return l.includes('good deal')||l.includes('is this a deal')||l.includes('worth buying')||l.includes('should i get this')||l.includes('is this worth it'); }
 function isTranslateRequest(text) { const l = text.toLowerCase(); return l.includes('translate this')||l.includes('what does this say')||l.includes('what language is this')||l.includes('translate that'); }
 function isPlantRequest(text) { const l = text.toLowerCase(); return l.includes('what plant')||l.includes('what kind of plant')||l.includes('plant need')||l.includes('care for this plant')||l.includes('what is this plant'); }
 function isBugRequest(text) { const l = text.toLowerCase(); return l.includes('what is this bug')||l.includes('what bug')||l.includes('what insect')||l.includes('what spider')||l.includes('identify this bug'); }
-function isNutritionRequest(text) { const l = text.toLowerCase(); return l.includes('nutrition')||l.includes('calories in this')||l.includes('what's in this')||l.includes('healthy')||l.includes('macro'); }
+function isNutritionRequest(text) { const l = text.toLowerCase(); return l.includes('nutrition')||l.includes('calories in this')||l.includes("what's in this")||l.includes('healthy')||l.includes('macro'); }
 function isWhoMadeRequest(text) { const l = text.toLowerCase(); return l.includes('who made this')||l.includes('who makes this')||l.includes('what brand')||l.includes('where is this made'); }
 function isMorningGreeting(text) { const l = text.toLowerCase(); return l.includes('good morning')&&l.includes('riggy'); }
 function isAfternoonGreeting(text){ const l = text.toLowerCase(); return l.includes('good afternoon')&&l.includes('riggy'); }
@@ -1406,7 +1406,7 @@ class RiggyGlasses extends AppServer {
           latestState.visor = { type:'html', label:'BRAND INFO', html: buildVisorShowMeSkeleton('Looking up brand...') };
           const [product, brandInfo] = await Promise.all([
             identifyProduct(photo),
-            askGemini('Who made this product? Identify the brand, where it is manufactured, and one thing most people don't know about this company. Plain text.', sessionId, userId, photo, null, null, '')
+            askGemini("Who made this product? Identify the brand, where it is manufactured, and one thing most people don't know about this company. Plain text.", sessionId, userId, photo, null, null, '')
           ]);
           const spoken = await askGemini('Who made this and where? One sentence.', sessionId, userId, photo, null, null, '');
           if (spoken) { await speakSafe(spoken); latestState.riggySaid = spoken; }
