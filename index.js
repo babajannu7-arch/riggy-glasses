@@ -1431,7 +1431,8 @@ class RiggyGlasses extends AppServer {
         }
 
         // ── SHOW ME / VISOR COMMANDS ──────────────────────────────────────────
-        const showMe = lower.includes('show me') || lower.includes('visor');
+        const lower2 = userSaid.toLowerCase();
+        const showMe = lower2.includes('show me') || lower2.includes('visor');
 
         if (showMe) {
           setProcessing(false);
@@ -1440,14 +1441,14 @@ class RiggyGlasses extends AppServer {
           const lng = loc?.lng || DEFAULT_LNG;
 
           // WEATHER
-          if (lower.includes('weather') || lower.includes('show me weather')) {
+          if (lower2.includes('weather')) {
             const [weather, forecast] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng)]);
             latestState.visor = { type:'html', label:'Weather', html: buildVisorWeather(weather, forecast) };
             await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
           }
 
           // HOURLY
-          if (lower.includes('hourly') || lower.includes('show me hourly')) {
+          if (lower2.includes('hourly')) {
             const hours = await getHourlyForecast(lat, lng);
             if (hours) latestState.visor = { type:'html', label:'Hourly Forecast', html: buildVisorHourly(hours) };
             else latestState.visor = { type:'html', label:'Hourly', html: '<p style="color:#E8D5B0">Could not load hourly forecast.</p>' };
@@ -1455,28 +1456,28 @@ class RiggyGlasses extends AppServer {
           }
 
           // RADAR
-          if (lower.includes('radar')) {
+          if (lower2.includes('radar')) {
             const radarUrl = `https://www.rainviewer.com/map.html?loc=${lat},${lng},8&oFa=0&oC=0&oU=0&oCS=1&oF=0&oAP=1&rmt=2&c=3&o=83&lm=0&th=0&sm=1&sn=1`;
             latestState.visor = { type:'url', label:'Live Radar', url: radarUrl, summary: 'Animated rain radar — tap to open.' };
             await speakSafe("Radar's on your visor Commander."); latestState.riggySaid = "Radar's on your visor."; return;
           }
 
-          // MAP
-          if (lower.includes('map') && !lower.includes('traffic')) {
-            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
-            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${DEFAULT_CITY}. Tap to open Maps.` };
-            await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
-          }
-
           // TRAFFIC
-          if (lower.includes('traffic')) {
+          if (lower2.includes('traffic')) {
             const trafficUrl = `https://www.google.com/maps/@${lat},${lng},14z/data=!5m1!1e1`;
             latestState.visor = { type:'url', label:'Live Traffic', url: trafficUrl, summary: 'Live traffic map — tap to open.' };
             await speakSafe("Traffic's on your visor Commander."); latestState.riggySaid = "Traffic's on your visor."; return;
           }
 
+          // MAP
+          if (lower2.includes('map')) {
+            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
+            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${loc?.city || DEFAULT_CITY}. Tap to open Maps.` };
+            await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
+          }
+
           // GAS
-          if (lower.includes('gas')) {
+          if (lower2.includes('gas')) {
             const stations = await getNearbyGas(lat, lng);
             if (stations) latestState.visor = { type:'html', label:'Nearest Gas', html: buildVisorGas(stations) };
             else latestState.visor = { type:'url', label:'Gas Stations', url: `https://www.google.com/maps/search/gas+station/@${lat},${lng},14z`, summary: 'Tap to find nearby gas stations.' };
@@ -1484,14 +1485,14 @@ class RiggyGlasses extends AppServer {
           }
 
           // REMINDERS
-          if (lower.includes('reminder')) {
+          if (lower2.includes('reminder')) {
             const remindersList = [...reminders.values()];
             latestState.visor = { type:'html', label:'Reminders', html: buildVisorReminders(remindersList) };
             await speakSafe("Your reminders are on the visor Commander."); latestState.riggySaid = "Reminders on the visor."; return;
           }
 
           // MY DAY
-          if (lower.includes('my day') || lower.includes('show me my day')) {
+          if (lower2.includes('my day')) {
             const [weather, forecast, fact] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng), getDailyFact()]);
             const remindersList = [...reminders.values()];
             latestState.visor = { type:'html', label:'Your Day', html: buildVisorMyDay(weather, forecast, remindersList, fact) };
@@ -1499,27 +1500,24 @@ class RiggyGlasses extends AppServer {
           }
 
           // STREET VIEW
-          if (lower.includes('street view') || lower.includes('street')) {
+          if (lower2.includes('street')) {
             const svUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
             latestState.visor = { type:'url', label:'Street View', url: svUrl, summary: 'Street level view of your current location.' };
             await speakSafe("Street view on your visor Commander."); return;
           }
 
-          // INTEL — silent photo push to visor
-          if (lower.includes('intel')) {
+          // INTEL
+          if (lower2.includes('intel')) {
             const photo = await takePhoto(false);
             if (!photo) { await speakSafe("Couldn't get a shot. Try again."); return; }
-            const analysis = await askGemini('Analyze what you see. Be detailed — this will be read not heard.', sessionId, userId, photo, INTEL_PERSONALITY);
+            const analysis = await askGemini('Analyze what you see. Be detailed — this will be read not heard.', sessionId, userId, photo, null, null, '');
             latestState.visor = { type:'text', label:'Intel Report', content: analysis };
             await speakSafe("Intel's on your visor Commander."); latestState.riggySaid = "Intel on your visor."; return;
           }
 
-          // CONTEXT-AWARE fallback — what were we just talking about
+          // CONTEXT-AWARE fallback
           const visorReply = await askGemini(
-            `Based on our last conversation, what should I show on the visor?
-             Return ONLY valid JSON: { "type": "url", "label": "short label", "url": "full URL", "summary": "one sentence" }
-             Wikipedia for people/places/history. Google Maps for locations. Google Search for everything else.
-             Return ONLY the JSON, nothing else.`,
+            `Based on our last conversation, what should I show on the visor? Return ONLY valid JSON: { "type": "url", "label": "short label", "url": "full URL", "summary": "one sentence" }. Wikipedia for people/places/history. Google Maps for locations. Google Search for everything else. Return ONLY the JSON, nothing else.`,
             sessionId, userId, null, null, null, ''
           );
           try {
