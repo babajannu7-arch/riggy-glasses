@@ -656,14 +656,14 @@ function parseShowMeAboutTopic(text) {
     .trim() || null;
 }
 
-async function fetchWikiImages(topic, limit = 3) {
+async function fetchWikiImages(topic, limit = 2) {
   try {
     const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&srlimit=1&origin=*`);
     const searchData = await searchRes.json();
     const pageTitle = searchData?.query?.search?.[0]?.title;
     if (!pageTitle) return [];
 
-    const imgRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&piprop=thumbnail|original&pithumbsize=400&format=json&origin=*`);
+    const imgRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&piprop=thumbnail|original&pithumbsize=600&format=json&origin=*`);
     const imgData = await imgRes.json();
     const pages = Object.values(imgData?.query?.pages || {});
     const imgs = [];
@@ -679,7 +679,7 @@ async function fetchWikiImages(topic, limit = 3) {
     for (const imgName of imageNames) {
       if (imgs.length >= limit) break;
       try {
-        const infoRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(imgName)}&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=400&format=json&origin=*`);
+        const infoRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(imgName)}&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=600&format=json&origin=*`);
         const infoData = await infoRes.json();
         const infoPages = Object.values(infoData?.query?.pages || {});
         const thumbUrl = infoPages[0]?.imageinfo?.[0]?.thumburl;
@@ -695,45 +695,82 @@ async function fetchWikiSummary(topic) {
     const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
     if (!res.ok) return null;
     const data = await res.json();
-    return data?.extract ? data.extract.slice(0, 300) : null;
+    return data?.extract ? data.extract.slice(0, 280) : null;
   } catch(e) { return null; }
 }
 
-function buildVisorShowMe(topic, images, summary, riggyResponse) {
-  const titleCase = topic.charAt(0).toUpperCase() + topic.slice(1);
-  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
-  html += `<div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.8">${titleCase}</div>`;
+async function fetchQuickFacts(topic) {
+  try {
+    const body = {
+      system_instruction: { parts: [{ text: `Return ONLY a JSON array of 3-4 short fact objects for "${topic}". Each object: {"label":"string","value":"string"}. Label is a category (Size, Lifespan, Range, Speed, Weight, Founded, Population, etc). Value is the stat. Max 2-3 words per value. Return raw JSON array only, no markdown.` }] },
+      contents: [{ role: 'user', parts: [{ text: `quick facts about ${topic}` }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 150, thinkingConfig: { thinkingBudget: 0 } }
+    };
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch(e) { return []; }
+}
 
+function buildVisorShowMeSkeleton(topic) {
+  const titleCase = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:14px;opacity:.7">${titleCase}</div>
+    <div style="width:100%;height:220px;border-radius:14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1);margin-bottom:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative">
+      <div style="position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(107,143,168,0.08),transparent);animation:scan 1.4s ease-in-out infinite"></div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;color:rgba(107,143,168,0.4)">ACQUIRING...</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">
+      ${[1,2,3,4].map(() => `<div style="padding:10px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:10px;text-align:center"><div style="width:40%;height:7px;background:rgba(107,143,168,0.15);border-radius:4px;margin:0 auto 6px"></div><div style="width:70%;height:10px;background:rgba(107,143,168,0.1);border-radius:4px;margin:0 auto"></div></div>`).join('')}
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px">
+      ${[1,2,3].map(() => `<div style="height:9px;background:rgba(232,213,176,0.06);border-radius:4px;margin-bottom:8px"></div>`).join('')}
+    </div>
+    <style>@keyframes scan{0%{left:-60%}100%{left:160%}}</style>
+  </div>`;
+}
+
+function buildVisorShowMe(topic, images, facts, summary) {
+  const titleCase = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  let html = `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">`;
+  html += `<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:14px;opacity:.7">${titleCase}</div>`;
+
+  // Hero image — full width, tall, no grid
   if (images && images.length > 0) {
-    if (images.length === 1) {
-      html += `<div style="margin-bottom:14px;border-radius:12px;overflow:hidden">`;
-      html += `<img src="${images[0].url}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'"/>`;
-      html += `</div>`;
-    } else {
-      html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(images.length, 3)},1fr);gap:6px;margin-bottom:14px">`;
-      images.forEach(img => {
-        html += `<div style="border-radius:10px;overflow:hidden;aspect-ratio:1;background:rgba(255,255,255,0.04)">`;
-        html += `<img src="${img.url}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'"/>`;
-        html += `</div>`;
-      });
+    html += `<div style="width:100%;height:220px;border-radius:14px;overflow:hidden;margin-bottom:14px;position:relative;background:rgba(107,143,168,0.06)">`;
+    html += `<img src="${images[0].url}" style="width:100%;height:100%;object-fit:cover;display:block;animation:fadeIn .5s ease" onerror="this.parentElement.style.display='none'"/>`;
+    // Second image as a small inset if we have one
+    if (images[1]) {
+      html += `<div style="position:absolute;bottom:8px;right:8px;width:72px;height:72px;border-radius:8px;overflow:hidden;border:2px solid rgba(12,14,17,0.8)">`;
+      html += `<img src="${images[1].url}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'"/>`;
       html += `</div>`;
     }
-  }
-
-  if (riggyResponse) {
-    html += `<div style="padding:12px 14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.12);border-radius:12px;margin-bottom:10px">`;
-    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace">Riggy Said</div>`;
-    html += `<div style="font-size:14px;color:#6B8FA8;line-height:1.6;font-weight:300">${riggyResponse}</div>`;
     html += `</div>`;
   }
 
+  // Quick fact chips
+  if (facts && facts.length > 0) {
+    html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(facts.length, 4)},1fr);gap:6px;margin-bottom:14px">`;
+    facts.forEach(f => {
+      html += `<div style="padding:10px 8px;background:rgba(74,104,128,0.08);border:1px solid rgba(107,143,168,0.12);border-radius:10px;text-align:center">`;
+      html += `<div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;color:#9E8A68;margin-bottom:4px;text-transform:uppercase">${f.label}</div>`;
+      html += `<div style="font-size:13px;color:#6B8FA8;font-weight:500;line-height:1.2">${f.value}</div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Wikipedia background
   if (summary) {
     html += `<div style="padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px">`;
-    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;font-family:'DM Mono',monospace">Background</div>`;
-    html += `<div style="font-size:13px;color:rgba(232,213,176,0.7);line-height:1.65">${summary}</div>`;
+    html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px;font-family:'DM Mono',monospace">Background</div>`;
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.65);line-height:1.65">${summary}</div>`;
     html += `</div>`;
   }
 
+  html += `<style>@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>`;
   html += `</div>`;
   return html;
 }
@@ -1269,21 +1306,32 @@ class RiggyGlasses extends AppServer {
         if (isShowMeAboutRequest(userSaid)) {
           const topic = parseShowMeAboutTopic(userSaid);
           if (topic) {
-            // Kick off wiki fetch and Gemini in parallel
-            const [images, summary, riggyReply] = await Promise.all([
-              fetchWikiImages(topic, 3),
-              fetchWikiSummary(topic),
-              askGemini(
-                `Tell me about ${topic} in your voice. Two sentences max. Be interesting, drop a surprising fact.`,
-                sessionId, userId, null, null, null, ''
-              )
-            ]);
-            // Speak while visor loads
-            if (riggyReply) { await speakSafe(riggyReply); latestState.riggySaid = riggyReply; }
+            // PHASE 1 — skeleton visor fires instantly
             latestState.visor = {
               type: 'html',
               label: topic.toUpperCase(),
-              html: buildVisorShowMe(topic, images, summary, riggyReply)
+              html: buildVisorShowMeSkeleton(topic)
+            };
+
+            // PHASE 2 — speak + fetch everything in parallel, don't await each other
+            const [riggyReply, images, facts, summary] = await Promise.all([
+              askGemini(
+                `Tell me about ${topic} in your voice. Two sentences max. Drop one genuinely surprising fact most people don't know.`,
+                sessionId, userId, null, null, null, ''
+              ),
+              fetchWikiImages(topic, 2),
+              fetchQuickFacts(topic),
+              fetchWikiSummary(topic)
+            ]);
+
+            // Speak first
+            if (riggyReply) { await speakSafe(riggyReply); latestState.riggySaid = riggyReply; }
+
+            // Then update visor with full content
+            latestState.visor = {
+              type: 'html',
+              label: topic.toUpperCase(),
+              html: buildVisorShowMe(topic, images, facts, summary)
             };
             return;
           }
