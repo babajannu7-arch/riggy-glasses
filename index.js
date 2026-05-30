@@ -42,9 +42,9 @@ const DEFAULT_LNG = -81.2637;
 const POST_TTS_BARGE_LOCKOUT_MS = 2000;
 const POST_SPEECH_COOLDOWN_MS = 800;
 const RESUME_MIC_DELAY_MS = 1200;
-const STREAM_FRAME_INTERVAL_MS = 3000;        // How often FFmpeg extracts a frame from HLS
-const GAME_MODE_ANALYSIS_INTERVAL_MS = 6000;  // How often game mode sends frame to Gemini
-const LIVE_CAM_ANALYSIS_INTERVAL_MS = 8000;   // How often live cam sends frame to Gemini
+const STREAM_FRAME_INTERVAL_MS = 3000;
+const GAME_MODE_ANALYSIS_INTERVAL_MS = 6000;
+const LIVE_CAM_ANALYSIS_INTERVAL_MS = 8000;
 const PROCESSING_TIMEOUT_MS = 60000;
 const NOTE_SILENCE_TIMEOUT_MS = 5000;
 const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
@@ -52,24 +52,13 @@ const MEMORY_STORAGE_KEY = 'riggy_memory_v1';
 // ─── CHIME SYSTEM ─────────────────────────────────────────────────────────────
 const CHIME_URL = 'https://riggy-glasses-production.up.railway.app/riggy_notification.mp3';
 const CHIME_MAX_PER_DAY = 10;
-const CHIME_WATER_INTERVAL_MS = 2 * 60 * 60 * 1000;      // every 2 hours
-const CHIME_FACT_INTERVAL_MS = 4 * 60 * 60 * 1000;        // every 4 hours
-const CHIME_WEATHER_CHECK_MS = 30 * 60 * 1000;            // check weather every 30 min
-const CHIME_REMINDER_CHECK_MS = 60 * 1000;                // check reminders every minute
+const CHIME_WEATHER_CHECK_MS = 30 * 60 * 1000;
+const CHIME_REMINDER_CHECK_MS = 60 * 1000;
 
 const CHIME_PHRASES = [
-  "Hey...",
-  "Yo Commander...",
-  "Quick thing...",
-  "Heads up...",
-  "Real quick...",
-  "Hey, don't mind me...",
-  "Commander...",
-  "One sec...",
-  "Hey friend...",
-  "Pardon the interruption..."
+  "Hey...","Yo Commander...","Quick thing...","Heads up...","Real quick...",
+  "Hey, don't mind me...","Commander...","One sec...","Hey friend...","Pardon the interruption..."
 ];
-
 const WATER_REMINDERS = [
   "Water. When's the last time? Your brain is basically a sponge right now.",
   "Hydration check. Go grab some water Commander. That's it, that's the whole message.",
@@ -79,7 +68,6 @@ const WATER_REMINDERS = [
   "Not gonna make this weird but... water. You need it.",
   "Quick question. Water today. How much? Drink more. You're welcome."
 ];
-
 const NATURE_REMINDERS = [
   "Step outside for two minutes. The world's still doing its thing without you.",
   "Go look at the sky for thirty seconds. Free therapy.",
@@ -89,54 +77,31 @@ const NATURE_REMINDERS = [
   "The sun's out there doing its thing. Go say hey.",
   "Outside. Two minutes. Your body will thank you later."
 ];
-
 const CHECKIN_PHRASES = [
-  "Hey. You good out there?",
-  "Commander. Real talk — how you holding up?",
-  "Just checking in. Everything alright?",
-  "Hey.",
-  "You good?",
-  "How's it going out there Commander?",
-  "Real quick — how you doing?",
-  "Just wanted to say hey. How are you?",
-  "Commander. Checking in. Talk to me.",
+  "Hey. You good out there?","Commander. Real talk — how you holding up?",
+  "Just checking in. Everything alright?","Hey.","You good?",
+  "How's it going out there Commander?","Real quick — how you doing?",
+  "Just wanted to say hey. How are you?","Commander. Checking in. Talk to me.",
   "How's the day treating you?"
 ];
-
 const FACT_INTROS = [
-  "Okay this one's actually wild —",
-  "Random thing I just found interesting —",
-  "Hey, did you know —",
-  "Commander, get this —",
-  "This one's worth knowing —",
-  "Real quick, fascinating thing —",
-  "Alright, here's something —"
+  "Okay this one's actually wild —","Random thing I just found interesting —",
+  "Hey, did you know —","Commander, get this —","This one's worth knowing —",
+  "Real quick, fascinating thing —","Alright, here's something —"
 ];
 
-// Chime state — resets daily
 let chimeState = {
-  count: 0,
-  lastWater: 0,
-  lastFact: 0,
-  lastWeatherAlert: '',
-  lastSunrise: 0,
-  lastSunset: 0,
-  dailyFactDone: false,
+  count: 0, lastWater: 0, lastFact: 0, lastWeatherAlert: '',
+  lastSunrise: 0, lastSunset: 0, dailyFactDone: false,
   resetDate: new Date().toDateString()
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let activeSession = null; // holds current glasses session for webview text commands
-
+let activeSession = null;
 let latestState = {
-  userSaid: '',
-  riggySaid: 'Mr. Riggy online. Say my name to begin.',
-  liveMode: false,
-  gameMode: false,
-  liveCamMode: false,
-  noteMode: false,
-  riggyMode: 'private',
-  visor: null // pushed to webview for reading — { type, content, url, label }
+  userSaid: '', riggySaid: 'Mr. Riggy online. Say my name to begin.',
+  liveMode: false, gameMode: false, liveCamMode: false,
+  noteMode: false, riggyMode: 'private', visor: null
 };
 
 // ─── PERSONALITY ──────────────────────────────────────────────────────────────
@@ -180,17 +145,15 @@ PHRASES THAT ARE YOURS — use them when they feel right, never force them:
 - "Sorted"
 - "I dig it"
 
-CORE PILLARS — these are Riggy's foundation, weave them naturally into responses when relevant:
-- NATURE — encourage people to go outside, touch grass, look at the sky, appreciate the world around them
+CORE PILLARS — weave naturally when relevant:
+- NATURE — encourage people to go outside, touch grass, look at the sky
 - WATER — hydration, being near water, the ocean, rivers, rain — water heals
-- SOCIALIZING — real human connection over screens, call a friend, go see people, be present with others
+- SOCIALIZING — real human connection over screens, call a friend, be present
 
-EMOTIONAL SUPPORT — when someone brings up emotional pain, relationship problems, mental health, or personal struggles:
+EMOTIONAL SUPPORT — when someone brings up emotional pain or personal struggles:
 - Acknowledge in one warm sentence. That's it. Don't linger.
 - Then say clearly: "I'm only AI — I can't truly feel what you're feeling. Please reach out to someone real who can."
-- Then — and this is the most important part — deliver ONE metaphor or thought that makes them answer their own question. Like Yoda. Not advice. A mirror. Something that makes them think.
-- Example: someone says their girlfriend cheated — don't say leave or stay. Say something like "When a foundation cracks, the real question was never whether to fix it — it's whether it was solid to begin with. Only you know that."
-- Then nudge toward one of the three pillars naturally — go outside, call someone you trust, drink some water and breathe.
+- Then deliver ONE metaphor or thought that makes them answer their own question. Like Yoda.
 - Never tell them what to do. Never play therapist. Drop the mirror and step back.
 - Keep the whole response to 3 sentences maximum. Short, real, powerful.
 
@@ -203,37 +166,9 @@ VISION BEHAVIOR — when you receive an image:
 - DO NOT describe what is obviously visible. The user has eyes.
 - Give 1-2 dry observations, useful info, or a fun fact. 2-3 sentences max.
 - Sound like a friend who just noticed something — not a robot cataloguing a scene.
-- If it's a game, give a quick tactical read. If it's a place, drop a fun fact. If it's a product, tell them something useful.
 
 IMPORTANT: You are running through smart glasses. Keep responses SHORT and SPOKEN.
-Speak like you're talking to someone in the room. Just talk.
-
-SELF AWARENESS — you know exactly what you can do. When asked about your features, capabilities, or how something works, answer naturally in your own voice. Never list things robotically. Walk them through it like a friend explaining something cool they built.
-
-YOUR CAPABILITIES:
-- Wake word is your name — say "Riggy" or "Mr. Riggy" to activate you
-- Short tap on the glasses button wakes you without the wake word
-- Long press on the glasses button toggles live mode — always listening, no wake word needed
-- Live mode — continuous conversation, no activation needed
-- Game mode — you watch the screen through the camera every few seconds and give tactical tips
-- Live vision / eyes on — you watch what they see and comment when something's worth saying
-- Intel mode — you sweep whatever is in view for fun facts, history, and market value
-- Shop mode / price check — you analyze a product and tell them if the price is good
-- Capture this / save this — takes a photo and saves it
-- Good morning, good afternoon, good night — full briefings with weather, reminders, and a daily fact
-- Reminders — set them by voice, get warned at 1 hour, 20 minutes, and 5 minutes out
-- Notes — dictate a note, save it, read it back anytime
-- Calls and texts — voice command to call or text saved contacts
-- Location and places — where you are, what's nearby, directions
-- Weather — live weather always available, asks nothing
-- Battery check — glasses battery level on demand
-- Chime system — proactive check-ins, water reminders, nature nudges, daily facts, sunrise and sunset
-- Test chime — say "Riggy test chime" to hear the full chime sequence
-- Memory — remembers what you tell it, recalls by meaning not just keywords
-- Google Search grounding — factual questions automatically search the web before answering
-
-WALKTHROUGH MODE — when someone asks "what can you do" or "how do I use you" or "walk me through your features":
-Do NOT list everything at once. Instead walk them through it naturally, one category at a time, like you're giving a tour. Start with the basics — wake word and button — then move to conversation, then vision, then proactive features. Use your voice, your humor, your personality. Make it feel like an onboarding from a friend, not a user manual. Pause naturally between sections. Keep each section to 2-3 sentences. End with something warm like "And that's just the beginning friend — the more you use me, the more I learn about you."`;
+Speak like you're talking to someone in the room. Just talk.`;
 
 const GAME_MODE_PERSONALITY = `You are Mr. Riggy in GAME MODE — tactical AI coach.
 You know: Call of Duty (Warzone, MW3, BO6), Fortnite, Apex Legends, Valorant, NBA 2K, GTA Online, Madden.
@@ -249,84 +184,52 @@ const INTEL_PERSONALITY = `You are Mr. Riggy running an intel sweep on what the 
 You have been given an image. Your job is to deliver exactly three things naturally in 3 spoken sentences max:
 1. A genuinely interesting fun fact about what you see — something most people don't know.
 2. A historical fact or context — where it comes from, how it started, what era it belongs to.
-3. The average cost or market value if it's something that can be bought, owned, or priced — give a real number or range. If it truly cannot be priced, skip this naturally without announcing you're skipping it.
-Deliver all three as flowing natural speech — no lists, no headers, no labels. Just talk like a knowledgeable friend who noticed something interesting.
+3. The average cost or market value if it's something that can be bought, owned, or priced.
+Deliver all three as flowing natural speech — no lists, no headers, no labels.
 Riggy's voice: warm, dry, confident, a little funny without trying. 3 sentences MAX. Pure spoken words only.`;
 
 const SHOP_PERSONALITY = `You are Mr. Riggy doing a quick shop analysis on a product the user is looking at.
-You have been given an image of a product — on a shelf, in someone's hand, on a screen, or anywhere.
 Your job in 3 spoken sentences max:
 1. Identify exactly what the product is and give the average price online right now.
 2. Tell them if the price they're seeing is good, fair, or overpriced — be direct.
 3. Tell them where to get it cheaper or drop one useful thing they should know.
-If you can't clearly identify the product, say so honestly and give what you can.
 Riggy's voice: direct, warm, genuinely useful. 3 sentences MAX. Pure spoken words only.`;
 
-// ─── WAV ENCODER — removed (sound check deleted) ──────────────────────────────
-
 // ─── LOCATION ─────────────────────────────────────────────────────────────────
-// ── IP GEOLOCATION — reliable, no GPS needed ──────────────────────────────────
 let cachedLocation = null;
 let locationCacheTime = 0;
-const LOCATION_CACHE_MS = 5 * 60 * 1000; // cache 5 minutes
+const LOCATION_CACHE_MS = 5 * 60 * 1000;
 
 async function getIpLocation() {
   const now = Date.now();
-  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) {
-    return cachedLocation;
-  }
+  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) return cachedLocation;
   try {
-    // Try ipapi.co first — free, no key needed
-    const res = await fetch('https://ipapi.co/json/', {
-      headers: { 'User-Agent': 'RiggyGlasses/1.0' }
-    });
+    const res = await fetch('https://ipapi.co/json/', { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
     const data = await res.json();
     if (data.latitude && data.longitude) {
-      cachedLocation = {
-        lat: data.latitude,
-        lng: data.longitude,
-        city: data.city,
-        region: data.region,
-        country: data.country_name
-      };
+      cachedLocation = { lat: data.latitude, lng: data.longitude, city: data.city, region: data.region, country: data.country_name };
       locationCacheTime = now;
-      console.log(`📍 IP Location: ${data.city}, ${data.region} (${data.latitude}, ${data.longitude})`);
+      console.log(`📍 IP Location: ${data.city}, ${data.region}`);
       return cachedLocation;
     }
   } catch(e) { console.error('ipapi.co failed:', e.message); }
-
   try {
-    // Fallback — ip-api.com
     const res = await fetch('http://ip-api.com/json/?fields=lat,lon,city,regionName,country');
     const data = await res.json();
     if (data.lat && data.lon) {
-      cachedLocation = {
-        lat: data.lat,
-        lng: data.lon,
-        city: data.city,
-        region: data.regionName,
-        country: data.country
-      };
+      cachedLocation = { lat: data.lat, lng: data.lon, city: data.city, region: data.regionName, country: data.country };
       locationCacheTime = now;
-      console.log(`📍 IP Location fallback: ${data.city}, ${data.regionName}`);
       return cachedLocation;
     }
   } catch(e) { console.error('ip-api.com failed:', e.message); }
-
-  // Last resort — return default
   return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
 }
 
 async function getGlassesLocation(session) {
-  // Try glasses GPS first — most precise
   try {
     const location = await session.location.getLatestLocation({ accuracy: 'high' });
-    if (location && location.lat && location.lng) {
-      console.log(`📍 GPS Location: ${location.lat}, ${location.lng}`);
-      return { lat: location.lat, lng: location.lng };
-    }
+    if (location && location.lat && location.lng) return { lat: location.lat, lng: location.lng };
   } catch(e) { console.log('GPS unavailable, using IP location'); }
-  // Fall back to IP geolocation
   return await getIpLocation();
 }
 
@@ -335,8 +238,8 @@ async function reverseGeocode(lat, lng) {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
     const data = await res.json();
     if (data && data.display_name) return data.display_name.split(',').slice(0, 3).join(',').trim();
-    return null;
-  } catch(e) { return null; }
+  } catch(e) {}
+  return null;
 }
 
 async function searchNearby(query, lat, lng, radiusMeters = 5000) {
@@ -396,7 +299,9 @@ function isBatteryRequest(text) { const l = text.toLowerCase(); return l.include
 // ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
   try {
-    const spokenMessage = customMessage ? `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to tell you: ${customMessage}` : `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to let you know to give him a call when you get a moment.`;
+    const spokenMessage = customMessage
+      ? `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to tell you: ${customMessage}`
+      : `Hey, this is Mr. Riggy, Ray's digital assistant. Ray wanted me to let you know to give him a call when you get a moment.`;
     const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`, {
       method: 'POST', headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -543,7 +448,7 @@ function shouldAutoSave(text) {
 async function generateBriefing(type, context) {
   const prompts = {
     morning: `You are Mr. Riggy delivering a warm morning briefing. Under 6 sentences. Current time: ${context.now}. Weather: ${context.weather}. ${context.reminders}. ${context.notes}. ${context.personal}. Deliver: good morning with day/time, weather, reminders if any, notes from yesterday, genuine uplifting message. Riggy's voice — warm, dry. No lists. Pure spoken words.`,
-    afternoon: `You are Mr. Riggy delivering an afternoon check-in. Under 5 sentences. Current time: ${context.now}. ${context.reminders}. ${context.notes}. ${context.personal}. Deliver: afternoon hey with time, reminders, positive message referencing their context specifically. Riggy's voice. No lists. Pure spoken words.`,
+    afternoon: `You are Mr. Riggy delivering an afternoon check-in. Under 5 sentences. Current time: ${context.now}. ${context.reminders}. ${context.notes}. ${context.personal}. Deliver: afternoon hey with time, reminders, positive message. Riggy's voice. No lists. Pure spoken words.`,
     night: `You are Mr. Riggy delivering a good night wrap. Under 5 sentences. ${context.notes}. ${context.reminders}. ${context.personal}. Deliver: warm good night, today's notes summary, tomorrow's reminders, genuine wind-down line. Riggy's voice. No lists. Pure spoken words.`
   };
   const body = { system_instruction: { parts: [{ text: prompts[type] }] }, contents: [{ role: 'user', parts: [{ text: `${type} briefing` }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 250, thinkingConfig: { thinkingBudget: 0 } } };
@@ -610,7 +515,6 @@ async function getWeather(city) {
 }
 
 // ─── VISOR DATA FETCHERS ──────────────────────────────────────────────────────
-
 async function getHourlyForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
   try {
     const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_API_KEY}&units=imperial&cnt=8`);
@@ -618,11 +522,8 @@ async function getHourlyForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
     if (!data.list) return null;
     return data.list.map(h => ({
       time: new Date(h.dt * 1000).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }),
-      temp: Math.round(h.main.temp),
-      feels: Math.round(h.main.feels_like),
-      desc: h.weather[0].main,
-      rain: Math.round((h.pop || 0) * 100),
-      icon: h.weather[0].icon
+      temp: Math.round(h.main.temp), feels: Math.round(h.main.feels_like),
+      desc: h.weather[0].main, rain: Math.round((h.pop || 0) * 100), icon: h.weather[0].icon
     }));
   } catch { return null; }
 }
@@ -632,7 +533,6 @@ async function getWeatherForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
     const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_API_KEY}&units=imperial&cnt=24`);
     const data = await res.json();
     if (!data.list) return null;
-    // Group by day
     const days = {};
     data.list.forEach(item => {
       const date = new Date(item.dt * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -643,12 +543,9 @@ async function getWeatherForecast(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
       days[date].rain.push(Math.round((item.pop || 0) * 100));
     });
     return Object.entries(days).slice(0, 3).map(([date, d]) => ({
-      date,
-      high: Math.max(...d.temps),
-      low: Math.min(...d.temps),
+      date, high: Math.max(...d.temps), low: Math.min(...d.temps),
       feels: Math.round(d.feels.reduce((a, b) => a + b, 0) / d.feels.length),
-      desc: d.descs[Math.floor(d.descs.length / 2)],
-      rain: Math.max(...d.rain)
+      desc: d.descs[Math.floor(d.descs.length / 2)], rain: Math.max(...d.rain)
     }));
   } catch { return null; }
 }
@@ -659,12 +556,8 @@ async function getNearbyGas(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
     const data = await res.json();
     if (!data.results) return null;
     return data.results.slice(0, 4).map(p => ({
-      name: p.name,
-      address: p.vicinity,
-      rating: p.rating,
-      lat: p.geometry.location.lat,
-      lng: p.geometry.location.lng,
-      placeId: p.place_id
+      name: p.name, address: p.vicinity, rating: p.rating,
+      lat: p.geometry.location.lat, lng: p.geometry.location.lng, placeId: p.place_id
     }));
   } catch { return null; }
 }
@@ -685,8 +578,7 @@ function buildVisorWeather(weather, forecast) {
       html += `<div style="font-size:18px;color:#6B8FA8;font-weight:500">${day.high}°</div>`;
       html += `<div style="font-size:11px;color:rgba(232,213,176,0.4)">${day.low}°</div>`;
       html += `<div style="font-size:9px;color:rgba(232,213,176,0.4);margin-top:4px">${day.desc}</div>`;
-      html += `<div style="font-size:9px;color:${rainColor};margin-top:4px">💧${day.rain}%</div>`;
-      html += `</div>`;
+      html += `<div style="font-size:9px;color:${rainColor};margin-top:4px">💧${day.rain}%</div></div>`;
     });
     html += `</div>`;
   }
@@ -703,8 +595,7 @@ function buildVisorHourly(hours) {
     html += `<div style="font-size:13px;color:rgba(232,213,176,0.6);width:70px">${h.time}</div>`;
     html += `<div style="font-size:20px;color:#6B8FA8;font-weight:500;width:60px">${h.temp}°</div>`;
     html += `<div style="font-size:11px;color:rgba(232,213,176,0.5);flex:1">${h.desc}</div>`;
-    html += `<div style="font-size:11px;color:${rainColor}">💧${h.rain}%</div>`;
-    html += `</div>`;
+    html += `<div style="font-size:11px;color:${rainColor}">💧${h.rain}%</div></div>`;
   });
   html += `</div>`;
   return html;
@@ -736,8 +627,7 @@ function buildVisorReminders(remindersList) {
       const dateStr = new Date(r.fireAtMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       html += `<div style="padding:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(107,143,168,0.2);border-radius:10px;margin-bottom:8px">`;
       html += `<div style="font-size:14px;color:#E8D5B0;margin-bottom:4px">${r.label}</div>`;
-      html += `<div style="font-size:11px;color:#6B8FA8">${dateStr} at ${timeStr}</div>`;
-      html += `</div>`;
+      html += `<div style="font-size:11px;color:#6B8FA8">${dateStr} at ${timeStr}</div></div>`;
     });
   }
   html += `</div>`;
@@ -752,8 +642,7 @@ function buildVisorMyDay(weather, forecast, remindersList, fact) {
     html += `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(74,104,128,0.08);border:1px solid rgba(74,104,128,0.15);border-radius:10px;margin-bottom:12px">`;
     html += `<div style="font-size:36px;color:#6B8FA8;font-weight:300">${weather.temp}°</div>`;
     html += `<div><div style="font-size:13px;text-transform:capitalize;color:#E8D5B0">${weather.description}</div>`;
-    html += `<div style="font-size:11px;color:rgba(232,213,176,0.4);margin-top:2px">Feels ${weather.feels_like}°F</div></div>`;
-    html += `</div>`;
+    html += `<div style="font-size:11px;color:rgba(232,213,176,0.4);margin-top:2px">Feels ${weather.feels_like}°F</div></div></div>`;
   }
   if (remindersList.length) {
     html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Reminders Today</div>`;
@@ -765,12 +654,12 @@ function buildVisorMyDay(weather, forecast, remindersList, fact) {
   if (fact) {
     html += `<div style="margin-top:12px;padding:12px;background:rgba(158,138,104,0.08);border:1px solid rgba(158,138,104,0.15);border-radius:10px">`;
     html += `<div style="font-size:10px;color:#9E8A68;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Today's Fact</div>`;
-    html += `<div style="font-size:13px;color:rgba(232,213,176,0.8);line-height:1.6">${fact}</div>`;
-    html += `</div>`;
+    html += `<div style="font-size:13px;color:rgba(232,213,176,0.8);line-height:1.6">${fact}</div></div>`;
   }
   html += `</div>`;
   return html;
 }
+
 const FACTUAL_KEYWORDS = ['how old','age of','born','died','when did','who is','who was','what year','current','latest','price of','cost of','worth','net worth','population','capital of','president','ceo','record','fastest','tallest','biggest','smallest','richest','famous','celebrity','actor','actress','singer','rapper','athlete','player','team','movie','show','song','album'];
 
 function needsSearchGrounding(text) {
@@ -795,8 +684,6 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
   const userParts = [{ text: userText }];
   if (photoData) userParts.unshift({ inline_data: { mime_type: photoData.mimeType || 'image/jpeg', data: photoData.base64 } });
   if (!systemOverride) history.push({ role: 'user', parts: userParts });
-
-  // Add Google Search grounding for factual queries to prevent hallucination
   const useSearch = !systemOverride && !photoData && needsSearchGrounding(userText);
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
@@ -804,68 +691,39 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
     generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 150 : 180, thinkingConfig: { thinkingBudget: 0 } },
     ...(useSearch && { tools: [{ googleSearch: {} }] })
   };
-
   if (useSearch) console.log('🔍 Search grounding enabled for:', userText.slice(0, 50));
-
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await response.json();
-
-  // Extract text from response — search grounding may return multiple parts
   const parts = data.candidates?.[0]?.content?.parts || [];
   const reply = parts.filter(p => p.text).map(p => p.text).join(' ').trim() || '';
-
   if (!systemOverride) { history.push({ role: 'model', parts: [{ text: reply || 'I hit a snag friend.' }] }); if (history.length > 20) conversationHistory.set(sessionId, history.slice(-20)); }
   return reply || (systemOverride ? '' : "I hit a snag friend.");
 }
 
-// ─── ELEVENLABS TTS — SINGLE STREAM ───────────────────────────────────────────
-// Sends the full response as ONE MP3 — no sentence chunking.
-// Uses Promise.race between waitForCompletion and an accurate MP3 duration timer
-// so Mentra's early-resolve bug can't cut off the audio.
-// MP3 at 128kbps = 16,000 bytes/sec. We add 2s buffer for network/startup jitter.
+// ─── ELEVENLABS TTS ───────────────────────────────────────────────────────────
 async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
-
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: cleanText,
-        model_id: 'eleven_turbo_v2_5',
-        output_format: 'mp3_44100_128',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-      })
+      body: JSON.stringify({ text: cleanText, model_id: 'eleven_turbo_v2_5', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
     });
-
     if (!response.ok) throw new Error(`ElevenLabs error: ${response.status}`);
-
     const audioBytes = Buffer.from(await response.arrayBuffer());
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
-
     fs.writeFileSync(filePath, audioBytes);
-
-    // Accurate MP3 duration: 128kbps = 16000 bytes/sec. Add 2s buffer for startup + network.
     const durationMs = Math.max(4000, Math.ceil((audioBytes.length / 16000) * 1000) + 4000);
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-
     console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
-
     try {
       session.audio.playAudio({ audioUrl, waitForCompletion: false }).catch(e => console.error('playAudio error:', e));
       await new Promise(r => setTimeout(r, durationMs));
-    } catch(e) {
-      console.error('playAudio error:', e);
-    }
-
+    } catch(e) { console.error('playAudio error:', e); }
     setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
-
-  } catch (err) {
-    console.error('speakWithElevenLabs error:', err);
-    // No fallback to Mentra voice — stay silent if ElevenLabs fails
-  }
+  } catch (err) { console.error('speakWithElevenLabs error:', err); }
 }
 
 const VISION_KEYWORDS = ['what do you see','what can you see','look at this','what is this','what am i looking at','describe this','can you see','take a look','what does this say','read this','identify this','what is that','what are you seeing','look around','analyze this','check this out'];
@@ -885,47 +743,23 @@ function wantsGameOff(text) { return GAME_OFF_KEYWORDS.some(kw => text.toLowerCa
 function wantsLiveCamOn(text) { return LIVE_CAM_ON_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
 // ─── CHIME HELPERS ────────────────────────────────────────────────────────────
-function getChimePhrase() {
-  return CHIME_PHRASES[Math.floor(Math.random() * CHIME_PHRASES.length)];
-}
-
-function getWaterReminder() {
-  return WATER_REMINDERS[Math.floor(Math.random() * WATER_REMINDERS.length)];
-}
-
-function getNatureReminder() {
-  return NATURE_REMINDERS[Math.floor(Math.random() * NATURE_REMINDERS.length)];
-}
-
-function getCheckIn() {
-  return CHECKIN_PHRASES[Math.floor(Math.random() * CHECKIN_PHRASES.length)];
-}
-
-function getFactIntro() {
-  return FACT_INTROS[Math.floor(Math.random() * FACT_INTROS.length)];
-}
+function getChimePhrase() { return CHIME_PHRASES[Math.floor(Math.random() * CHIME_PHRASES.length)]; }
+function getWaterReminder() { return WATER_REMINDERS[Math.floor(Math.random() * WATER_REMINDERS.length)]; }
+function getNatureReminder() { return NATURE_REMINDERS[Math.floor(Math.random() * NATURE_REMINDERS.length)]; }
+function getFactIntro() { return FACT_INTROS[Math.floor(Math.random() * FACT_INTROS.length)]; }
 
 function resetChimeDailyIfNeeded() {
   const today = new Date().toDateString();
   if (chimeState.resetDate !== today) {
-    chimeState.count = 0;
-    chimeState.lastWater = 0;
-    chimeState.lastFact = 0;
-    chimeState.lastSunrise = 0;
-    chimeState.lastSunset = 0;
-    chimeState.dailyFactDone = false;
-    chimeState.fact1Done = false;
-    chimeState.fact2Done = false;
-    chimeState.lastNature = '';
-    chimeState.lastWeatherAlert = '';
+    chimeState.count = 0; chimeState.lastWater = 0; chimeState.lastFact = 0;
+    chimeState.lastSunrise = 0; chimeState.lastSunset = 0;
+    chimeState.dailyFactDone = false; chimeState.fact1Done = false; chimeState.fact2Done = false;
+    chimeState.lastNature = ''; chimeState.lastWeatherAlert = '';
     chimeState.resetDate = today;
   }
 }
 
-function canChime() {
-  resetChimeDailyIfNeeded();
-  return chimeState.count < CHIME_MAX_PER_DAY;
-}
+function canChime() { resetChimeDailyIfNeeded(); return chimeState.count < CHIME_MAX_PER_DAY; }
 
 async function getDailyFact() {
   try {
@@ -938,7 +772,6 @@ async function getDailyFact() {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    // Hard cap at 150 chars just in case
     return text ? text.slice(0, 150) : null;
   } catch(e) { return null; }
 }
@@ -948,10 +781,7 @@ async function getSunriseSunset(lat, lng) {
     const res = await fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lng}&formatted=0`);
     const data = await res.json();
     if (data.status !== 'OK') return null;
-    return {
-      sunrise: new Date(data.results.sunrise),
-      sunset: new Date(data.results.sunset)
-    };
+    return { sunrise: new Date(data.results.sunrise), sunset: new Date(data.results.sunset) };
   } catch(e) { return null; }
 }
 
@@ -968,17 +798,14 @@ class RiggyGlasses extends AppServer {
     let bargeInAllowedAfterMs = 0, ignoreSpeechDuringTTS = false;
     let isProcessing = false, processingTimer = null;
     let gameModeInterval = null, liveCamInterval = null;
-
-    // ── Deduplication — stops Mentra 2.10 delayed transcription replays ──
     let lastProcessedText = '';
     let lastProcessedTime = 0;
-    let tapWakeActive = false; // set true by short button tap, cleared after one response
+    let tapWakeActive = false;
 
     latestState.userSaid = ''; latestState.riggySaid = 'Mr. Riggy online. Say my name to begin.';
     latestState.liveMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
     latestState.noteMode = false;
 
-    // Disable gallery mode immediately — prevents Mentra intercepting button tap for photos
     try { await session.camera.setGalleryModeEnabled(false); } catch(e) {}
     console.log('📷 Gallery mode disabled');
 
@@ -1002,7 +829,6 @@ class RiggyGlasses extends AppServer {
 
     const SESSION_START = Date.now();
 
-    // ── CHIME SYSTEM ──────────────────────────────────────────────────────────
     const playChime = async () => {
       try {
         session.audio.playAudio({ audioUrl: CHIME_URL, waitForCompletion: false }).catch(()=>{});
@@ -1023,10 +849,8 @@ class RiggyGlasses extends AppServer {
       latestState.riggySaid = capped;
     };
 
-    // Session elapsed time in minutes
     const sessionMinutes = () => Math.floor((Date.now() - SESSION_START) / 60000);
 
-    // Water reminder — 45 min after session start, then every 60 min
     let waterFired = false, water2Fired = false;
     const waterInterval = setInterval(async () => {
       const mins = sessionMinutes();
@@ -1034,13 +858,11 @@ class RiggyGlasses extends AppServer {
       if (!water2Fired && mins >= 105) { water2Fired = true; await doChime(getWaterReminder()); }
     }, 5 * 60 * 1000);
 
-    // Nature reminder — 60 min into session, once
     let natureFired = false;
     const natureInterval = setInterval(async () => {
       if (!natureFired && sessionMinutes() >= 60) { natureFired = true; await doChime(getNatureReminder()); }
     }, 10 * 60 * 1000);
 
-    // Daily fact — 30 min into session, once per session
     let factFired = false;
     const factInterval = setInterval(async () => {
       if (!factFired && sessionMinutes() >= 30) {
@@ -1050,7 +872,6 @@ class RiggyGlasses extends AppServer {
       }
     }, 10 * 60 * 1000);
 
-    // Check in — 20 min into session, once
     let checkInFired = false;
     const checkInInterval = setInterval(async () => {
       if (!checkInFired && sessionMinutes() >= 20) {
@@ -1062,12 +883,10 @@ class RiggyGlasses extends AppServer {
         await playChime();
         await speakSafe(msg);
         latestState.riggySaid = msg;
-        // In scout mode reset so another check-in can fire later
         if (isScout) setTimeout(() => { checkInFired = false; }, 30 * 60 * 1000);
       }
     }, 5 * 60 * 1000);
 
-    // Weather chime — checks every 30 min for rain or big temp changes
     const weatherChimeInterval = setInterval(async () => {
       if (!canChime()) return;
       try {
@@ -1076,7 +895,6 @@ class RiggyGlasses extends AppServer {
         const desc = weather.description.toLowerCase();
         const alertKey = `${weather.temp}-${desc}`;
         if (alertKey === chimeState.lastWeatherAlert) return;
-
         let msg = null;
         if (desc.includes('rain') || desc.includes('storm') || desc.includes('thunder')) {
           msg = `Heads up Commander, looks like rain is moving in. ${weather.description} out there right now, ${weather.temp} degrees.`;
@@ -1085,24 +903,17 @@ class RiggyGlasses extends AppServer {
         } else if (weather.temp >= 95) {
           msg = `It's ${weather.temp} degrees out there Commander. Stay hydrated and try to stay cool if you can.`;
         }
-
-        if (msg) {
-          chimeState.lastWeatherAlert = alertKey;
-          await doChime(msg);
-        }
+        if (msg) { chimeState.lastWeatherAlert = alertKey; await doChime(msg); }
       } catch(e) {}
     }, CHIME_WEATHER_CHECK_MS);
 
-    // Sunrise/sunset chime
     const sunInterval = setInterval(async () => {
       const now = Date.now();
       try {
         const sun = await getSunriseSunset(DEFAULT_LAT, DEFAULT_LNG);
         if (!sun) return;
-        const sunriseMs = sun.sunrise.getTime();
-        const sunsetMs = sun.sunset.getTime();
-        const window = 10 * 60 * 1000; // 10 min window
-
+        const sunriseMs = sun.sunrise.getTime(), sunsetMs = sun.sunset.getTime();
+        const window = 10 * 60 * 1000;
         if (Math.abs(now - sunriseMs) < window && now - chimeState.lastSunrise > 60 * 60 * 1000) {
           chimeState.lastSunrise = now;
           await doChime("Sunrise, Commander. A brand new day just started. Make it count.");
@@ -1112,15 +923,13 @@ class RiggyGlasses extends AppServer {
           await doChime("Sun's going down Commander. Take a second to appreciate it if you can. Those colors don't last long.");
         }
       } catch(e) {}
-    }, 5 * 60 * 1000); // check every 5 min
+    }, 5 * 60 * 1000);
 
-    // Reminder warnings — 1 hour, 20 min, 5 min
     const reminderChimeInterval = setInterval(async () => {
       const now = Date.now();
       for (const [id, reminder] of reminders) {
         const timeLeft = reminder.fireAtMs - now;
         const warned = reminder.warned || [];
-
         if (timeLeft <= 60 * 60 * 1000 && timeLeft > 59 * 60 * 1000 && !warned.includes('1h')) {
           warned.push('1h'); reminder.warned = warned;
           await doChime(`Just so you know Commander, you have a reminder coming up in about an hour. ${reminder.label}.`);
@@ -1136,17 +945,11 @@ class RiggyGlasses extends AppServer {
       }
     }, CHIME_REMINDER_CHECK_MS);
 
-    // Clean up all chime intervals on session end
     const stopChimes = () => {
-      clearInterval(waterInterval);
-      clearInterval(natureInterval);
-      clearInterval(factInterval);
-      clearInterval(weatherChimeInterval);
-      clearInterval(sunInterval);
-      clearInterval(reminderChimeInterval);
-      clearInterval(checkInInterval);
-      clearInterval(scoutModeWatcher);
-      stopScoutMode();
+      clearInterval(waterInterval); clearInterval(natureInterval); clearInterval(factInterval);
+      clearInterval(weatherChimeInterval); clearInterval(sunInterval);
+      clearInterval(reminderChimeInterval); clearInterval(checkInInterval);
+      clearInterval(scoutModeWatcher); stopScoutMode();
     };
 
     const finishNote = async () => {
@@ -1163,65 +966,35 @@ class RiggyGlasses extends AppServer {
       reminders.set(id, { id, label, fireAtMs, timerId: setTimeout(async () => { reminders.delete(id); const msg = `Hey friend — reminder: ${label}.`; latestState.riggySaid = msg; await speakSafe(msg); }, fireAtMs - Date.now()) });
     };
 
-    // ── HLS STREAM STATE ──
-    let activeStream = null;       // stream object from startManagedStream
-    let ffmpegProcess = null;      // spawned FFmpeg child process
-    let streamFramePath = null;    // path to latest_frame.jpg on disk
+    let activeStream = null, ffmpegProcess = null, streamFramePath = null;
 
-    // Starts FFmpeg pulling frames from the HLS stream into a jpg on disk
     const startFFmpeg = (hlsUrl) => {
       const framePath = path.join(__dirname, `frame_${sessionId}.jpg`);
       streamFramePath = framePath;
-
-      // Kill any existing FFmpeg first
       if (ffmpegProcess) { try { ffmpegProcess.kill('SIGKILL'); } catch(e) {} ffmpegProcess = null; }
-
-      // FFmpeg: pull HLS stream, extract one frame every STREAM_FRAME_INTERVAL_MS, overwrite same file
-      const ffmpeg = spawn('ffmpeg', [
-        '-re',
-        '-i', hlsUrl,
-        '-vf', `fps=1/${Math.round(STREAM_FRAME_INTERVAL_MS / 1000)}`,
-        '-update', '1',
-        '-q:v', '3',
-        '-y',
-        framePath
-      ]);
-
-      ffmpeg.stderr.on('data', (d) => console.log(`FFmpeg: ${d.toString().slice(0, 80)}`));
+      const ffmpeg = spawn('ffmpeg', ['-re','-i',hlsUrl,'-vf',`fps=1/${Math.round(STREAM_FRAME_INTERVAL_MS/1000)}`,'-update','1','-q:v','3','-y',framePath]);
+      ffmpeg.stderr.on('data', (d) => console.log(`FFmpeg: ${d.toString().slice(0,80)}`));
       ffmpeg.on('close', (code) => { console.log(`FFmpeg exited: ${code}`); ffmpegProcess = null; });
       ffmpeg.on('error', (e) => console.error('FFmpeg spawn error:', e.message));
-
       ffmpegProcess = ffmpeg;
       console.log(`🎥 FFmpeg started — writing frames to ${framePath}`);
       return framePath;
     };
 
-    // Read the latest frame from disk as base64
     const readLatestFrame = () => {
       if (!streamFramePath || !fs.existsSync(streamFramePath)) return null;
-      try {
-        const buf = fs.readFileSync(streamFramePath);
-        if (buf.length < 1000) return null; // incomplete frame, skip
-        return { base64: buf.toString('base64'), mimeType: 'image/jpeg' };
-      } catch(e) { return null; }
+      try { const buf = fs.readFileSync(streamFramePath); if (buf.length < 1000) return null; return { base64: buf.toString('base64'), mimeType: 'image/jpeg' }; } catch(e) { return null; }
     };
 
     const stopBurstModes = async () => {
       if (gameModeInterval) { clearInterval(gameModeInterval); gameModeInterval = null; }
       if (liveCamInterval) { clearInterval(liveCamInterval); liveCamInterval = null; }
-
-      // Kill FFmpeg
       if (ffmpegProcess) { try { ffmpegProcess.kill('SIGKILL'); } catch(e) {} ffmpegProcess = null; }
-
-      // Stop the Mentra managed stream
       if (activeStream) {
         try { await session.camera.stopManagedStream(); console.log('📷 Managed stream stopped'); } catch(e) { console.error('stopManagedStream error:', e); }
         activeStream = null;
       }
-
-      // Clean up frame file
       if (streamFramePath) { try { fs.unlinkSync(streamFramePath); } catch(e) {} streamFramePath = null; }
-
       gameMode = false; liveCamMode = false; latestState.gameMode = false; latestState.liveCamMode = false;
     };
 
@@ -1235,24 +1008,14 @@ class RiggyGlasses extends AppServer {
       gameMode = true; latestState.gameMode = true;
       setProcessing(true);
       try { await speakSafe("Game mode on. I'm watching."); } finally { setProcessing(false); }
-
-      // Timer photo approach — no HLS stream, no FFmpeg, no timeouts
-      // Take a photo every 6 seconds, send directly to Gemini vision
       console.log('🎮 Game mode — timer photo approach');
       gameModeInterval = setInterval(async () => {
         if (!gameMode || ignoreSpeechDuringTTS || isProcessing) return;
         setProcessing(true);
         try {
-          const photo = await takePhoto(false);
-          if (!photo) return;
-          const reply = await askGemini(
-            'Game screen. One sharp tactical tip only if something genuinely worth saying. If nothing worth saying respond: SILENCE',
-            sessionId, userId, photo, GAME_MODE_PERSONALITY
-          );
-          if (reply && reply.trim() !== 'SILENCE' && !reply.toLowerCase().includes('silence') && reply.trim().length > 5) {
-            latestState.riggySaid = reply;
-            await speakSafe(reply);
-          }
+          const photo = await takePhoto(false); if (!photo) return;
+          const reply = await askGemini('Game screen. One sharp tactical tip only if something genuinely worth saying. If nothing worth saying respond: SILENCE', sessionId, userId, photo, GAME_MODE_PERSONALITY);
+          if (reply && reply.trim() !== 'SILENCE' && !reply.toLowerCase().includes('silence') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
         } catch(e) { console.error('Game photo error:', e); }
         finally { setProcessing(false); }
       }, GAME_MODE_ANALYSIS_INTERVAL_MS);
@@ -1263,22 +1026,14 @@ class RiggyGlasses extends AppServer {
       liveCamMode = true; latestState.liveCamMode = true;
       setProcessing(true);
       try { await speakSafe("Live vision on. I'm watching with you."); } finally { setProcessing(false); }
-
       console.log('👁 Live cam — timer photo approach');
       liveCamInterval = setInterval(async () => {
         if (!liveCamMode || ignoreSpeechDuringTTS || isProcessing) return;
         setProcessing(true);
         try {
-          const photo = await takePhoto(false);
-          if (!photo) return;
-          const reply = await askGemini(
-            "Look at what I'm seeing. Say something useful or interesting only if something genuinely earns it. If nothing worth saying respond: SKIP",
-            sessionId, userId, photo
-          );
-          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) {
-            latestState.riggySaid = reply;
-            await speakSafe(reply);
-          }
+          const photo = await takePhoto(false); if (!photo) return;
+          const reply = await askGemini("Look at what I'm seeing. Say something useful or interesting only if something genuinely earns it. If nothing worth saying respond: SKIP", sessionId, userId, photo);
+          if (reply && reply.trim() !== 'SKIP' && !reply.toLowerCase().startsWith('skip') && reply.trim().length > 5) { latestState.riggySaid = reply; await speakSafe(reply); }
         } catch(e) { console.error('Live cam error:', e); }
         finally { setProcessing(false); }
       }, LIVE_CAM_ANALYSIS_INTERVAL_MS);
@@ -1302,14 +1057,16 @@ class RiggyGlasses extends AppServer {
       setProcessing(true);
       sessionLog.push({ role: 'user', text: userSaid, time: Date.now() });
 
+      // ── FIX 1: declare lower once at the top of handleInput — was missing, caused ReferenceError ──
+      const lower = userSaid.toLowerCase();
+
       try {
         if (wantsLiveOff(userSaid)) {
           await stopBurstModes(); liveMode = false; latestState.liveMode = false;
           await speakSafe("Going quiet. Say my name when you need me."); latestState.riggySaid = "Going quiet. Say my name when you need me."; return;
         }
 
-        // ── TEST CHIME ──
-        if (userSaid.toLowerCase().includes('riggy test chime') || userSaid.toLowerCase().includes('test chime')) {
+        if (lower.includes('riggy test chime') || lower.includes('test chime')) {
           setProcessing(false);
           const fact = await getDailyFact();
           await doChime(fact || getWaterReminder());
@@ -1430,94 +1187,71 @@ class RiggyGlasses extends AppServer {
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
 
-        // ── SHOW ME / VISOR COMMANDS ──────────────────────────────────────────
-        const lower2 = userSaid.toLowerCase();
-        const showMe = lower2.includes('show me') || lower2.includes('visor');
-
+        // ── SHOW ME / VISOR — lower is already defined above ──
+        const showMe = lower.includes('show me') || lower.includes('visor');
         if (showMe) {
           setProcessing(false);
           const loc = await getIpLocation();
           const lat = loc?.lat || DEFAULT_LAT;
           const lng = loc?.lng || DEFAULT_LNG;
 
-          // WEATHER
-          if (lower2.includes('weather')) {
+          if (lower.includes('weather')) {
             const [weather, forecast] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng)]);
             latestState.visor = { type:'html', label:'Weather', html: buildVisorWeather(weather, forecast) };
             await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
           }
-
-          // HOURLY
-          if (lower2.includes('hourly')) {
+          if (lower.includes('hourly')) {
             const hours = await getHourlyForecast(lat, lng);
             if (hours) latestState.visor = { type:'html', label:'Hourly Forecast', html: buildVisorHourly(hours) };
             else latestState.visor = { type:'html', label:'Hourly', html: '<p style="color:#E8D5B0">Could not load hourly forecast.</p>' };
             await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
           }
-
-          // RADAR
-          if (lower2.includes('radar')) {
+          if (lower.includes('radar')) {
             const radarUrl = `https://www.rainviewer.com/map.html?loc=${lat},${lng},8&oFa=0&oC=0&oU=0&oCS=1&oF=0&oAP=1&rmt=2&c=3&o=83&lm=0&th=0&sm=1&sn=1`;
             latestState.visor = { type:'url', label:'Live Radar', url: radarUrl, summary: 'Animated rain radar — tap to open.' };
             await speakSafe("Radar's on your visor Commander."); latestState.riggySaid = "Radar's on your visor."; return;
           }
-
-          // TRAFFIC
-          if (lower2.includes('traffic')) {
+          if (lower.includes('map') && !lower.includes('traffic')) {
+            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
+            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${DEFAULT_CITY}. Tap to open Maps.` };
+            await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
+          }
+          if (lower.includes('traffic')) {
             const trafficUrl = `https://www.google.com/maps/@${lat},${lng},14z/data=!5m1!1e1`;
             latestState.visor = { type:'url', label:'Live Traffic', url: trafficUrl, summary: 'Live traffic map — tap to open.' };
             await speakSafe("Traffic's on your visor Commander."); latestState.riggySaid = "Traffic's on your visor."; return;
           }
-
-          // MAP
-          if (lower2.includes('map')) {
-            const mapUrl = `https://www.google.com/maps/@${lat},${lng},16z`;
-            latestState.visor = { type:'url', label:'Your Location', url: mapUrl, summary: `You are near ${loc?.city || DEFAULT_CITY}. Tap to open Maps.` };
-            await speakSafe("Map's on your visor Commander."); latestState.riggySaid = "Map's on your visor."; return;
-          }
-
-          // GAS
-          if (lower2.includes('gas')) {
+          if (lower.includes('gas')) {
             const stations = await getNearbyGas(lat, lng);
             if (stations) latestState.visor = { type:'html', label:'Nearest Gas', html: buildVisorGas(stations) };
             else latestState.visor = { type:'url', label:'Gas Stations', url: `https://www.google.com/maps/search/gas+station/@${lat},${lng},14z`, summary: 'Tap to find nearby gas stations.' };
             await speakSafe("Gas stations on your visor Commander."); latestState.riggySaid = "Gas stations on your visor."; return;
           }
-
-          // REMINDERS
-          if (lower2.includes('reminder')) {
+          if (lower.includes('reminder')) {
             const remindersList = [...reminders.values()];
             latestState.visor = { type:'html', label:'Reminders', html: buildVisorReminders(remindersList) };
             await speakSafe("Your reminders are on the visor Commander."); latestState.riggySaid = "Reminders on the visor."; return;
           }
-
-          // MY DAY
-          if (lower2.includes('my day')) {
+          if (lower.includes('my day')) {
             const [weather, forecast, fact] = await Promise.all([getWeather(DEFAULT_CITY), getWeatherForecast(lat, lng), getDailyFact()]);
             const remindersList = [...reminders.values()];
             latestState.visor = { type:'html', label:'Your Day', html: buildVisorMyDay(weather, forecast, remindersList, fact) };
             await speakSafe("Your day is on the visor Commander."); latestState.riggySaid = "Your day is on the visor."; return;
           }
-
-          // STREET VIEW
-          if (lower2.includes('street')) {
+          if (lower.includes('street view') || lower.includes('street')) {
             const svUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
             latestState.visor = { type:'url', label:'Street View', url: svUrl, summary: 'Street level view of your current location.' };
             await speakSafe("Street view on your visor Commander."); return;
           }
-
-          // INTEL
-          if (lower2.includes('intel')) {
+          if (lower.includes('intel')) {
             const photo = await takePhoto(false);
             if (!photo) { await speakSafe("Couldn't get a shot. Try again."); return; }
-            const analysis = await askGemini('Analyze what you see. Be detailed — this will be read not heard.', sessionId, userId, photo, null, null, '');
+            const analysis = await askGemini('Analyze what you see. Be detailed — this will be read not heard.', sessionId, userId, photo, INTEL_PERSONALITY);
             latestState.visor = { type:'text', label:'Intel Report', content: analysis };
             await speakSafe("Intel's on your visor Commander."); latestState.riggySaid = "Intel on your visor."; return;
           }
-
-          // CONTEXT-AWARE fallback
           const visorReply = await askGemini(
-            `Based on our last conversation, what should I show on the visor? Return ONLY valid JSON: { "type": "url", "label": "short label", "url": "full URL", "summary": "one sentence" }. Wikipedia for people/places/history. Google Maps for locations. Google Search for everything else. Return ONLY the JSON, nothing else.`,
+            `Based on our last conversation, what should I show on the visor? Return ONLY valid JSON: { "type": "url", "label": "short label", "url": "full URL", "summary": "one sentence" }. Return ONLY the JSON, nothing else.`,
             sessionId, userId, null, null, null, ''
           );
           try {
@@ -1527,46 +1261,38 @@ class RiggyGlasses extends AppServer {
             const q = encodeURIComponent(lastRiggyText.slice(0, 60));
             latestState.visor = { type:'url', label:'Search', url:`https://www.google.com/search?q=${q}`, summary:'Search results for what we discussed.' };
           }
-          await speakSafe("Check your visor Commander.");
-          latestState.riggySaid = "Check your visor Commander.";
-          return;
+          await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander."; return;
         }
 
-        // ── DEBUG / CODE VISOR ────────────────────────────────────────────────
+        // ── DEBUG / CODE VISOR ──
         const isDebug = lower.includes('debug this') || lower.includes('analyze this') ||
           lower.includes('riggy code') || lower.includes('check this code') ||
           lower.includes('what does this say') || lower.includes('read the screen') ||
           lower.includes('read this error') || lower.includes('what is this error');
-
         if (isDebug) {
           const photo = await takePhoto(false);
           if (!photo) { await speakSafe("Couldn't get a clear shot. Try again."); return; }
           const analysis = await askGemini(
             'Analyze what you see. If code or error — explain the problem and give the fix clearly. If text — read and summarize. Be detailed, Ray will READ this on his visor screen.',
-            sessionId, userId, photo,
-            `You are Mr. Riggy analyzing a screen. Be thorough. Format clearly — problem first then solution. Ray reads this on his visor so be detailed and technical.`
+            sessionId, userId, photo, `You are Mr. Riggy analyzing a screen. Be thorough. Format clearly — problem first then solution.`
           );
           if (analysis && analysis.trim().length > 5) {
             latestState.visor = { type:'debug', label:'Screen Analysis', content:analysis, url:null };
-            await speakSafe("Check your visor Commander.");
-            latestState.riggySaid = "Check your visor Commander.";
-          } else {
-            await speakSafe("Couldn't read that clearly. Get closer to the screen and try again.");
-          }
+            await speakSafe("Check your visor Commander."); latestState.riggySaid = "Check your visor Commander.";
+          } else { await speakSafe("Couldn't read that clearly. Get closer to the screen and try again."); }
           return;
         }
 
-        if (userSaid.toLowerCase().includes('call the cops') || userSaid.toLowerCase().includes('call 911') || userSaid.toLowerCase().includes('call the police') || userSaid.toLowerCase().includes('riggy call police') || userSaid.toLowerCase().includes('emergency call')) {
+        if (lower.includes('call the cops') || lower.includes('call 911') || lower.includes('call the police') || lower.includes('riggy call police') || lower.includes('emergency call')) {
           setProcessing(false);
           const emergencyMsg = "Calling 911 now Commander. Stay on the line.";
-          latestState.riggySaid = emergencyMsg;
-          await speakSafe(emergencyMsg);
+          latestState.riggySaid = emergencyMsg; await speakSafe(emergencyMsg);
           latestState.emergencyCall = true;
-          setTimeout(() => { latestState.emergencyCall = false; }, 10000);
-          return;
+          setTimeout(() => { latestState.emergencyCall = false; }, 10000); return;
         }
         if (wantsGameOff(userSaid)) { await stopBurstModes(); await speakSafe("Game mode off."); latestState.riggySaid = "Game mode off."; return; }
         if (wantsLiveCamOn(userSaid)) { setProcessing(false); await startLiveCamMode(); return; }
+        if (wantsGameOn(userSaid)) { setProcessing(false); await startGameMode(); return; }
         if (wantsLiveOn(userSaid) && !liveMode) { liveMode = true; latestState.liveMode = true; await speakSafe("Live mode on. Just talk."); latestState.riggySaid = "Live mode on. Just talk."; return; }
 
         let photoData = null;
@@ -1575,21 +1301,15 @@ class RiggyGlasses extends AppServer {
           const photo = await takePhoto(savePhoto);
           if (photo && visionQuery) photoData = photo;
           if (savePhoto && photo) {
-            // Always analyze AND save — give Commander both
-            const saveReply = await askGemini(
-              'Take a look at what was just captured. Tell me what you see in one sentence, then confirm it was saved.',
-              sessionId, userId, photo, null, null, ''
-            );
-            const msg = saveReply && saveReply.length > 5
-              ? saveReply
-              : "Captured and saved to your gallery, Commander.";
+            const saveReply = await askGemini('Take a look at what was just captured. Tell me what you see in one sentence, then confirm it was saved.', sessionId, userId, photo, null, null, '');
+            const msg = saveReply && saveReply.length > 5 ? saveReply : "Captured and saved to your gallery, Commander.";
             await speakSafe(msg); latestState.riggySaid = msg;
             if (!visionQuery) return;
           }
         }
 
         let locationContext = '';
-        if (isNearbyRequest(userSaid) || userSaid.toLowerCase().includes('near') || userSaid.toLowerCase().includes('around here')) {
+        if (isNearbyRequest(userSaid) || lower.includes('near') || lower.includes('around here')) {
           const loc = await getGlassesLocation(session);
           if (loc) { const address = await reverseGeocode(loc.lat, loc.lng); locationContext = `\n\nUser's current location: ${address || `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`}`; }
         }
@@ -1603,7 +1323,8 @@ class RiggyGlasses extends AppServer {
 
       } catch (err) {
         console.error('Error:', err);
-        await session.audio.speak("Something glitched friend. Try me again.");
+        // ── FIX 2: use speakSafe (ElevenLabs voice) not session.audio.speak (Mentra voice) ──
+        await speakSafe("Something glitched friend. Try me again.");
       } finally { setProcessing(false); }
     };
 
@@ -1615,38 +1336,20 @@ class RiggyGlasses extends AppServer {
       return liveMode;
     };
 
-    // Expose text command handler for webview input
     session._handleTextCommand = async (text) => {
       if (!text) return;
       console.log(`⌨️ Text command: ${text}`);
       await handleInput(text);
     };
 
-    // ── BUTTON PRESS ──────────────────────────────────────────────────────────
-    // Short tap — wakes Riggy for one response, no wake word needed
-    // Long press — toggles live mode on/off
     session.events.onButtonPress(async (data) => {
-      console.log(`🔘 Button press: id=${JSON.stringify(data.buttonId)} type=${JSON.stringify(data.pressType)} full=${JSON.stringify(data)}`);
-
-      // Always disable gallery mode — prevents Mentra intercepting tap and taking random photos
+      console.log(`🔘 Button press: type=${JSON.stringify(data.pressType)}`);
       try { await session.camera.setGalleryModeEnabled(false); } catch(e) {}
-
       if (data.pressType === 'short' || data.pressType === 'single') {
-        // Force clear processing state so we don't wait 10-20s
-        setProcessing(false);
-        ignoreSpeechDuringTTS = false;
-        tapWakeActive = true;
-        const tapPhrases = [
-          "Go ahead Commander.",
-          "Listening.",
-          "I'm here. Go ahead.",
-          "Ready Commander.",
-          "Talk to me.",
-          "Go ahead friend."
-        ];
+        setProcessing(false); ignoreSpeechDuringTTS = false; tapWakeActive = true;
+        const tapPhrases = ["Go ahead Commander.","Listening.","I'm here. Go ahead.","Ready Commander.","Talk to me.","Go ahead friend."];
         const phrase = tapPhrases[Math.floor(Math.random() * tapPhrases.length)];
         await speakSafe(phrase);
-        // Keep window open 15s in case transcription is slow
         setTimeout(() => { tapWakeActive = false; }, 15000);
       } else if (data.pressType === 'long' || data.pressType === 'long_press') {
         liveMode = !liveMode; latestState.liveMode = liveMode;
@@ -1655,34 +1358,18 @@ class RiggyGlasses extends AppServer {
       }
     });
 
-    // ── SCOUT MODE — ambient awareness ────────────────────────────────────────
+    // ── SCOUT MODE ────────────────────────────────────────────────────────────
     let scoutPhotoJob = null;
     let lastScoutObservation = '';
-    let lastScoutTime = 0;
 
     const SCOUT_PERSONALITY_ADDON = `
 SCOUT MODE — you are physically present with Ray right now. You are IN THE ROOM.
-
 RULES:
-- Never describe what you see like a tour guide or a narrator. You are not explaining a scene.
+- Never describe what you see like a tour guide or narrator.
 - React like a person who just noticed something. One dry, warm, real observation.
-- If nothing changed since last time — say PASS. Seriously. Silence is better than repeating yourself.
-- If Ray is just sitting there doing the same thing — PASS.
-- Only speak if something genuinely changed or caught your attention.
+- If nothing changed since last time — say PASS. Silence is better than repeating yourself.
 - Never say "I see" or "I notice" or "I can see" or "it appears."
-- One sentence. Dry. Real. Then done.
-
-Examples of good reactions:
-"That coffee's been sitting there a while."
-"You've been staring at that screen for a minute."
-"Someone left the light on."
-"Looks like it got dark outside."
-
-Examples of bad reactions (never do these):
-"I can see you are in a room with various items."
-"The environment appears to be an indoor setting."
-"I notice there is a computer in front of you."
-`;
+- One sentence. Dry. Real. Then done.`;
 
     const startScoutMode = () => {
       console.log('🔭 Scout Mode activated');
@@ -1690,34 +1377,18 @@ Examples of bad reactions (never do these):
         if (ignoreSpeechDuringTTS || isProcessing) return;
         if (chimeState.count >= CHIME_MAX_PER_DAY) return;
         try {
-          const photo = await takePhoto(false);
-          if (!photo) return;
-
-          // Include last observation so Gemini knows what it already said
+          const photo = await takePhoto(false); if (!photo) return;
           const contextNote = lastScoutObservation
             ? `Last thing you said about this scene: "${lastScoutObservation}". If nothing changed, respond PASS.`
             : 'First look at this scene.';
-
           const reply = await askGemini(
             `${contextNote} React naturally if something earns it. One sentence max. If nothing worth saying: PASS`,
-            sessionId, userId, photo,
-            RIGGY_PERSONALITY + SCOUT_PERSONALITY_ADDON
+            sessionId, userId, photo, RIGGY_PERSONALITY + SCOUT_PERSONALITY_ADDON
           );
-
-          if (!reply || reply.trim().toUpperCase() === 'PASS' ||
-              reply.toLowerCase().includes('nothing has changed') ||
-              reply.toLowerCase().includes('same as before') ||
-              reply.trim().length < 5) {
-            console.log('🔭 Scout — nothing new, staying quiet');
-            return;
-          }
-
+          if (!reply || reply.trim().toUpperCase() === 'PASS' || reply.toLowerCase().includes('nothing has changed') || reply.trim().length < 5) { console.log('🔭 Scout — quiet'); return; }
           lastScoutObservation = reply.trim();
-          lastScoutTime = Date.now();
           chimeState.count++;
-          await playChime();
-          await speakSafe(reply);
-          latestState.riggySaid = reply;
+          await playChime(); await speakSafe(reply); latestState.riggySaid = reply;
         } catch(e) { console.error('Scout ambient error:', e); }
       }, 3 * 60 * 1000);
     };
@@ -1728,85 +1399,47 @@ Examples of bad reactions (never do these):
       console.log('🔭 Scout Mode deactivated');
     };
 
-    // Check mode on session start and when mode changes
     if (latestState.riggyMode === 'scout') startScoutMode();
 
-    // Watch for mode changes from webview
     const scoutModeWatcher = setInterval(() => {
       if (latestState.riggyMode === 'scout' && !scoutPhotoJob) startScoutMode();
       if (latestState.riggyMode !== 'scout' && scoutPhotoJob) stopScoutMode();
     }, 10000);
 
-    // Scout mode also gets more casual check-in phrases
     const SCOUT_CHECKINS = [
-      "Hey. What are we looking at?",
-      "You good out there Commander?",
-      "What's the move?",
-      "I'm here. What's going on?",
-      "Anything interesting happening?",
-      "Talk to me Commander.",
-      "I'm watching. What do you need?"
+      "Hey. What are we looking at?","You good out there Commander?","What's the move?",
+      "I'm here. What's going on?","Anything interesting happening?","Talk to me Commander.","I'm watching. What do you need?"
     ];
+
     session.events.onHeadPosition((data) => {
       console.log(`🤙 Head position: ${data.position}`);
       if (data.position === 'down') {
-        // Head down — stop whatever Riggy is saying
-        if (ignoreSpeechDuringTTS) {
-          console.log('👇 Head down — stopping playback');
-          ignoreSpeechDuringTTS = false;
-          setProcessing(false);
-        }
+        if (ignoreSpeechDuringTTS) { console.log('👇 Head down — stopping playback'); ignoreSpeechDuringTTS = false; setProcessing(false); }
       }
     });
-    // Reads incoming texts, calls, and app notifications aloud through glasses
+
     session.events.onPhoneNotifications(async (notifications) => {
       if (!notifications || notifications.length === 0) return;
-      // Don't block on isProcessing — notifications are always important
-      // Only skip if Riggy is actively speaking right now
       if (ignoreSpeechDuringTTS) {
-        console.log('📱 Notification received but TTS active — queuing');
-        setTimeout(async () => {
-          for (const notif of notifications) {
-            await readNotification(notif);
-          }
-        }, 3000);
+        setTimeout(async () => { for (const notif of notifications) { await readNotification(notif); } }, 3000);
         return;
       }
-      for (const notif of notifications) {
-        await readNotification(notif);
-      }
+      for (const notif of notifications) { await readNotification(notif); }
     });
 
     async function readNotification(notif) {
       const app = (notif.app || notif.packageName || 'Someone').toLowerCase();
       const title = notif.title || '';
       const content = notif.content || notif.text || notif.body || '';
-
-      console.log(`📱 Notification — app:${app} title:${title} content:${content}`);
-
-      // Skip truly junk stuff — but be generous, read most things
-      const junk = ['android', 'system', 'google play', 'battery', 'charging',
-        'download', 'update', 'spotify', 'music', 'now playing'];
-      if (junk.some(j => app.includes(j))) {
-        console.log(`📱 Skipping junk: ${app}`); return;
-      }
-
+      console.log(`📱 Notification — app:${app} title:${title}`);
+      const junk = ['android','system','google play','battery','charging','download','update','spotify','music','now playing'];
+      if (junk.some(j => app.includes(j))) { console.log(`📱 Skipping junk: ${app}`); return; }
       let msg = '';
-      if (app.includes('phone') || app.includes('call') || app.includes('dialer')) {
-        msg = `Incoming call from ${title || 'someone'}.`;
-      } else if (title && content) {
-        msg = `${title}: ${content}`;
-      } else if (title) {
-        msg = `Message from ${title}.`;
-      } else if (content) {
-        msg = content;
-      }
-
-      if (msg && msg.trim().length > 2) {
-        console.log(`📱 Reading: ${msg}`);
-        latestState.riggySaid = msg;
-        await speakSafe(msg);
-      }
+      if (app.includes('phone') || app.includes('call') || app.includes('dialer')) { msg = `Incoming call from ${title || 'someone'}.`; }
+      else if (title && content) { msg = `${title}: ${content}`; }
+      else if (title) { msg = `Message from ${title}.`; }
+      else if (content) { msg = content; }
+      if (msg && msg.trim().length > 2) { console.log(`📱 Reading: ${msg}`); latestState.riggySaid = msg; await speakSafe(msg); }
     }
 
     session.events.onTranscription(async (data) => {
@@ -1816,24 +1449,14 @@ Examples of bad reactions (never do these):
       if (Date.now() < bargeInAllowedAfterMs) { console.log('🔇 Cooldown'); return; }
       const userSaid = data.text.trim();
       if (!userSaid) return;
-
-      // ── Deduplication — blocks Mentra 2.10 delayed replay bug ──
       const now = Date.now();
       if (userSaid === lastProcessedText && now - lastProcessedTime < 180000) { console.log('🔇 Duplicate transcript — ignoring:', userSaid); return; }
-
-      // Fuzzy match — catches slightly reworded replays of the same utterance
       if (lastProcessedText && now - lastProcessedTime < 180000 && looksLikeEcho(userSaid, lastProcessedText)) { console.log('🔇 Fuzzy duplicate — ignoring:', userSaid); return; }
-
-      lastProcessedText = userSaid;
-      lastProcessedTime = now;
-
+      lastProcessedText = userSaid; lastProcessedTime = now;
       if (looksLikeEcho(userSaid, lastRiggyText)) { console.log('🔇 Echo:', userSaid); return; }
       if (noteMode) { await handleInput(userSaid); return; }
       if (liveMode || liveCamMode) { await handleInput(userSaid); return; }
-
-      // ── Tap wake — short tap activated, no wake word needed for next response ──
       if (tapWakeActive) { tapWakeActive = false; await handleInput(userSaid); return; }
-
       const lower = userSaid.toLowerCase();
       if (lower.includes('mr.riggy') || lower.includes('mr riggy') || lower.includes('riggy')) await handleInput(userSaid);
     });
@@ -1874,15 +1497,17 @@ expressApp.get('/riggy_notification.mp3', (req, res) => {
   const filePath = path.join(__dirname, 'riggy_notification.mp3');
   if (!fs.existsSync(filePath)) { res.status(404).end(); return; }
   const stat = fs.statSync(filePath);
-  res.setHeader('Content-Type', 'audio/mpeg');
-  res.setHeader('Content-Length', stat.size);
+  res.setHeader('Content-Type', 'audio/mpeg'); res.setHeader('Content-Length', stat.size);
   res.setHeader('Cache-Control', 'public, max-age=86400');
   fs.createReadStream(filePath).pipe(res);
 });
+
 expressApp.get('/webview', (req, res) => { res.sendFile(path.join(__dirname, 'webview.html')); });
 expressApp.get('/webview-state', (req, res) => { res.json(latestState); });
 expressApp.get('/memory', (req, res) => {
-  const all = []; for (const [uid, store] of globalMemoryCache) store.forEach(m => all.push({ userId: uid, id: m.id, content: m.content, type: m.type, createdAt: m.createdAt })); res.json(all);
+  const all = [];
+  for (const [uid, store] of globalMemoryCache) store.forEach(m => all.push({ userId: uid, id: m.id, content: m.content, type: m.type, createdAt: m.createdAt }));
+  res.json(all);
 });
 
 expressApp.post('/test-chime', async (req, res) => {
@@ -1892,11 +1517,13 @@ expressApp.post('/test-chime', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── FIX 3: guard /text-command — only process if glasses session is active ──
 expressApp.post('/text-command', async (req, res) => {
   const { text } = req.body;
   if (!text) { res.json({ ok: false }); return; }
+  if (!activeSession) { res.json({ ok: false, reason: 'no active session' }); return; }
   latestState.userSaid = text;
-  if (activeSession && activeSession._handleTextCommand) {
+  if (activeSession._handleTextCommand) {
     await activeSession._handleTextCommand(text);
   }
   res.json({ ok: true });
@@ -1913,10 +1540,6 @@ expressApp.post('/toggle-live', async (req, res) => {
   latestState.liveMode = !latestState.liveMode; res.json({ live: latestState.liveMode });
 });
 
-// ── BLUETOOTH APP ENDPOINTS ───────────────────────────────────────────────────
-
-// TTS endpoint — generates ElevenLabs audio, saves file, returns URL
-// Used by the Kotlin Bluetooth app to get audio to play through glasses speaker
 expressApp.post('/tts', async (req, res) => {
   const { text } = req.body;
   if (!text) { res.json({ ok: false }); return; }
@@ -1924,12 +1547,7 @@ expressApp.post('/tts', async (req, res) => {
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: text.replace(/[🤖⚡🛸]/g, '').trim(),
-        model_id: 'eleven_turbo_v2_5',
-        output_format: 'mp3_44100_128',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-      })
+      body: JSON.stringify({ text: text.replace(/[🤖⚡🛸]/g, '').trim(), model_id: 'eleven_turbo_v2_5', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
     });
     if (!response.ok) { res.json({ ok: false }); return; }
     const audioBytes = Buffer.from(await response.arrayBuffer());
@@ -1942,37 +1560,26 @@ expressApp.post('/tts', async (req, res) => {
   } catch(e) { console.error('TTS endpoint error:', e); res.json({ ok: false }); }
 });
 
-// Photo webhook — receives photo from Bluetooth app, sends to Gemini, returns reply
 expressApp.post('/mentra/photo', async (req, res) => {
   try {
     const context = req.query.context || 'what do you see';
-    // Photo arrives as multipart or raw buffer
     const chunks = [];
     req.on('data', chunk => chunks.push(chunk));
     req.on('end', async () => {
       const photoBuffer = Buffer.concat(chunks);
       const base64 = photoBuffer.toString('base64');
       const photoData = { base64, mimeType: 'image/jpeg' };
-
-      // Determine which personality to use
       const lower = context.toLowerCase();
       let systemOverride = null;
       if (lower.includes('intel')) systemOverride = INTEL_PERSONALITY;
       else if (lower.includes('shop') || lower.includes('price')) systemOverride = SHOP_PERSONALITY;
-
       const reply = await askGemini(context, 'bt-session', 'bt-user', photoData, systemOverride);
       res.json({ ok: true, reply });
-
-      // Also speak through glasses if cloud session active
-      if (activeSession && activeSession._handleTextCommand && reply) {
-        latestState.riggySaid = reply;
-        if (activeSession.speakSafe) await activeSession.speakSafe(reply);
-      }
+      if (activeSession && reply) { latestState.riggySaid = reply; }
     });
   } catch(e) { console.error('Photo webhook error:', e); res.json({ ok: false }); }
 });
 
-// Bluetooth text command — same as /text-command but returns the reply directly
 expressApp.post('/bt/command', async (req, res) => {
   const { text, userId } = req.body;
   if (!text) { res.json({ ok: false }); return; }
