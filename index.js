@@ -1166,12 +1166,11 @@ class RiggyGlasses extends AppServer {
         }
 
         // ── CALL COPS / EMERGENCY ──
-        if (lower.includes('call the cops') || lower.includes('call 911') || lower.includes('call the police') || lower.includes('riggy call police') || lower.includes('emergency call')) {
+        if (userSaid.toLowerCase().includes('call the cops') || userSaid.toLowerCase().includes('call 911') || userSaid.toLowerCase().includes('call the police') || userSaid.toLowerCase().includes('riggy call police') || userSaid.toLowerCase().includes('emergency call')) {
           setProcessing(false);
           const emergencyMsg = "Calling 911 now Commander. Stay on the line.";
           latestState.riggySaid = emergencyMsg;
           await speakSafe(emergencyMsg);
-          // Trigger phone call via webview notification — user must confirm on phone
           latestState.emergencyCall = true;
           setTimeout(() => { latestState.emergencyCall = false; }, 10000);
           return;
