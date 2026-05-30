@@ -2,793 +2,607 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#EDEBE6">
     <title>Mr. Riggy</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
-        :root {
-            --black:   #f0f2f5;
-            --dark:    #e8eaed;
-            --surface: #ffffff;
-            --card:    #f5f6f8;
-            --border:  rgba(0,0,0,0.07);
-            --border2: rgba(0,0,0,0.04);
-            --white:   #1a1f2e;
-            --dim:     rgba(30,40,60,0.45);
-            --muted:   rgba(30,40,60,0.3);
-            --slate:   #4a6880;
-            --slate-bright: #5a7f9a;
-            --sand:    #9e8a68;
-            --sand-dim: rgba(158,138,104,0.2);
-            --green:   #5a9a84;
-            --green-dim: rgba(90,154,132,0.1);
-            --amber:   #a8865a;
-            --r: 16px;
+        :root{
+          --cream: #EDEBE6;
+          --cream2: #E4E1D9;
+          --surface: #F5F3EF;
+          --card: #FAFAF8;
+          --slate: #4A6880;
+          --slate2: #3D5A6E;
+          --slate-light: #6B8FA8;
+          --sand: #9E8A68;
+          --sand-light: #B8A882;
+          --sand-dim: rgba(158,138,104,0.15);
+          --ink: #1C2331;
+          --ink2: #3A4255;
+          --muted: rgba(60,70,90,0.4);
+          --border: rgba(158,138,104,0.18);
+          --border2: rgba(74,104,128,0.12);
+          --r: 14px;
         }
 
-        html, body {
-            width: 100%; height: 100%;
-            min-height: 100dvh;
-            background: var(--black);
-            color: var(--white);
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
+        html,body{
+          width:100%;height:100%;
+          min-height:100dvh;
+          background:var(--cream);
+          color:var(--ink);
+          font-family:'DM Sans',-apple-system,sans-serif;
+          overflow:hidden;
+          -webkit-font-smoothing:antialiased;
         }
 
-        html, body {
-            width: 100%; height: 100%;
-            min-height: 100dvh;
-            background: var(--black);
-            color: var(--white);
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
+        /* ── SCREENS ── */
+        .screen{
+          position:fixed;inset:0;
+          display:flex;flex-direction:column;
+          padding:max(env(safe-area-inset-top),20px) 20px max(env(safe-area-inset-bottom),20px);
+          transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .4s;
+          background:var(--cream);
+          will-change:transform;
+        }
+        .screen.hidden{transform:translateX(-110%);opacity:0;pointer-events:none}
+        #settingsScreen{transform:translateX(110%);opacity:0;pointer-events:none}
+        #settingsScreen.open{transform:translateX(0);opacity:1;pointer-events:auto}
+
+        /* ── MAIN TOPBAR ── */
+        .topbar{
+          display:flex;align-items:flex-start;justify-content:space-between;
+          margin-bottom:24px;flex-shrink:0;
+        }
+        .wordmark h1{
+          font-family:'Cormorant Garamond',serif;
+          font-size:28px;font-weight:300;
+          letter-spacing:.05em;color:var(--ink);
+          line-height:1;
+        }
+        .wordmark p{
+          font-size:9px;font-weight:500;
+          letter-spacing:.18em;text-transform:uppercase;
+          color:var(--sand);margin-top:3px;
+        }
+        .gear-btn{
+          width:36px;height:36px;border-radius:50%;
+          background:var(--card);border:1px solid var(--border);
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;transition:all .2s;flex-shrink:0;
+          margin-top:2px;
+        }
+        .gear-btn:active{background:var(--cream2)}
+        .gear-btn svg{width:15px;height:15px;stroke:var(--slate);fill:none;stroke-width:1.6}
+
+        /* ── STATUS PILL ── */
+        .status-pill{
+          display:inline-flex;align-items:center;gap:6px;
+          padding:5px 12px;border-radius:20px;
+          background:var(--card);border:1px solid var(--border2);
+          margin-bottom:20px;flex-shrink:0;align-self:flex-start;
+          transition:all .3s;
+        }
+        .status-dot{
+          width:6px;height:6px;border-radius:50%;
+          background:var(--slate-light);
+          animation:breathe 2.5s ease-in-out infinite;
+        }
+        .status-pill.speaking .status-dot{background:var(--sand);animation:blink .6s ease-in-out infinite alternate}
+        .status-pill.live .status-dot{background:var(--slate);box-shadow:0 0 6px var(--slate);animation:blink 1s ease-in-out infinite alternate}
+        @keyframes breathe{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+        @keyframes blink{from{opacity:.5}to{opacity:1}}
+        .status-text{font-size:11px;font-weight:500;letter-spacing:.06em;color:var(--slate);transition:color .3s}
+        .status-pill.speaking .status-text{color:var(--sand)}
+
+        /* ── HORIZONTAL DIVIDER ── */
+        .divider{
+          height:1px;background:var(--border);
+          margin:0 0 20px;flex-shrink:0;
         }
 
-        /* ── MAIN ─────────────────────────────────────── */
-        #mainScreen {
-            width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px);
-            transition: transform 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.45s;
+        /* ── TRANSCRIPT AREA ── */
+        .transcript-area{
+          flex:1;display:flex;flex-direction:column;
+          gap:12px;min-height:0;overflow:hidden;
+          margin-bottom:16px;
         }
-        #mainScreen.hidden { transform: translateX(-100%); opacity: 0; pointer-events: none; position: absolute; }
+        .transcript-card{
+          background:var(--card);
+          border:1px solid var(--border);
+          border-radius:var(--r);
+          padding:14px 16px;
+          position:relative;overflow:hidden;
+          flex:1;display:flex;flex-direction:column;
+        }
+        .transcript-card::before{
+          content:'';position:absolute;
+          left:0;top:16px;bottom:16px;width:2px;border-radius:2px;
+        }
+        .transcript-card.user::before{background:rgba(158,138,104,.35)}
+        .transcript-card.riggy::before{background:var(--slate-light)}
+        .card-label{
+          font-family:'DM Mono',monospace;
+          font-size:8px;font-weight:500;letter-spacing:.14em;
+          text-transform:uppercase;color:var(--muted);
+          margin-bottom:8px;flex-shrink:0;
+        }
+        .transcript-card.riggy .card-label{color:rgba(74,104,128,.6)}
+        .card-body{
+          font-size:14px;line-height:1.6;
+          color:var(--ink2);flex:1;overflow-y:auto;
+        }
+        .transcript-card.user .card-body{color:var(--muted);font-size:13px}
+        .fade-in{animation:fadeUp .25s ease forwards}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
-        /* ── TOP BAR ──────────────────────────────────── */
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 28px;
-            flex-shrink: 0;
+        /* ── WAVE ── */
+        .wave-row{
+          display:flex;align-items:center;gap:6px;
+          margin-bottom:16px;flex-shrink:0;
         }
-
-        .wordmark {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
+        .wave-bars{display:flex;align-items:center;gap:2.5px}
+        .wb{width:2px;height:3px;border-radius:2px;background:rgba(74,104,128,.25);transition:background .3s}
+        body.speaking .wb{background:var(--sand);animation:wv .45s ease-in-out infinite alternate}
+        body.live .wb{background:var(--slate-light);animation:wv-idle 2s ease-in-out infinite alternate}
+        .wb:nth-child(1){animation-delay:0s}.wb:nth-child(2){animation-delay:.04s}.wb:nth-child(3){animation-delay:.08s}
+        .wb:nth-child(4){animation-delay:.12s}.wb:nth-child(5){animation-delay:.16s}.wb:nth-child(6){animation-delay:.2s}
+        .wb:nth-child(7){animation-delay:.24s}.wb:nth-child(8){animation-delay:.2s}.wb:nth-child(9){animation-delay:.16s}
+        .wb:nth-child(10){animation-delay:.12s}.wb:nth-child(11){animation-delay:.08s}
+        @keyframes wv{from{height:3px}to{height:18px}}
+        @keyframes wv-idle{from{height:3px}to{height:7px}}
+        .state-label{
+          font-size:10px;font-weight:400;letter-spacing:.12em;
+          text-transform:uppercase;color:var(--muted);
         }
-        .wordmark-main {
-            font-family: 'DM Mono', monospace;
-            font-size: 15px;
-            font-weight: 500;
-            letter-spacing: 0.12em;
-            color: var(--white);
-        }
-        .wordmark-sub {
-            font-size: 10px;
-            font-weight: 300;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-            text-transform: uppercase;
-        }
-
-        .topbar-right { display: flex; align-items: center; gap: 10px; }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(74,104,128,0.12);
-            border: 1px solid rgba(74,104,128,0.25);
-            border-radius: 20px;
-            padding: 5px 10px;
-            transition: all 0.3s;
-        }
-        .status-badge.speaking { background: rgba(184,168,130,0.1); border-color: rgba(184,168,130,0.25); }
-        .status-badge.live { background: rgba(122,184,160,0.1); border-color: rgba(122,184,160,0.3); }
-
-        .status-dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: var(--slate-bright);
-            animation: pulse 2.5s ease-in-out infinite;
-        }
-        .status-badge.speaking .status-dot { background: var(--sand); animation: blink 0.6s ease-in-out infinite alternate; }
-        .status-badge.live .status-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1s ease-in-out infinite alternate; }
-        @keyframes pulse { 0%,100%{opacity:0.5;transform:scale(1);} 50%{opacity:1;transform:scale(1.15);} }
-        @keyframes blink { from{opacity:0.6;} to{opacity:1;} }
-
-        .status-label {
-            font-size: 11px;
-            font-weight: 500;
-            letter-spacing: 0.04em;
-            color: var(--slate-bright);
-        }
-        .status-badge.speaking .status-label { color: var(--sand); }
-        .status-badge.live .status-label { color: var(--green); }
-
-        .icon-btn {
-            width: 34px; height: 34px;
-            border-radius: 50%;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .icon-btn:active { transform: scale(0.93); background: var(--card); }
-        .icon-btn svg { width: 15px; height: 15px; stroke: rgba(30,40,60,0.4); fill: none; stroke-width: 1.6; }
-
-        /* ── ORB ──────────────────────────────────────── */
-        .orb-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 0;
-            gap: 20px;
+        body.speaking .state-label{color:var(--sand)}
+        body.live .state-label{color:var(--slate-light)}
+        .commander-tag{
+          font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+          color:rgba(74,104,128,.35);margin-left:auto;
         }
 
-        .orb-container {
-            position: relative;
-            width: 200px; height: 200px;
+        /* ── BOTTOM BAR ── */
+        .bottom-bar{flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+        .input-row{
+          display:flex;align-items:center;gap:8px;
+          background:var(--card);border:1px solid var(--border);
+          border-radius:var(--r);padding:10px 12px;
+          transition:border-color .25s;
         }
-
-        .orb-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(74,104,128,0.15); transition: border-color 0.5s; }
-        .orb-ring-1 { inset: 0; animation: rot 25s linear infinite; }
-        .orb-ring-1::after { content:''; position:absolute; top:-3px; left:50%; width:6px; height:6px; background:rgba(74,104,128,0.4); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 10px rgba(74,104,128,0.2); }
-        .orb-ring-2 { inset: 28px; border-color: rgba(158,138,104,0.15); animation: rot 18s linear infinite reverse; }
-        .orb-ring-2::after { content:''; position:absolute; bottom:-3px; left:50%; width:5px; height:5px; background:rgba(158,138,104,0.5); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 8px rgba(158,138,104,0.2); }
-        .orb-ring-3 { inset: 56px; border-color: rgba(74,104,128,0.08); animation: rot 12s linear infinite; }
-        @keyframes rot { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-        body.speaking .orb-ring-1 { border-color: rgba(158,138,104,0.25); }
-        body.speaking .orb-ring-2 { border-color: rgba(158,138,104,0.15); }
-        body.live .orb-ring-1 { border-color: rgba(90,154,132,0.2); }
-
-        .orb-core {
-            position: absolute;
-            inset: 74px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(74,104,128,0.08) 0%, transparent 70%);
-            transition: all 0.6s ease;
+        .input-row:focus-within{border-color:var(--slate-light)}
+        .cmd-input{
+          flex:1;background:transparent;border:none;outline:none;
+          font-family:'DM Sans',sans-serif;font-size:14px;
+          color:var(--ink);caret-color:var(--slate);
         }
-        body.speaking .orb-core { background: radial-gradient(circle, rgba(158,138,104,0.12) 0%, transparent 70%); box-shadow: 0 0 30px rgba(158,138,104,0.08); animation: breathe 0.8s ease-in-out infinite alternate; }
-        body.live .orb-core { background: radial-gradient(circle, rgba(90,154,132,0.1) 0%, transparent 70%); box-shadow: 0 0 30px rgba(90,154,132,0.06); animation: breathe 1.5s ease-in-out infinite alternate; }
-        @keyframes breathe { from{transform:scale(1);} to{transform:scale(1.15);} }
-
-        /* Wave bars */
-        .wave {
-            display: flex; align-items: center; gap: 3px;
-            height: 28px;
+        .cmd-input::placeholder{color:var(--muted);font-size:13px}
+        .send-btn{
+          background:var(--slate);border:none;border-radius:8px;
+          padding:7px 16px;font-family:'DM Sans',sans-serif;
+          font-size:12px;font-weight:500;color:#fff;
+          cursor:pointer;transition:all .2s;flex-shrink:0;
+          box-shadow:0 2px 8px rgba(74,104,128,.2);
         }
-        .wave-bar {
-            width: 2.5px; height: 3px;
-            border-radius: 2px;
-            background: rgba(74,104,128,0.2);
-            transition: background 0.3s;
+        .send-btn:active{opacity:.8;transform:scale(.96)}
+        .action-row{display:flex;gap:8px}
+        .action-btn{
+          flex:1;padding:10px;border-radius:10px;
+          border:1px solid var(--border);background:transparent;
+          font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;
+          letter-spacing:.04em;cursor:pointer;transition:all .2s;
+          display:flex;align-items:center;justify-content:center;gap:5px;
         }
-        body.speaking .wave-bar { background: var(--sand); animation: wave-anim 0.45s ease-in-out infinite alternate; }
-        body.live .wave-bar { background: rgba(90,154,132,0.5); animation: wave-idle 2s ease-in-out infinite alternate; }
-        .wave-bar:nth-child(1){animation-delay:0s;} .wave-bar:nth-child(2){animation-delay:.04s;} .wave-bar:nth-child(3){animation-delay:.08s;} .wave-bar:nth-child(4){animation-delay:.12s;} .wave-bar:nth-child(5){animation-delay:.16s;} .wave-bar:nth-child(6){animation-delay:.20s;} .wave-bar:nth-child(7){animation-delay:.24s;} .wave-bar:nth-child(8){animation-delay:.20s;} .wave-bar:nth-child(9){animation-delay:.16s;} .wave-bar:nth-child(10){animation-delay:.12s;} .wave-bar:nth-child(11){animation-delay:.08s;} .wave-bar:nth-child(12){animation-delay:.04s;} .wave-bar:nth-child(13){animation-delay:0s;}
-        @keyframes wave-anim { from{height:3px;} to{height:24px;} }
-        @keyframes wave-idle { from{height:3px;} to{height:8px;} }
-
-        .state-text {
-            font-size: 11px;
-            font-weight: 400;
-            letter-spacing: 0.12em;
-            color: var(--muted);
-            text-transform: uppercase;
+        .action-btn.live-btn{
+          color:var(--slate);border-color:var(--border2);
+          background:rgba(74,104,128,.06);
         }
-        body.speaking .state-text { color: var(--sand); }
-        body.live .state-text { color: var(--slate-bright); }
-
-        /* ── LIVE BUTTON ──────────────────────────────── */
-        .live-btn {
-            padding: 10px 28px;
-            background: rgba(74,104,128,0.08);
-            border: 1px solid rgba(74,104,128,0.2);
-            border-radius: 40px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
-            letter-spacing: 0.04em;
-            color: var(--slate);
-            cursor: pointer;
-            transition: all 0.25s;
+        .action-btn.live-btn.active{
+          background:rgba(74,104,128,.14);
+          border-color:rgba(74,104,128,.4);color:var(--slate2);
         }
-        .live-btn:active { transform: scale(0.96); }
-        .live-btn.active {
-            background: rgba(74,104,128,0.18);
-            border-color: rgba(74,104,128,0.45);
-            color: var(--slate-bright);
-            box-shadow: 0 2px 12px rgba(74,104,128,0.12);
+        .action-btn.chime-btn{
+          color:var(--sand);border-color:rgba(158,138,104,.2);
+          background:var(--sand-dim);
         }
+        .action-btn:active{opacity:.75;transform:scale(.97)}
 
-        /* ── RESPONSE CARDS ───────────────────────────── */
-        .cards {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 10px;
-            flex-shrink: 0;
+        /* ── SETTINGS SCREEN ── */
+        #settingsScreen{
+          overflow-y:auto;
+          -webkit-overflow-scrolling:touch;
         }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border2);
-            border-radius: var(--r);
-            padding: 12px 14px;
-            position: relative;
-            overflow: hidden;
+        .settings-topbar{
+          display:flex;align-items:center;justify-content:space-between;
+          margin-bottom:28px;flex-shrink:0;
         }
-        .card::before {
-            content: '';
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 2px;
-            border-radius: 2px 0 0 2px;
+        .back-btn{
+          display:flex;align-items:center;gap:4px;
+          font-size:14px;color:var(--slate);cursor:pointer;
+          transition:opacity .2s;
         }
-        .card.user::before { background: rgba(74,104,128,0.3); }
-        .card.riggy::before { background: rgba(184,168,130,0.5); }
-
-        .card-label {
-            font-family: 'DM Mono', monospace;
-            font-size: 9px;
-            font-weight: 500;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin-bottom: 5px;
+        .back-btn:active{opacity:.6}
+        .back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+        .settings-title{
+          font-family:'Cormorant Garamond',serif;
+          font-size:20px;font-weight:400;letter-spacing:.04em;
+          color:var(--ink);
         }
-        .card.riggy .card-label { color: rgba(184,168,130,0.5); }
-
-        .card-text {
-            font-size: 14px;
-            font-weight: 400;
-            line-height: 1.55;
-            color: rgba(26,31,46,0.75);
-            max-height: 72px;
-            overflow-y: auto;
+        .s-section-label{
+          font-size:9px;font-weight:500;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--sand);
+          margin:20px 0 8px 2px;
         }
-        .card.user .card-text { color: rgba(26,31,46,0.4); font-size: 13px; }
-
-        .fade-in { animation: fadeUp 0.25s ease forwards; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(4px);} to{opacity:1;transform:translateY(0);} }
-
-        /* ── COMMAND INPUT ────────────────────────────── */
-        .input-section { flex-shrink: 0; }
-
-        .input-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 10px 12px;
-            transition: border-color 0.25s;
+        .s-section-label:first-of-type{margin-top:0}
+        .s-card{
+          background:var(--card);border:1px solid var(--border);
+          border-radius:var(--r);overflow:hidden;
+          margin-bottom:0;
         }
-        .input-row:focus-within { border-color: rgba(74,104,128,0.3); }
-
-        .cmd-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            outline: none;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            font-weight: 400;
-            color: var(--white);
-            caret-color: var(--slate);
+        .s-row{
+          display:flex;align-items:center;justify-content:space-between;
+          padding:14px 16px;border-bottom:1px solid rgba(158,138,104,.1);
+          gap:12px;
         }
-        .cmd-input::placeholder { color: var(--muted); font-size: 13px; }
-
-        .send-btn {
-            background: var(--slate);
-            border: none;
-            border-radius: 8px;
-            padding: 6px 16px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 12px;
-            font-weight: 500;
-            color: #fff;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-shrink: 0;
-            box-shadow: 0 2px 8px rgba(74,104,128,0.2);
+        .s-row:last-child{border-bottom:none}
+        .s-row-col{flex:1}
+        .s-row-title{font-size:14px;font-weight:400;color:var(--ink);margin-bottom:2px}
+        .s-row-desc{font-size:11px;color:var(--muted);line-height:1.4}
+        /* Full-width input rows */
+        .s-row.col{flex-direction:column;align-items:stretch;gap:10px}
+        .s-input{
+          width:100%;background:var(--cream2);
+          border:1px solid var(--border);border-radius:8px;
+          padding:10px 12px;
+          font-family:'DM Sans',sans-serif;font-size:14px;
+          color:var(--ink);outline:none;
+          transition:border-color .2s;
         }
-        .send-btn:active { transform: scale(0.95); opacity: 0.85; }
-
-        .chime-btn {
-            width: 100%;
-            margin-top: 8px;
-            padding: 10px;
-            background: rgba(158,138,104,0.08);
-            border: 1px solid rgba(158,138,104,0.2);
-            border-radius: 10px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 12px;
-            font-weight: 400;
-            color: var(--sand);
-            cursor: pointer;
-            letter-spacing: 0.04em;
-            transition: all 0.2s;
+        .s-input:focus{border-color:var(--slate-light)}
+        .s-input::placeholder{color:var(--muted)}
+        /* Slider row */
+        .s-slider-wrap{padding:14px 16px;border-bottom:1px solid rgba(158,138,104,.1)}
+        .s-slider-wrap:last-child{border-bottom:none}
+        .s-slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+        .s-slider-val{
+          font-family:'DM Mono',monospace;font-size:18px;
+          font-weight:400;color:var(--slate);
         }
-        .chime-btn:active { background: rgba(158,138,104,0.15); }
-
-        /* ── COMMANDER TAG ────────────────────────────── */
-        .commander-tag {
-            font-size: 10px;
-            font-weight: 300;
-            letter-spacing: 0.1em;
-            color: rgba(74,104,128,0.4);
-            text-transform: uppercase;
-            text-align: center;
-            margin-top: 3px;
-            min-height: 12px;
+        input[type=range]{
+          -webkit-appearance:none;width:100%;height:2px;
+          background:rgba(74,104,128,.15);border-radius:2px;outline:none;
         }
-
-        /* ── SETTINGS PANEL ───────────────────────────── */
-        #settingsScreen {
-            position: fixed;
-            inset: 0;
-            background: var(--black);
-            z-index: 300;
-            display: flex;
-            flex-direction: column;
-            transform: translateX(100%);
-            transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
-            padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px);
-            overflow-y: auto;
+        input[type=range]::-webkit-slider-thumb{
+          -webkit-appearance:none;width:20px;height:20px;
+          border-radius:50%;background:var(--slate);
+          box-shadow:0 1px 6px rgba(74,104,128,.3);cursor:pointer;
         }
-        #settingsScreen.open { transform: translateX(0); }
-
-        .settings-topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 32px;
-            flex-shrink: 0;
-        }
-
-        .settings-title {
-            font-family: 'DM Mono', monospace;
-            font-size: 14px;
-            font-weight: 500;
-            letter-spacing: 0.08em;
-            color: var(--white);
-        }
-
-        .back-btn {
-            display: flex; align-items: center; gap: 5px;
-            cursor: pointer;
-            font-size: 13px;
-            color: var(--dim);
-            transition: color 0.2s;
-        }
-        .back-btn:active { color: var(--white); }
-        .back-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
-
-        .s-group {
-            background: var(--surface);
-            border: 1px solid var(--border2);
-            border-radius: var(--r);
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-
-        .s-group-label {
-            font-size: 10px;
-            font-weight: 500;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin: 18px 0 6px 4px;
-        }
-        .s-group-label:first-child { margin-top: 0; }
-
-        .s-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border2);
-        }
-        .s-row:last-child { border-bottom: none; }
-
-        .s-row-left { flex: 1; margin-right: 16px; }
-        .s-row-title { font-size: 14px; font-weight: 400; color: var(--white); margin-bottom: 2px; }
-        .s-row-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
         /* Toggle */
-        .toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
-        .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-        .toggle-track { position: absolute; inset: 0; background: rgba(160,175,195,0.1); border-radius: 13px; transition: background 0.3s; }
-        .toggle input:checked ~ .toggle-track { background: var(--slate); }
-        .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
-        .toggle input:checked ~ .toggle-track ~ .toggle-thumb { transform: translateX(18px); }
-
-        /* Text input in settings */
-        .s-input {
-            width: 100%;
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid var(--border);
-            padding: 10px 0;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            color: var(--white);
-            outline: none;
-            transition: border-color 0.2s;
+        .toggle{position:relative;width:44px;height:26px;cursor:pointer;flex-shrink:0}
+        .toggle input{opacity:0;width:0;height:0;position:absolute}
+        .t-track{
+          position:absolute;inset:0;border-radius:13px;
+          background:rgba(60,70,90,.12);transition:background .3s;
         }
-        .s-input:focus { border-color: rgba(255,255,255,0.25); }
-        .s-input::placeholder { color: var(--muted); }
-
-        /* Slider */
-        .s-slider-row { padding: 14px 16px; border-bottom: 1px solid var(--border2); }
-        .s-slider-row:last-child { border-bottom: none; }
-        .s-slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .s-slider-val { font-family: 'DM Mono', monospace; font-size: 16px; color: var(--white); }
-        input[type=range] { -webkit-appearance:none; width:100%; height:2px; background:rgba(74,104,128,0.15); border-radius:2px; outline:none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--slate); box-shadow:0 1px 4px rgba(0,0,0,0.2); cursor:pointer; }
-
-        .save-btn {
-            width: 100%;
-            margin-top: 20px;
-            padding: 14px;
-            background: var(--slate);
-            border: none;
-            border-radius: var(--r);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            font-weight: 500;
-            color: #fff;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-shrink: 0;
-            box-shadow: 0 2px 12px rgba(74,104,128,0.2);
+        .toggle input:checked~.t-track{background:var(--slate)}
+        .t-thumb{
+          position:absolute;top:3px;left:3px;
+          width:20px;height:20px;border-radius:50%;
+          background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);
+          transition:transform .3s cubic-bezier(.4,0,.2,1);
         }
-        .save-btn:active { opacity: 0.85; transform: scale(0.98); }
-
-        .saved-msg {
-            text-align: center;
-            font-size: 12px;
-            color: var(--green);
-            margin-top: 10px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            flex-shrink: 0;
+        .toggle input:checked~.t-track~.t-thumb{transform:translateX(18px)}
+        /* Save button */
+        .save-btn{
+          width:100%;margin-top:24px;padding:15px;
+          background:var(--slate);border:none;
+          border-radius:var(--r);
+          font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
+          color:#fff;cursor:pointer;transition:all .2s;
+          box-shadow:0 3px 14px rgba(74,104,128,.25);
+          flex-shrink:0;
         }
-        .saved-msg.show { opacity: 1; }
+        .save-btn:active{opacity:.85;transform:scale(.98)}
+        .saved-toast{
+          text-align:center;font-size:12px;color:var(--slate);
+          margin-top:10px;opacity:0;transition:opacity .3s;flex-shrink:0;
+        }
+        .saved-toast.show{opacity:1}
+        /* bottom padding for settings scroll */
+        .settings-scroll-pad{height:32px;flex-shrink:0}
     </style>
 </head>
 <body>
 
-<!-- ── MAIN SCREEN ──────────────────────────────────── -->
-<div id="mainScreen">
-
+<!-- MAIN -->
+<div id="mainScreen" class="screen">
     <div class="topbar">
         <div class="wordmark">
-            <div class="wordmark-main">MR. RIGGY</div>
-            <div class="wordmark-sub">Private Digital Assistant</div>
+            <h1>Mr. Riggy</h1>
+            <p>Private Digital Assistant</p>
         </div>
-        <div class="topbar-right">
-            <div class="status-badge" id="statusBadge">
-                <div class="status-dot"></div>
-                <span class="status-label" id="statusLabel">Online</span>
-            </div>
-            <div class="icon-btn" onclick="openSettings()">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            </div>
+        <div class="gear-btn" onclick="openSettings()">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </div>
     </div>
 
-    <div class="orb-section">
-        <div class="orb-container">
-            <div class="orb-ring orb-ring-1"></div>
-            <div class="orb-ring orb-ring-2"></div>
-            <div class="orb-ring orb-ring-3"></div>
-            <div class="orb-core"></div>
-        </div>
-        <div class="wave">
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-        </div>
-        <div class="state-text" id="stateText">Standby</div>
-        <button class="live-btn" id="liveBtn" onclick="toggleLive()">Go Live</button>
-        <div class="commander-tag" id="commanderTag"></div>
+    <div class="status-pill" id="statusPill">
+        <div class="status-dot"></div>
+        <span class="status-text" id="statusText">Online</span>
     </div>
 
-    <div class="cards">
-        <div class="card user">
+    <div class="divider"></div>
+
+    <div class="transcript-area">
+        <div class="transcript-card user">
             <div class="card-label">You said</div>
-            <div class="card-text" id="userText">Awaiting your command, Commander...</div>
+            <div class="card-body" id="userText">Awaiting your command...</div>
         </div>
-        <div class="card riggy">
+        <div class="transcript-card riggy">
             <div class="card-label">Mr. Riggy</div>
-            <div class="card-text" id="riggyText">Online and ready.</div>
+            <div class="card-body" id="riggyText">Online and ready, Commander.</div>
         </div>
     </div>
 
-    <div class="input-section">
+    <div class="wave-row">
+        <div class="wave-bars">
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div>
+        </div>
+        <span class="state-label" id="stateLabel">Standby</span>
+        <span class="commander-tag" id="commanderTag"></span>
+    </div>
+
+    <div class="bottom-bar">
         <div class="input-row">
             <input class="cmd-input" id="commandInput" type="text"
                    placeholder="Type your command, Commander..."
-                   autocomplete="off" autocorrect="off" spellcheck="false" />
+                   autocomplete="off" autocorrect="off" spellcheck="false"/>
             <button class="send-btn" onclick="sendTextCommand()">Send</button>
         </div>
-        <button class="chime-btn" onclick="testChime()">🔔 Test Chime</button>
+        <div class="action-row">
+            <button class="action-btn live-btn" id="liveBtn" onclick="toggleLive()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M1.05 12a10.95 10.95 0 0 1 21.9 0"/></svg>
+                Go Live
+            </button>
+            <button class="action-btn chime-btn" onclick="testChime()">
+                🔔 Test Chime
+            </button>
+        </div>
     </div>
-
 </div>
 
-<!-- ── SETTINGS PANEL ───────────────────────────────── -->
-<div id="settingsScreen">
-
+<!-- SETTINGS -->
+<div id="settingsScreen" class="screen">
     <div class="settings-topbar">
         <div class="back-btn" onclick="closeSettings()">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             Back
         </div>
         <div class="settings-title">Settings</div>
-        <div style="width:40px"></div>
+        <div style="width:48px"></div>
     </div>
 
-    <div class="s-group-label">Identity</div>
-    <div class="s-group">
-        <div class="s-row" style="flex-direction:column; align-items:flex-start;">
-            <div class="s-row-title" style="margin-bottom:10px;">Your Call Sign</div>
-            <input class="s-input" id="commanderName" type="text" placeholder="First name — Riggy will call you Commander [Name]" maxlength="20" />
+    <div class="s-section-label">Identity</div>
+    <div class="s-card">
+        <div class="s-row col">
+            <div class="s-row-title">Your Call Sign</div>
+            <input class="s-input" id="commanderName" type="text"
+                   placeholder="First name — Riggy will call you Commander [Name]" maxlength="20"/>
         </div>
     </div>
 
-    <div class="s-group-label">Chime</div>
-    <div class="s-group">
+    <div class="s-section-label">Chime</div>
+    <div class="s-card">
         <div class="s-row">
-            <div class="s-row-left">
+            <div class="s-row-col">
                 <div class="s-row-title">Enable Chime</div>
                 <div class="s-row-desc">Riggy checks in on you throughout your session.</div>
             </div>
             <label class="toggle">
-                <input type="checkbox" id="chimeEnabled" />
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
+                <input type="checkbox" id="chimeEnabled"/>
+                <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
-        <div class="s-slider-row">
+        <div class="s-slider-wrap">
             <div class="s-slider-header">
-                <div class="s-row-left">
+                <div>
                     <div class="s-row-title">Daily Limit</div>
                     <div class="s-row-desc">Max chimes per day.</div>
                 </div>
                 <div class="s-slider-val" id="chimeVal">10</div>
             </div>
             <input type="range" id="chimeLimit" min="1" max="20" value="10"
-                   oninput="document.getElementById('chimeVal').textContent = this.value" />
+                   oninput="document.getElementById('chimeVal').textContent=this.value"/>
         </div>
     </div>
 
-    <div class="s-group-label">Notifications</div>
-    <div class="s-group">
+    <div class="s-section-label">Notifications</div>
+    <div class="s-card">
         <div class="s-row">
-            <div class="s-row-left">
+            <div class="s-row-col">
                 <div class="s-row-title">Read Aloud</div>
                 <div class="s-row-desc">Riggy reads incoming texts and calls through your glasses.</div>
             </div>
             <label class="toggle">
-                <input type="checkbox" id="notifsEnabled" checked />
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
+                <input type="checkbox" id="notifsEnabled" checked/>
+                <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
         <div class="s-row">
-            <div class="s-row-left">
-                <div class="s-row-title">Phone Calls</div>
-            </div>
+            <div class="s-row-col"><div class="s-row-title">Phone Calls</div></div>
             <label class="toggle">
-                <input type="checkbox" id="notifCalls" checked />
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
+                <input type="checkbox" id="notifCalls" checked/>
+                <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
         <div class="s-row">
-            <div class="s-row-left">
-                <div class="s-row-title">Text Messages</div>
-            </div>
+            <div class="s-row-col"><div class="s-row-title">Text Messages</div></div>
             <label class="toggle">
-                <input type="checkbox" id="notifTexts" checked />
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
+                <input type="checkbox" id="notifTexts" checked/>
+                <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
     </div>
 
-    <div class="s-group-label">General</div>
-    <div class="s-group">
+    <div class="s-section-label">General</div>
+    <div class="s-card">
         <div class="s-row">
-            <div class="s-row-left">
+            <div class="s-row-col">
                 <div class="s-row-title">Wake Word</div>
                 <div class="s-row-desc">Riggy activates when he hears his name.</div>
             </div>
             <label class="toggle">
-                <input type="checkbox" id="wakeWordEnabled" checked />
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
+                <input type="checkbox" id="wakeWordEnabled" checked/>
+                <div class="t-track"></div><div class="t-thumb"></div>
             </label>
         </div>
-        <div class="s-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+        <div class="s-row col">
             <div class="s-row-title">Default City</div>
-            <input class="s-input" id="defaultCity" type="text" placeholder="City, State, Country (e.g. Deltona,FL,US)" />
+            <input class="s-input" id="defaultCity" type="text"
+                   placeholder="City, State, Country — e.g. Deltona, FL, US"/>
         </div>
     </div>
 
-    <button class="save-btn" onclick="saveSettings()">Save</button>
-    <div class="saved-msg" id="savedMsg">Saved</div>
-
+    <button class="save-btn" onclick="saveSettings()">Save Settings</button>
+    <div class="saved-toast" id="savedToast">Settings saved</div>
+    <div class="settings-scroll-pad"></div>
 </div>
 
 <script>
-    const statusBadge = document.getElementById('statusBadge');
-    const statusLabel = document.getElementById('statusLabel');
-    const stateText   = document.getElementById('stateText');
-    const riggyText   = document.getElementById('riggyText');
-    const userText    = document.getElementById('userText');
-    const liveBtn     = document.getElementById('liveBtn');
-    const cmdInput    = document.getElementById('commandInput');
-    const cmdTag      = document.getElementById('commanderTag');
+    const pill      = document.getElementById('statusPill');
+    const statusTxt = document.getElementById('statusText');
+    const stateLabel= document.getElementById('stateLabel');
+    const riggyTxt  = document.getElementById('riggyText');
+    const userTxt   = document.getElementById('userText');
+    const liveBtn   = document.getElementById('liveBtn');
+    const cmdInput  = document.getElementById('commandInput');
+    const cmdTag    = document.getElementById('commanderTag');
 
-    let speakTimer = null, lastRiggy = '', lastUser = '', isLive = false;
+    let lastRiggy='', lastUser='', isLive=false, speakTimer=null;
 
-    function loadSettings() {
-        const name = localStorage.getItem('commanderName') || '';
-        if (name) { document.getElementById('commanderName').value = name; cmdTag.textContent = 'Commander ' + name; }
-        document.getElementById('chimeEnabled').checked = localStorage.getItem('chimeEnabled') === 'true';
-        const cl = localStorage.getItem('chimeLimit') || '10';
-        document.getElementById('chimeLimit').value = cl;
-        document.getElementById('chimeVal').textContent = cl;
-        document.getElementById('notifsEnabled').checked = localStorage.getItem('notifsEnabled') !== 'false';
-        document.getElementById('notifCalls').checked = localStorage.getItem('notifCalls') !== 'false';
-        document.getElementById('notifTexts').checked = localStorage.getItem('notifTexts') !== 'false';
-        document.getElementById('wakeWordEnabled').checked = localStorage.getItem('wakeWordEnabled') !== 'false';
-        const city = localStorage.getItem('defaultCity') || '';
-        if (city) document.getElementById('defaultCity').value = city;
+    function loadSettings(){
+      const name = localStorage.getItem('commanderName')||'';
+      if(name){document.getElementById('commanderName').value=name;cmdTag.textContent='Commander '+name;}
+      document.getElementById('chimeEnabled').checked=localStorage.getItem('chimeEnabled')==='true';
+      const cl=localStorage.getItem('chimeLimit')||'10';
+      document.getElementById('chimeLimit').value=cl;
+      document.getElementById('chimeVal').textContent=cl;
+      document.getElementById('notifsEnabled').checked=localStorage.getItem('notifsEnabled')!=='false';
+      document.getElementById('notifCalls').checked=localStorage.getItem('notifCalls')!=='false';
+      document.getElementById('notifTexts').checked=localStorage.getItem('notifTexts')!=='false';
+      document.getElementById('wakeWordEnabled').checked=localStorage.getItem('wakeWordEnabled')!=='false';
+      const city=localStorage.getItem('defaultCity')||'';
+      if(city)document.getElementById('defaultCity').value=city;
     }
 
-    function saveSettings() {
-        const name = document.getElementById('commanderName').value.trim();
-        localStorage.setItem('commanderName', name);
-        localStorage.setItem('chimeEnabled', document.getElementById('chimeEnabled').checked);
-        localStorage.setItem('chimeLimit', document.getElementById('chimeLimit').value);
-        localStorage.setItem('notifsEnabled', document.getElementById('notifsEnabled').checked);
-        localStorage.setItem('notifCalls', document.getElementById('notifCalls').checked);
-        localStorage.setItem('notifTexts', document.getElementById('notifTexts').checked);
-        localStorage.setItem('wakeWordEnabled', document.getElementById('wakeWordEnabled').checked);
-        localStorage.setItem('defaultCity', document.getElementById('defaultCity').value.trim());
-        if (name) cmdTag.textContent = 'Commander ' + name;
-        else cmdTag.textContent = '';
-        const msg = document.getElementById('savedMsg');
-        msg.classList.add('show');
-        setTimeout(() => msg.classList.remove('show'), 2000);
+    function saveSettings(){
+      const name=document.getElementById('commanderName').value.trim();
+      localStorage.setItem('commanderName',name);
+      localStorage.setItem('chimeEnabled',document.getElementById('chimeEnabled').checked);
+      localStorage.setItem('chimeLimit',document.getElementById('chimeLimit').value);
+      localStorage.setItem('notifsEnabled',document.getElementById('notifsEnabled').checked);
+      localStorage.setItem('notifCalls',document.getElementById('notifCalls').checked);
+      localStorage.setItem('notifTexts',document.getElementById('notifTexts').checked);
+      localStorage.setItem('wakeWordEnabled',document.getElementById('wakeWordEnabled').checked);
+      localStorage.setItem('defaultCity',document.getElementById('defaultCity').value.trim());
+      if(name)cmdTag.textContent='Commander '+name; else cmdTag.textContent='';
+      const toast=document.getElementById('savedToast');
+      toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
     }
 
-    function openSettings() {
-        document.getElementById('settingsScreen').classList.add('open');
-        document.getElementById('mainScreen').classList.add('hidden');
+    function openSettings(){
+      document.getElementById('mainScreen').classList.add('hidden');
+      document.getElementById('settingsScreen').classList.add('open');
+    }
+    function closeSettings(){
+      document.getElementById('settingsScreen').classList.remove('open');
+      document.getElementById('mainScreen').classList.remove('hidden');
     }
 
-    function closeSettings() {
-        document.getElementById('settingsScreen').classList.remove('open');
-        document.getElementById('mainScreen').classList.remove('hidden');
+    async function sendTextCommand(){
+      const text=cmdInput.value.trim();if(!text)return;
+      cmdInput.value='';
+      userTxt.textContent=text;
+      userTxt.classList.remove('fade-in');void userTxt.offsetWidth;userTxt.classList.add('fade-in');
+      try{await fetch('/text-command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})}catch(e){}
+    }
+    cmdInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendTextCommand()});
+
+    async function testChime(){
+      try{await fetch('/test-chime',{method:'POST'})}catch(e){}
     }
 
-    async function sendTextCommand() {
-        const text = cmdInput.value.trim();
-        if (!text) return;
-        cmdInput.value = '';
-        userText.textContent = text;
-        userText.classList.remove('fade-in'); void userText.offsetWidth; userText.classList.add('fade-in');
-        try { await fetch('/text-command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }); } catch(e) {}
+    async function toggleLive(){
+      try{
+        const res=await fetch('/toggle-live',{method:'POST'});
+        const data=await res.json();
+        isLive=data.live;updateLiveUI();
+      }catch(e){}
     }
 
-    cmdInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextCommand(); });
-
-    async function testChime() {
-        try { await fetch('/test-chime', { method: 'POST' }); } catch(e) {}
+    function updateLiveUI(){
+      if(isLive){
+        document.body.classList.add('live');document.body.classList.remove('speaking');
+        pill.classList.add('live');pill.classList.remove('speaking');
+        statusTxt.textContent='Live';stateLabel.textContent='Listening';
+        liveBtn.textContent='Stop Live';liveBtn.classList.add('active');
+      }else{
+        document.body.classList.remove('live');
+        pill.classList.remove('live');
+        statusTxt.textContent='Online';stateLabel.textContent='Standby';
+        liveBtn.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M1.05 12a10.95 10.95 0 0 1 21.9 0"/></svg> Go Live';
+        liveBtn.classList.remove('active');
+      }
     }
 
-    async function toggleLive() {
-        try {
-            const res = await fetch('/toggle-live', { method: 'POST' });
-            const data = await res.json();
-            isLive = data.live;
-            updateLiveUI();
-        } catch(e) {}
+    function setSpeaking(on){
+      if(isLive)return;
+      if(on){
+        document.body.classList.add('speaking');
+        pill.classList.add('speaking');
+        statusTxt.textContent='Speaking';stateLabel.textContent='Transmitting';
+      }else{
+        document.body.classList.remove('speaking');
+        pill.classList.remove('speaking');
+        statusTxt.textContent='Online';stateLabel.textContent='Listening';
+      }
     }
 
-    function updateLiveUI() {
-        if (isLive) {
-            document.body.classList.add('live'); document.body.classList.remove('speaking');
-            statusBadge.classList.add('live'); statusBadge.classList.remove('speaking');
-            statusLabel.textContent = 'Live';
-            stateText.textContent = 'Listening';
-            liveBtn.textContent = 'Stop Live'; liveBtn.classList.add('active');
-        } else {
-            document.body.classList.remove('live');
-            statusBadge.classList.remove('live');
-            statusLabel.textContent = 'Online';
-            stateText.textContent = 'Standby';
-            liveBtn.textContent = 'Go Live'; liveBtn.classList.remove('active');
-        }
-    }
-
-    function setSpeaking(on) {
-        if (isLive) return;
-        if (on) {
-            document.body.classList.add('speaking');
-            statusBadge.classList.add('speaking');
-            statusLabel.textContent = 'Speaking';
-            stateText.textContent = 'Transmitting';
-        } else {
-            document.body.classList.remove('speaking');
-            statusBadge.classList.remove('speaking');
-            statusLabel.textContent = 'Online';
-            stateText.textContent = 'Listening';
-        }
-    }
-
-    async function pollUpdates() {
-        try {
-            const res = await fetch('/webview-state');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.emergencyCall) {
-            window.location.href = 'tel:911';
-        }
-        if (data.liveMode !== undefined && data.liveMode !== isLive) { isLive = data.liveMode; updateLiveUI(); }
-                if (data.userSaid && data.userSaid !== lastUser) {
-                    lastUser = data.userSaid;
-                    userText.textContent = data.userSaid;
-                    userText.classList.remove('fade-in'); void userText.offsetWidth; userText.classList.add('fade-in');
-                }
-                if (data.riggySaid && data.riggySaid !== lastRiggy) {
-                    lastRiggy = data.riggySaid;
-                    riggyText.textContent = data.riggySaid;
-                    riggyText.classList.remove('fade-in'); void riggyText.offsetWidth; riggyText.classList.add('fade-in');
-                    if (!isLive) {
-                        setSpeaking(true);
-                        if (speakTimer) clearTimeout(speakTimer);
-                        speakTimer = setTimeout(() => setSpeaking(false), Math.max(2500, data.riggySaid.length * 55));
-                    }
-                }
+    async function pollUpdates(){
+      try{
+        const res=await fetch('/webview-state');
+        if(res.ok){
+          const data=await res.json();
+          if(data.emergencyCall){window.location.href='tel:911';}
+          if(data.liveMode!==undefined&&data.liveMode!==isLive){isLive=data.liveMode;updateLiveUI();}
+          if(data.userSaid&&data.userSaid!==lastUser){
+            lastUser=data.userSaid;
+            userTxt.textContent=data.userSaid;
+            userTxt.classList.remove('fade-in');void userTxt.offsetWidth;userTxt.classList.add('fade-in');
+          }
+          if(data.riggySaid&&data.riggySaid!==lastRiggy){
+            lastRiggy=data.riggySaid;
+            riggyTxt.textContent=data.riggySaid;
+            riggyTxt.classList.remove('fade-in');void riggyTxt.offsetWidth;riggyTxt.classList.add('fade-in');
+            if(!isLive){
+              setSpeaking(true);
+              if(speakTimer)clearTimeout(speakTimer);
+              speakTimer=setTimeout(()=>setSpeaking(false),Math.max(2500,data.riggySaid.length*55));
             }
-        } catch(e) {}
-        setTimeout(pollUpdates, 1200);
+          }
+        }
+      }catch(e){}
+      setTimeout(pollUpdates,1200);
     }
 
     loadSettings();
-    setSpeaking(false);
+    updateLiveUI();
     pollUpdates();
 </script>
 </body>
