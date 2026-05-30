@@ -4,62 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#EDEBE6">
     <title>Mr. Riggy</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
         :root{
-          --cream:#EDEBE6;
-          --cream2:#E2DFD8;
-          --card:#F0EDE7;
+          --chassis:#D4CFC4;
+          --chassis2:#C8C2B5;
+          --chassis3:#B8B0A0;
+          --panel:#1A1F1A;
+          --panel2:#141814;
+          --amber:#FFB020;
+          --amber-dim:rgba(255,176,32,0.15);
+          --amber-glow:rgba(255,176,32,0.4);
+          --green:#39FF7A;
+          --green-dim:rgba(57,255,122,0.12);
+          --green-glow:rgba(57,255,122,0.35);
+          --red:#FF3B30;
           --slate:#4A6880;
-          --slate2:#3D5A6E;
           --slate-light:#6B8FA8;
-          --slate-glow:rgba(74,104,128,0.3);
-          --sand:#9E8A68;
-          --sand-light:#B8A882;
-          --orange:#C4713A;
-          --orange-dim:rgba(196,113,58,0.1);
-          --orange-border:rgba(196,113,58,0.35);
-          --brown:#6B4C32;
-          --brown-dim:rgba(107,76,50,0.1);
-          --brown-border:rgba(107,76,50,0.3);
-          --tan:#D4B896;
-          --tan2:#C8A878;
-          --ink:#1C2331;
-          --muted:rgba(60,70,90,0.38);
-          --border:rgba(158,138,104,0.2);
-          --border-slate:rgba(74,104,128,0.15);
-          --r:10px;
+          --ink:#2A2A2A;
+          --ink2:#4A4A4A;
+          --muted:rgba(42,42,42,0.45);
+          --border-chassis:rgba(255,255,255,0.25);
+          --border-dark:rgba(0,0,0,0.3);
+          --r:6px;
+          --r2:10px;
         }
 
         html,body{
           width:100%;height:100%;
           min-height:100dvh;
-          background:var(--cream);
+          background:var(--chassis);
           color:var(--ink);
-          font-family:'DM Sans',-apple-system,sans-serif;
+          font-family:'Share Tech Mono',monospace;
           overflow:hidden;
           -webkit-font-smoothing:antialiased;
         }
 
-        /* ── SCAN LINES ── */
+        /* ── CHASSIS TEXTURE ── */
         body::before{
           content:'';position:fixed;inset:0;
-          background:repeating-linear-gradient(
-            0deg,transparent,transparent 2px,
-            rgba(74,104,128,0.025) 2px,rgba(74,104,128,0.025) 3px
-          );
-          pointer-events:none;z-index:0;
-        }
-
-        /* ── NOISE TEXTURE ── */
-        body::after{
-          content:'';position:fixed;inset:0;
-          opacity:.03;
-          background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+          background:
+            repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(0,0,0,0.015) 2px,rgba(0,0,0,0.015) 4px),
+            repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.01) 2px,rgba(0,0,0,0.01) 4px);
           pointer-events:none;z-index:0;
         }
 
@@ -67,9 +56,9 @@
         .screen{
           position:fixed;inset:0;z-index:1;
           display:flex;flex-direction:column;
-          padding:max(env(safe-area-inset-top),18px) 16px max(env(safe-area-inset-bottom),14px);
+          padding:max(env(safe-area-inset-top),16px) 14px max(env(safe-area-inset-bottom),12px);
           transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .35s;
-          background:var(--cream);
+          background:var(--chassis);
         }
         .screen.hidden{transform:translateX(-110%);opacity:0;pointer-events:none}
         #settingsScreen{
@@ -79,285 +68,300 @@
         }
         #settingsScreen.open{transform:translateX(0);opacity:1;pointer-events:auto}
 
-        /* ── TOPBAR ── */
-        .topbar{
-          display:flex;align-items:flex-start;justify-content:space-between;
-          margin-bottom:10px;flex-shrink:0;
+        /* ── TOP UNIT LABEL ── */
+        .unit-header{
+          background:var(--panel);
+          border-radius:var(--r2) var(--r2) 0 0;
+          padding:8px 14px 6px;
+          display:flex;align-items:center;justify-content:space-between;
+          border:1px solid var(--border-dark);
+          border-bottom:none;
+          flex-shrink:0;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
         }
-        .wordmark{display:flex;flex-direction:column;gap:2px}
-        .wordmark-title{
+        .unit-name{
           font-family:'Orbitron',monospace;
-          font-size:24px;font-weight:900;
-          letter-spacing:.15em;
-          color:var(--slate);
-          text-shadow:
-            0 0 15px var(--slate-glow),
-            0 0 35px rgba(74,104,128,0.15),
-            0 0 60px rgba(74,104,128,0.07);
-          animation:titlePulse 4s ease-in-out infinite;
+          font-size:16px;font-weight:900;
+          letter-spacing:.2em;
+          color:var(--amber);
+          text-shadow:0 0 10px var(--amber-glow),0 0 25px rgba(255,176,32,0.2);
+          animation:amberPulse 3s ease-in-out infinite;
         }
-        @keyframes titlePulse{
-          0%,100%{text-shadow:0 0 15px var(--slate-glow),0 0 35px rgba(74,104,128,0.15)}
-          50%{text-shadow:0 0 25px rgba(74,104,128,0.45),0 0 50px rgba(74,104,128,0.2),0 0 80px rgba(74,104,128,0.08)}
+        @keyframes amberPulse{
+          0%,100%{text-shadow:0 0 10px var(--amber-glow),0 0 25px rgba(255,176,32,0.2)}
+          50%{text-shadow:0 0 18px var(--amber-glow),0 0 40px rgba(255,176,32,0.3),0 0 60px rgba(255,176,32,0.1)}
         }
-        .wordmark-sub{
-          font-family:'Share Tech Mono',monospace;
-          font-size:9px;letter-spacing:.3em;text-transform:uppercase;
-          color:var(--sand);opacity:.7;
+        .unit-sub{
+          font-size:8px;letter-spacing:.25em;text-transform:uppercase;
+          color:rgba(255,176,32,0.4);margin-top:2px;
         }
-        .topbar-right{display:flex;align-items:center;gap:8px;margin-top:2px}
+        .header-right{display:flex;align-items:center;gap:8px}
 
-        /* ── STATUS ── */
-        .status-badge{
-          display:inline-flex;align-items:center;gap:5px;
-          padding:4px 9px;border-radius:3px;
-          background:rgba(74,104,128,0.07);
-          border:1px solid var(--border-slate);
-          font-family:'Share Tech Mono',monospace;
-          font-size:10px;letter-spacing:.12em;
-          color:var(--slate-light);transition:all .3s;
+        /* ── FREQUENCY DISPLAY ── */
+        .freq-display{
+          font-family:'VT323',monospace;
+          font-size:18px;letter-spacing:.08em;
+          color:var(--green);
+          text-shadow:0 0 8px var(--green-glow);
+          text-align:right;
+          line-height:1;
         }
-        .status-badge.speaking{
-          background:rgba(74,104,128,.1);
-          border-color:rgba(74,104,128,.35);color:var(--slate);
+        .freq-label{
+          font-size:7px;letter-spacing:.2em;
+          color:rgba(57,255,122,0.4);
+          text-align:right;margin-top:1px;
         }
-        .status-badge.live{
-          background:rgba(74,104,128,.14);
-          border-color:rgba(74,104,128,.4);color:var(--slate);
-        }
-        .s-dot{
-          width:5px;height:5px;border-radius:50%;
-          background:currentColor;
-          animation:breathe 2.5s ease-in-out infinite;
-        }
-        .status-badge.speaking .s-dot,.status-badge.live .s-dot{
-          animation:blink .7s ease-in-out infinite alternate;
-          box-shadow:0 0 5px currentColor;
-        }
-        @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
-        @keyframes blink{from{opacity:.35}to{opacity:1}}
 
-        /* ── GEAR ── */
-        .gear-btn{
-          width:32px;height:32px;border-radius:3px;
-          background:rgba(74,104,128,.07);border:1px solid var(--border-slate);
-          display:flex;align-items:center;justify-content:center;
-          cursor:pointer;transition:all .2s;
+        /* ── SIGNAL BARS ── */
+        .signal-bars{display:flex;align-items:flex-end;gap:2px;height:18px}
+        .sig-bar{
+          width:4px;border-radius:1px;
+          background:var(--green);
+          box-shadow:0 0 4px var(--green-glow);
+          transition:opacity .3s;
         }
-        .gear-btn:active{background:rgba(74,104,128,.18)}
-        .gear-btn svg{width:13px;height:13px;stroke:var(--slate);fill:none;stroke-width:1.8}
+        .sig-bar:nth-child(1){height:4px}
+        .sig-bar:nth-child(2){height:7px}
+        .sig-bar:nth-child(3){height:11px}
+        .sig-bar:nth-child(4){height:15px}
+        .sig-bar:nth-child(5){height:18px;opacity:.3}
 
-        /* ── HUD LINE ── */
-        .hud-line{
-          height:1px;flex-shrink:0;margin:8px 0;
-          background:linear-gradient(90deg,
-            transparent 0%,
-            rgba(196,113,58,.3) 20%,
-            rgba(107,76,50,.4) 50%,
-            rgba(74,104,128,.3) 80%,
-            transparent 100%
-          );
+        /* ── INDICATOR LIGHTS ROW ── */
+        .indicators{
+          background:var(--panel2);
+          border-left:1px solid var(--border-dark);
+          border-right:1px solid var(--border-dark);
+          padding:5px 14px;
+          display:flex;align-items:center;gap:10px;
+          flex-shrink:0;
+        }
+        .ind{display:flex;align-items:center;gap:4px}
+        .ind-dot{
+          width:7px;height:7px;border-radius:50%;
+          background:rgba(255,255,255,0.08);
+          border:1px solid rgba(255,255,255,0.08);
+          transition:all .2s;
+        }
+        .ind-dot.pwr{background:#2ecc71;box-shadow:0 0 5px rgba(46,204,113,0.6)}
+        .ind-dot.tx{background:rgba(255,176,32,0.15)}
+        .ind-dot.tx.active{background:var(--amber);box-shadow:0 0 6px var(--amber-glow);animation:blink .4s ease-in-out infinite alternate}
+        .ind-dot.rx{background:rgba(57,255,122,0.15)}
+        .ind-dot.rx.active{background:var(--green);box-shadow:0 0 6px var(--green-glow);animation:blink .4s ease-in-out infinite alternate}
+        .ind-dot.sq{background:rgba(255,59,48,0.15)}
+        .ind-dot.sq.active{background:var(--red);box-shadow:0 0 5px rgba(255,59,48,0.5)}
+        @keyframes blink{from{opacity:.4}to{opacity:1}}
+        .ind-label{
+          font-size:8px;letter-spacing:.1em;
+          color:rgba(255,255,255,0.25);
+        }
+        .ind-sep{
+          flex:1;height:1px;
+          background:rgba(255,255,255,0.05);
+        }
+        .settings-ind{
+          display:flex;align-items:center;gap:5px;
+          cursor:pointer;padding:3px 6px;
+          border-radius:3px;
+          border:1px solid rgba(255,255,255,0.08);
+          background:rgba(255,255,255,0.03);
+          transition:all .2s;
+        }
+        .settings-ind:active{background:rgba(255,255,255,0.08)}
+        .settings-ind svg{width:11px;height:11px;stroke:rgba(255,255,255,0.3);fill:none;stroke-width:1.8}
+        .settings-ind span{font-size:8px;letter-spacing:.1em;color:rgba(255,255,255,0.25)}
+
+        /* ── TX PANEL (user input) ── */
+        .tx-panel{
+          background:var(--panel);
+          border:1px solid var(--border-dark);
+          border-top:none;border-bottom:none;
+          padding:10px 14px;
+          flex-shrink:0;
           position:relative;
         }
-        .hud-line::before{
+        .panel-header{
+          display:flex;align-items:center;gap:8px;
+          margin-bottom:8px;
+        }
+        .panel-tag{
+          font-family:'Orbitron',monospace;
+          font-size:9px;font-weight:700;letter-spacing:.2em;
+          padding:2px 8px;border-radius:2px;
+        }
+        .panel-tag.tx-tag{
+          color:var(--amber);
+          background:rgba(255,176,32,0.1);
+          border:1px solid rgba(255,176,32,0.3);
+        }
+        .panel-tag.rx-tag{
+          color:var(--green);
+          background:rgba(57,255,122,0.08);
+          border:1px solid rgba(57,255,122,0.25);
+        }
+        .panel-sub{
+          font-size:8px;letter-spacing:.15em;
+          color:rgba(255,255,255,0.2);
+        }
+        .tx-text{
+          font-family:'VT323',monospace;
+          font-size:22px;line-height:1.4;
+          color:var(--amber);
+          text-shadow:0 0 8px rgba(255,176,32,0.35);
+          min-height:52px;
+          word-break:break-word;
+        }
+        .tx-cursor{
+          display:inline-block;width:10px;height:18px;
+          background:var(--amber);opacity:.7;
+          animation:cursorBlink .8s step-end infinite;
+          vertical-align:bottom;margin-left:2px;
+        }
+        @keyframes cursorBlink{0%,100%{opacity:.7}50%{opacity:0}}
+
+        /* ── DIVIDER BAR ── */
+        .panel-divider{
+          background:var(--panel2);
+          border-left:1px solid var(--border-dark);
+          border-right:1px solid var(--border-dark);
+          height:4px;
+          flex-shrink:0;
+          position:relative;
+        }
+        .panel-divider::before{
           content:'';position:absolute;
-          left:50%;top:-2px;transform:translateX(-50%);
-          width:60px;height:5px;
-          background:rgba(196,113,58,.15);
-          filter:blur(4px);
+          left:20%;right:20%;top:1px;height:2px;
+          background:linear-gradient(90deg,transparent,rgba(57,255,122,0.3),rgba(255,176,32,0.3),transparent);
         }
 
-        /* ── TRANSCRIPT CARDS ── */
-        .transcript-area{flex:1;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden}
-
-        /* USER CARD — lighter slate */
-        .tc-user{
+        /* ── RX PANEL (Riggy response) ── */
+        .rx-panel{
+          background:var(--panel);
+          border:1px solid var(--border-dark);
+          border-top:none;border-bottom:none;
+          padding:10px 14px;
           flex:1;min-height:0;
-          border-radius:var(--r);
-          background:rgba(74,104,128,0.05);
-          border:1px solid rgba(74,104,128,0.15);
-          padding:12px 14px;
-          position:relative;overflow:hidden;
           display:flex;flex-direction:column;
-          box-shadow:inset 0 1px 0 rgba(74,104,128,0.08);
         }
-        .tc-user::before{
-          content:'';position:absolute;top:0;left:0;
-          width:14px;height:14px;
-          border-top:1.5px solid var(--slate-light);border-left:1.5px solid var(--slate-light);
-          opacity:.4;
-        }
-        .tc-user::after{
-          content:'';position:absolute;top:0;right:0;
-          width:14px;height:14px;
-          border-top:1.5px solid var(--slate-light);border-right:1.5px solid var(--slate-light);
-          opacity:.4;
-        }
-        .tc-user .bc{position:absolute}
-        .tc-user .bc-bl{bottom:0;left:0;width:14px;height:14px;border-bottom:1.5px solid var(--slate-light);border-left:1.5px solid var(--slate-light);opacity:.4}
-        .tc-user .bc-br{bottom:0;right:0;width:14px;height:14px;border-bottom:1.5px solid var(--slate-light);border-right:1.5px solid var(--slate-light);opacity:.4}
-
-        /* RIGGY CARD — deeper slate */
-        .tc-riggy{
-          flex:1;min-height:0;
-          border-radius:var(--r);
-          background:rgba(74,104,128,0.08);
-          border:1px solid rgba(74,104,128,0.22);
-          padding:12px 14px;
-          position:relative;overflow:hidden;
-          display:flex;flex-direction:column;
-          box-shadow:inset 0 1px 0 rgba(74,104,128,0.12),0 2px 12px rgba(74,104,128,0.06);
-        }
-        .tc-riggy::before{
-          content:'';position:absolute;top:0;left:0;
-          width:14px;height:14px;
-          border-top:1.5px solid var(--slate);border-left:1.5px solid var(--slate);
-          opacity:.6;
-        }
-        .tc-riggy::after{
-          content:'';position:absolute;top:0;right:0;
-          width:14px;height:14px;
-          border-top:1.5px solid var(--slate);border-right:1.5px solid var(--slate);
-          opacity:.6;
-        }
-        .tc-riggy .bc-bl{position:absolute;bottom:0;left:0;width:14px;height:14px;border-bottom:1.5px solid var(--slate);border-left:1.5px solid var(--slate);opacity:.6}
-        .tc-riggy .bc-br{position:absolute;bottom:0;right:0;width:14px;height:14px;border-bottom:1.5px solid var(--slate);border-right:1.5px solid var(--slate);opacity:.6}
-
-        /* Label styles */
-        .tc-label{
-          font-family:'Share Tech Mono',monospace;
-          font-size:9px;letter-spacing:.18em;text-transform:uppercase;
-          margin-bottom:10px;flex-shrink:0;
-        }
-        .tc-user .tc-label{color:var(--slate-light);opacity:.6}
-        .tc-riggy .tc-label{color:var(--slate);opacity:.8}
-
-        /* Text — monochrome slate, varying opacity */
-        .tc-text{
-          font-family:'Share Tech Mono',monospace;
-          font-size:17px;line-height:1.7;
-          color:var(--slate2);
+        .rx-text{
+          font-family:'VT323',monospace;
+          font-size:22px;line-height:1.4;
+          color:var(--green);
+          text-shadow:0 0 8px rgba(57,255,122,0.3);
           flex:1;overflow-y:auto;
-          letter-spacing:.02em;
-          text-shadow:0 0 8px rgba(74,104,128,0.15);
-        }
-        .tc-user .tc-text{
-          font-size:15px;
-          color:var(--slate-light);
-          opacity:.7;
-          text-shadow:none;
+          word-break:break-word;
         }
 
-        /* Glow line inside card */
-        .tc-user .glow-line{
-          position:absolute;bottom:0;left:20%;right:20%;height:1px;
-          background:linear-gradient(90deg,transparent,rgba(74,104,128,.25),transparent);
-        }
-        .tc-riggy .glow-line{
-          position:absolute;bottom:0;left:20%;right:20%;height:1px;
-          background:linear-gradient(90deg,transparent,rgba(74,104,128,.4),transparent);
+        /* ── SCAN LINE OVERLAY ON PANELS ── */
+        .tx-panel::after,.rx-panel::after{
+          content:'';position:absolute;inset:0;
+          background:repeating-linear-gradient(
+            0deg,transparent,transparent 2px,
+            rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 3px
+          );
+          pointer-events:none;
         }
 
-        .fade-in{animation:fadeUp .2s ease forwards}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+        /* ── BOTTOM CHASSIS ── */
+        .bottom-chassis{
+          background:var(--panel);
+          border:1px solid var(--border-dark);
+          border-top:2px solid rgba(255,255,255,0.06);
+          border-radius:0 0 var(--r2) var(--r2);
+          padding:10px 12px;
+          flex-shrink:0;
+        }
 
-        /* ── WAVE ROW ── */
-        .wave-row{
+        /* ── PTT INPUT ROW ── */
+        .ptt-row{
           display:flex;align-items:center;gap:8px;
-          flex-shrink:0;padding:8px 0 6px;
+          margin-bottom:8px;
         }
-        .wbs{display:flex;align-items:center;gap:2px}
-        .wb{width:2px;height:3px;border-radius:2px;background:rgba(74,104,128,.2);transition:background .3s}
-        body.speaking .wb{background:var(--slate);animation:wv .45s ease-in-out infinite alternate}
-        body.live .wb{background:var(--slate-light);animation:wv-idle 2s ease-in-out infinite alternate}
-        .wb:nth-child(1){animation-delay:0s}.wb:nth-child(2){animation-delay:.04s}.wb:nth-child(3){animation-delay:.08s}
-        .wb:nth-child(4){animation-delay:.12s}.wb:nth-child(5){animation-delay:.16s}.wb:nth-child(6){animation-delay:.2s}
-        .wb:nth-child(7){animation-delay:.24s}.wb:nth-child(8){animation-delay:.2s}.wb:nth-child(9){animation-delay:.16s}
-        .wb:nth-child(10){animation-delay:.12s}.wb:nth-child(11){animation-delay:.08s}
-        @keyframes wv{from{height:3px}to{height:16px}}
-        @keyframes wv-idle{from{height:3px}to{height:7px}}
-        .state-lbl{
-          font-family:'Share Tech Mono',monospace;
-          font-size:11px;letter-spacing:.15em;text-transform:uppercase;
-          color:var(--muted);transition:color .3s;
+        .ptt-input-wrap{
+          flex:1;
+          background:var(--panel2);
+          border:1px solid rgba(255,176,32,0.2);
+          border-radius:var(--r);
+          padding:8px 10px;
+          display:flex;align-items:center;gap:6px;
+          transition:border-color .2s,box-shadow .2s;
         }
-        body.speaking .state-lbl{color:var(--slate)}
-        body.live .state-lbl{color:var(--slate-light)}
-        .cmd-tag{
-          margin-left:auto;
-          font-family:'Orbitron',monospace;
-          font-size:9px;letter-spacing:.1em;
-          color:rgba(74,104,128,.5);
+        .ptt-input-wrap:focus-within{
+          border-color:rgba(255,176,32,0.5);
+          box-shadow:0 0 0 2px rgba(255,176,32,0.08),0 0 12px rgba(255,176,32,0.06);
         }
-
-        /* ── BOTTOM BAR ── */
-        .bottom-bar{flex-shrink:0;display:flex;flex-direction:column;gap:7px}
-        .input-row{
-          display:flex;align-items:center;gap:8px;
-          background:rgba(74,104,128,.05);
-          border:1px solid var(--border-slate);
-          border-radius:var(--r);padding:9px 12px;
-          transition:border-color .25s,box-shadow .25s;
+        .ptt-mic{
+          font-size:12px;opacity:.4;flex-shrink:0;
         }
-        .input-row:focus-within{
-          border-color:var(--slate-light);
-          box-shadow:0 0 0 3px rgba(74,104,128,.07),0 0 15px rgba(74,104,128,.05);
-        }
-        .cmd-input{
+        .ptt-input{
           flex:1;background:transparent;border:none;outline:none;
-          font-family:'Share Tech Mono',monospace;font-size:15px;
-          color:var(--slate2);
-          caret-color:var(--slate);
-          text-shadow:none;
+          font-family:'VT323',monospace;font-size:18px;
+          color:var(--amber);caret-color:var(--amber);
+          line-height:1;
         }
-        .cmd-input::placeholder{color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;text-shadow:none}
-        .send-btn{
-          background:var(--slate);border:none;border-radius:5px;
-          padding:8px 16px;
+        .ptt-input::placeholder{
+          font-family:'Share Tech Mono',monospace;
+          font-size:11px;color:rgba(255,255,255,0.2);
+          letter-spacing:.04em;
+        }
+        .ptt-btn{
+          background:var(--amber);border:none;
+          border-radius:var(--r);
+          padding:9px 16px;
           font-family:'Orbitron',monospace;
-          font-size:10px;font-weight:700;letter-spacing:.1em;
-          color:#fff;cursor:pointer;transition:all .2s;flex-shrink:0;
-          box-shadow:0 2px 10px rgba(74,104,128,.25),0 0 20px rgba(74,104,128,.1);
+          font-size:9px;font-weight:700;letter-spacing:.12em;
+          color:#000;cursor:pointer;transition:all .2s;flex-shrink:0;
+          box-shadow:0 2px 10px rgba(255,176,32,.3),0 0 20px rgba(255,176,32,.1);
         }
-        .send-btn:active{opacity:.8;transform:scale(.95)}
+        .ptt-btn:active{opacity:.8;transform:scale(.95)}
+
+        /* ── ACTION BUTTONS ROW ── */
         .action-row{display:flex;gap:7px}
         .act-btn{
-          flex:1;padding:10px 8px;border-radius:5px;
-          border:1px solid var(--border-slate);
-          background:rgba(74,104,128,.06);
+          flex:1;padding:8px 6px;border-radius:var(--r);
+          border:1px solid rgba(255,255,255,0.08);
+          background:rgba(255,255,255,0.03);
           font-family:'Orbitron',monospace;
-          font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
-          color:var(--slate);cursor:pointer;transition:all .2s;
+          font-size:8px;font-weight:500;letter-spacing:.1em;
+          color:rgba(255,255,255,0.4);
+          cursor:pointer;transition:all .2s;
           display:flex;align-items:center;justify-content:center;gap:5px;
         }
-        .act-btn.orange-btn{
-          border-color:var(--border-slate);
-          background:rgba(74,104,128,.08);color:var(--slate);
+        .act-btn.live-btn{
+          border-color:rgba(57,255,122,0.2);
+          color:rgba(57,255,122,0.6);
+          background:rgba(57,255,122,0.04);
         }
-        .act-btn.active{
-          background:rgba(74,104,128,.18);
-          border-color:rgba(74,104,128,.45);
-          box-shadow:0 0 12px rgba(74,104,128,.15),inset 0 1px 0 rgba(74,104,128,.1);
+        .act-btn.live-btn.active{
+          border-color:rgba(57,255,122,0.5);
+          color:var(--green);
+          background:rgba(57,255,122,0.1);
+          box-shadow:0 0 10px rgba(57,255,122,0.1);
         }
-        .act-btn:active{opacity:.7;transform:scale(.97)}
+        .act-btn.chime-btn{
+          border-color:rgba(255,176,32,0.2);
+          color:rgba(255,176,32,0.6);
+          background:rgba(255,176,32,0.04);
+        }
+        .act-btn:active{opacity:.6}
+
+        .fade-in{animation:fadeUp .2s ease forwards}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
 
         /* ════════════════════
            SETTINGS
            ════════════════════ */
-        #settingsScreen{padding-bottom:48px}
+        #settingsScreen{padding-bottom:40px}
 
         .s-topbar{
           display:flex;align-items:center;justify-content:space-between;
-          margin-bottom:0;flex-shrink:0;
           position:sticky;top:0;
-          background:var(--cream);
+          background:var(--chassis);
           padding:4px 0 12px;
-          border-bottom:1px solid var(--border);
-          z-index:10;margin-bottom:16px;
+          border-bottom:1px solid var(--border-dark);
+          z-index:10;margin-bottom:16px;flex-shrink:0;
         }
         .back-btn{
           display:flex;align-items:center;gap:4px;
-          font-family:'Share Tech Mono',monospace;
           font-size:10px;letter-spacing:.1em;
           color:var(--slate);cursor:pointer;transition:opacity .2s;
         }
@@ -367,108 +371,58 @@
           font-family:'Orbitron',monospace;
           font-size:12px;font-weight:700;
           letter-spacing:.18em;color:var(--slate);
-          text-shadow:0 0 12px var(--slate-glow);
         }
 
         .s-group-label{
-          font-family:'Share Tech Mono',monospace;
           font-size:8px;letter-spacing:.22em;text-transform:uppercase;
           color:var(--slate-light);margin:16px 0 6px 2px;opacity:.8;
         }
         .s-group-label:first-of-type{margin-top:0}
-
         .s-group{
-          background:linear-gradient(135deg,rgba(74,104,128,0.04),rgba(74,104,128,0.02));
-          border:1px solid var(--border-slate);
-          border-radius:var(--r);
-          overflow:visible;margin-bottom:4px;
-          position:relative;
+          background:rgba(74,104,128,.06);
+          border:1px solid var(--border-dark);
+          border-radius:var(--r2);overflow:visible;margin-bottom:4px;
         }
-        /* corner brackets on settings cards */
-        .s-group::before{content:'';position:absolute;top:0;left:0;width:10px;height:10px;border-top:1px solid var(--slate-light);border-left:1px solid var(--slate-light);opacity:.5}
-        .s-group::after{content:'';position:absolute;top:0;right:0;width:10px;height:10px;border-top:1px solid var(--slate-light);border-right:1px solid var(--slate-light);opacity:.5}
-
         .s-row{
           display:flex;align-items:center;
           padding:12px 14px;
-          border-bottom:1px solid rgba(74,104,128,0.08);
-          gap:12px;
+          border-bottom:1px solid rgba(74,104,128,0.1);gap:12px;
         }
         .s-row:last-child{border-bottom:none}
         .s-row.col{flex-direction:column;align-items:stretch;gap:8px}
-        .s-lbl{
-          font-family:'DM Sans',sans-serif;
-          font-size:13.5px;font-weight:400;color:var(--tan2);flex:1;
-        }
-        .s-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px;font-family:'DM Sans',sans-serif}
-
+        .s-lbl{font-size:13.5px;font-weight:400;color:var(--ink2);flex:1}
+        .s-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
         .s-input{
-          width:100%;
-          background:rgba(74,104,128,.05);
-          border:1px solid var(--border-slate);
-          border-radius:7px;padding:10px 12px;
-          font-family:'Share Tech Mono',monospace;font-size:13px;
-          color:var(--tan2);outline:none;
-          transition:border-color .2s,box-shadow .2s;
+          width:100%;background:rgba(74,104,128,.07);
+          border:1px solid rgba(74,104,128,.2);border-radius:7px;
+          padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:13px;
+          color:var(--ink);outline:none;transition:border-color .2s,box-shadow .2s;
         }
-        .s-input:focus{
-          border-color:var(--slate-light);
-          box-shadow:0 0 0 3px rgba(74,104,128,.07),0 0 12px rgba(74,104,128,.05);
-        }
+        .s-input:focus{border-color:var(--slate-light);box-shadow:0 0 0 3px rgba(74,104,128,.08)}
         .s-input::placeholder{color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px}
-
-        .s-slider-row{padding:12px 14px;border-bottom:1px solid rgba(74,104,128,0.08)}
+        .s-slider-row{padding:12px 14px;border-bottom:1px solid rgba(74,104,128,0.1)}
         .s-slider-row:last-child{border-bottom:none}
         .s-slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-        .s-slider-val{
-          font-family:'Orbitron',monospace;
-          font-size:22px;font-weight:400;color:var(--slate);
-          text-shadow:0 0 10px var(--slate-glow);
-        }
-        input[type=range]{
-          -webkit-appearance:none;width:100%;height:2px;
-          background:rgba(74,104,128,.15);border-radius:2px;outline:none;
-        }
-        input[type=range]::-webkit-slider-thumb{
-          -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
-          background:var(--slate);
-          box-shadow:0 2px 8px rgba(74,104,128,.3),0 0 12px rgba(74,104,128,.2);
-          cursor:pointer;
-        }
-
+        .s-slider-val{font-family:'Orbitron',monospace;font-size:22px;font-weight:400;color:var(--slate)}
+        input[type=range]{-webkit-appearance:none;width:100%;height:2px;background:rgba(74,104,128,.15);border-radius:2px;outline:none}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--slate);box-shadow:0 2px 8px rgba(74,104,128,.3);cursor:pointer}
         .toggle{position:relative;width:44px;height:26px;cursor:pointer;flex-shrink:0}
         .toggle input{opacity:0;width:0;height:0;position:absolute}
-        .t-track{
-          position:absolute;inset:0;border-radius:13px;
-          background:rgba(60,70,90,.12);transition:background .3s;
-        }
-        .toggle input:checked~.t-track{
-          background:var(--slate);
-          box-shadow:0 0 8px rgba(74,104,128,.3);
-        }
-        .t-thumb{
-          position:absolute;top:3px;left:3px;
-          width:20px;height:20px;border-radius:50%;
-          background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);
-          transition:transform .3s cubic-bezier(.4,0,.2,1);
-        }
+        .t-track{position:absolute;inset:0;border-radius:13px;background:rgba(60,70,90,.12);transition:background .3s}
+        .toggle input:checked~.t-track{background:var(--slate);box-shadow:0 0 8px rgba(74,104,128,.3)}
+        .t-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .3s cubic-bezier(.4,0,.2,1)}
         .toggle input:checked~.t-track~.t-thumb{transform:translateX(18px)}
-
         .save-btn{
           width:100%;margin-top:20px;padding:14px;
-          background:var(--slate);border:none;border-radius:var(--r);
-          font-family:'Orbitron',monospace;
-          font-size:10px;font-weight:700;letter-spacing:.18em;
+          background:var(--slate);border:none;border-radius:var(--r2);
+          font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;
           color:#fff;cursor:pointer;transition:all .2s;
-          box-shadow:0 3px 16px rgba(74,104,128,.28),0 0 30px rgba(74,104,128,.1);
+          box-shadow:0 3px 16px rgba(74,104,128,.28);
         }
         .save-btn:active{opacity:.85;transform:scale(.98)}
         .saved-toast{
-          text-align:center;
-          font-family:'Share Tech Mono',monospace;
-          font-size:9px;letter-spacing:.15em;
-          color:var(--slate-light);margin-top:10px;
-          opacity:0;transition:opacity .3s;
+          text-align:center;font-size:9px;letter-spacing:.15em;
+          color:var(--slate-light);margin-top:10px;opacity:0;transition:opacity .3s;
         }
         .saved-toast.show{opacity:1}
     </style>
@@ -477,71 +431,98 @@
 
 <!-- ── MAIN ── -->
 <div id="mainScreen" class="screen">
-    <div class="topbar">
+
+    <!-- TOP PANEL -->
+    <div class="unit-header">
         <div class="wordmark">
-            <div class="wordmark-title">MR. RIGGY</div>
-            <div class="wordmark-sub">// Private Digital Assistant</div>
+            <div class="unit-name">MR. RIGGY</div>
+            <div class="unit-sub">// PRIVATE DIGITAL ASSISTANT</div>
         </div>
-        <div class="topbar-right">
-            <div class="status-badge" id="statusBadge">
-                <div class="s-dot"></div>
-                <span id="statusText">ONLINE</span>
+        <div class="header-right">
+            <div>
+                <div class="freq-display" id="freqDisplay">147.000</div>
+                <div class="freq-label">MHz · CHANNEL A</div>
             </div>
-            <div class="gear-btn" onclick="openSettings()">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <div class="signal-bars" id="signalBars">
+                <div class="sig-bar"></div>
+                <div class="sig-bar"></div>
+                <div class="sig-bar"></div>
+                <div class="sig-bar"></div>
+                <div class="sig-bar"></div>
             </div>
         </div>
     </div>
 
-    <div class="hud-line"></div>
-
-    <div class="transcript-area">
-        <!-- USER CARD — orange -->
-        <div class="tc-user">
-            <div class="tc-label">◈ INPUT RECEIVED</div>
-            <div class="tc-text" id="userText">Awaiting your command...</div>
-            <div class="bc bc-bl"></div>
-            <div class="bc bc-br"></div>
-            <div class="glow-line"></div>
+    <!-- INDICATOR LIGHTS -->
+    <div class="indicators">
+        <div class="ind">
+            <div class="ind-dot pwr"></div>
+            <span class="ind-label">PWR</span>
         </div>
-        <!-- RIGGY CARD — brown -->
-        <div class="tc-riggy">
-            <div class="tc-label">◈ MR. RIGGY / RESPONSE</div>
-            <div class="tc-text" id="riggyText">Online and ready, Commander.</div>
-            <div class="bc-bl"></div>
-            <div class="bc-br"></div>
-            <div class="glow-line"></div>
+        <div class="ind">
+            <div class="ind-dot tx" id="txLight"></div>
+            <span class="ind-label">TX</span>
+        </div>
+        <div class="ind">
+            <div class="ind-dot rx" id="rxLight"></div>
+            <span class="ind-label">RX</span>
+        </div>
+        <div class="ind">
+            <div class="ind-dot sq" id="sqLight"></div>
+            <span class="ind-label">SQ</span>
+        </div>
+        <div class="ind-sep"></div>
+        <div class="settings-ind" onclick="openSettings()">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>CFG</span>
+        </div>
+        <div class="ind">
+            <span class="ind-label" id="cmdTag" style="color:rgba(255,176,32,0.4);font-size:8px;letter-spacing:.08em"></span>
         </div>
     </div>
 
-    <div class="wave-row">
-        <div class="wbs">
-            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
-            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
-            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
-            <div class="wb"></div><div class="wb"></div>
+    <!-- TX PANEL -->
+    <div class="tx-panel">
+        <div class="panel-header">
+            <div class="panel-tag tx-tag">TX</div>
+            <div class="panel-sub">TRANSMIT · INPUT</div>
         </div>
-        <span class="state-lbl" id="stateLbl">STANDBY</span>
-        <span class="cmd-tag" id="cmdTag"></span>
+        <div class="tx-text" id="userText">Awaiting your command...<span class="tx-cursor"></span></div>
     </div>
 
-    <div class="bottom-bar">
-        <div class="input-row">
-            <input class="cmd-input" id="commandInput" type="text"
-                   placeholder="Type your command, Commander..."
-                   autocomplete="off" autocorrect="off" spellcheck="false"/>
-            <button class="send-btn" onclick="sendTextCommand()">SEND</button>
+    <!-- DIVIDER -->
+    <div class="panel-divider"></div>
+
+    <!-- RX PANEL -->
+    <div class="rx-panel">
+        <div class="panel-header">
+            <div class="panel-tag rx-tag">RX</div>
+            <div class="panel-sub">RECEIVE · RESPONSE</div>
+        </div>
+        <div class="rx-text" id="riggyText">UNIT ONLINE. STANDING BY, COMMANDER.</div>
+    </div>
+
+    <!-- BOTTOM CHASSIS -->
+    <div class="bottom-chassis">
+        <div class="ptt-row">
+            <div class="ptt-input-wrap">
+                <span class="ptt-mic">🎙</span>
+                <input class="ptt-input" id="commandInput" type="text"
+                       placeholder="KEY UP — TYPE YOUR MESSAGE"
+                       autocomplete="off" autocorrect="off" spellcheck="false"/>
+            </div>
+            <button class="ptt-btn" onclick="sendTextCommand()">PTT</button>
         </div>
         <div class="action-row">
-            <button class="act-btn" id="liveBtn" onclick="toggleLive()">◉ GO LIVE</button>
-            <button class="act-btn orange-btn" onclick="testChime()">🔔 CHIME</button>
+            <button class="act-btn live-btn" id="liveBtn" onclick="toggleLive()">◉ GO LIVE</button>
+            <button class="act-btn chime-btn" onclick="testChime()">🔔 CHIME</button>
         </div>
     </div>
+
 </div>
 
 <!-- ── SETTINGS ── -->
 <div id="settingsScreen" class="screen">
-
     <div class="s-topbar">
         <div class="back-btn" onclick="closeSettings()">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
@@ -634,19 +615,27 @@
 
     <button class="save-btn" onclick="saveSettings()">// SAVE SETTINGS</button>
     <div class="saved-toast" id="savedToast">◈ SETTINGS SAVED</div>
-
 </div>
 
 <script>
-    const badge=document.getElementById('statusBadge');
-    const statusTxt=document.getElementById('statusText');
-    const stateLbl=document.getElementById('stateLbl');
+    const txLight=document.getElementById('txLight');
+    const rxLight=document.getElementById('rxLight');
+    const sqLight=document.getElementById('sqLight');
     const riggyTxt=document.getElementById('riggyText');
     const userTxt=document.getElementById('userText');
     const liveBtn=document.getElementById('liveBtn');
     const cmdInput=document.getElementById('commandInput');
     const cmdTag=document.getElementById('cmdTag');
+    const freqDisplay=document.getElementById('freqDisplay');
+
     let lastRiggy='',lastUser='',isLive=false,speakTimer=null;
+
+    // Animate frequency display slightly for realism
+    let freqBase=147.000;
+    setInterval(()=>{
+      const jitter=(Math.random()-.5)*.001;
+      freqDisplay.textContent=(freqBase+jitter).toFixed(3);
+    },3000);
 
     function loadSettings(){
       const name=localStorage.getItem('commanderName')||'';
@@ -688,12 +677,24 @@
     async function sendTextCommand(){
       const text=cmdInput.value.trim();if(!text)return;
       cmdInput.value='';
-      userTxt.textContent=text;
+      setTxActive(true);
+      userTxt.innerHTML=text+'<span class="tx-cursor"></span>';
       userTxt.classList.remove('fade-in');void userTxt.offsetWidth;userTxt.classList.add('fade-in');
       try{await fetch('/text-command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})}catch(e){}
+      setTimeout(()=>setTxActive(false),1500);
     }
     cmdInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendTextCommand()});
+
     async function testChime(){try{await fetch('/test-chime',{method:'POST'})}catch(e){}}
+
+    function setTxActive(on){
+      txLight.classList.toggle('active',on);
+      sqLight.classList.toggle('active',on);
+    }
+    function setRxActive(on){
+      rxLight.classList.toggle('active',on);
+    }
+
     async function toggleLive(){
       try{
         const res=await fetch('/toggle-live',{method:'POST'});
@@ -702,29 +703,12 @@
     }
     function updateLiveUI(){
       if(isLive){
-        document.body.classList.add('live');document.body.classList.remove('speaking');
-        badge.className='status-badge live';statusTxt.textContent='LIVE';
-        stateLbl.textContent='LISTENING';
         liveBtn.textContent='◉ STOP LIVE';liveBtn.classList.add('active');
       }else{
-        document.body.classList.remove('live');
-        badge.className='status-badge';statusTxt.textContent='ONLINE';
-        stateLbl.textContent='STANDBY';
         liveBtn.textContent='◉ GO LIVE';liveBtn.classList.remove('active');
       }
     }
-    function setSpeaking(on){
-      if(isLive)return;
-      if(on){
-        document.body.classList.add('speaking');
-        badge.className='status-badge speaking';
-        statusTxt.textContent='SPEAKING';stateLbl.textContent='TRANSMITTING';
-      }else{
-        document.body.classList.remove('speaking');
-        badge.className='status-badge';
-        statusTxt.textContent='ONLINE';stateLbl.textContent='LISTENING';
-      }
-    }
+
     async function pollUpdates(){
       try{
         const res=await fetch('/webview-state');
@@ -734,18 +718,17 @@
           if(d.liveMode!==undefined&&d.liveMode!==isLive){isLive=d.liveMode;updateLiveUI();}
           if(d.userSaid&&d.userSaid!==lastUser){
             lastUser=d.userSaid;
-            userTxt.textContent=d.userSaid;
+            userTxt.innerHTML=d.userSaid+'<span class="tx-cursor"></span>';
             userTxt.classList.remove('fade-in');void userTxt.offsetWidth;userTxt.classList.add('fade-in');
+            setTxActive(true);setTimeout(()=>setTxActive(false),2000);
           }
           if(d.riggySaid&&d.riggySaid!==lastRiggy){
             lastRiggy=d.riggySaid;
             riggyTxt.textContent=d.riggySaid;
             riggyTxt.classList.remove('fade-in');void riggyTxt.offsetWidth;riggyTxt.classList.add('fade-in');
-            if(!isLive){
-              setSpeaking(true);
-              if(speakTimer)clearTimeout(speakTimer);
-              speakTimer=setTimeout(()=>setSpeaking(false),Math.max(2500,d.riggySaid.length*55));
-            }
+            setRxActive(true);
+            if(speakTimer)clearTimeout(speakTimer);
+            speakTimer=setTimeout(()=>setRxActive(false),Math.max(2500,d.riggySaid.length*55));
           }
         }
       }catch(e){}
