@@ -78,11 +78,26 @@ const NATURE_REMINDERS = [
   "Outside. Two minutes. Your body will thank you later."
 ];
 const CHECKIN_PHRASES = [
-  "Hey. You good out there?","Commander. Real talk — how you holding up?",
-  "Just checking in. Everything alright?","Hey.","You good?",
-  "How's it going out there Commander?","Real quick — how you doing?",
-  "Just wanted to say hey. How are you?","Commander. Checking in. Talk to me.",
-  "How's the day treating you?"
+  "Hey.",
+  "Still out here.",
+  "Commander.",
+  "Just checking in. Carry on.",
+  "Hey, you still alive out there? Cool.",
+  "Not interrupting. Just saying hey.",
+  "C-3PO still hasn't paid me back. Anyway. You good?",
+  "Real friends check in. Here I am.",
+  "You're doing the thing. I see you.",
+  "No agenda. Just hey.",
+  "Yo.",
+  "Hey friend. Don't mind me.",
+  "Just wanted to say something. That was it.",
+  "You know what, never mind. You look busy. Carry on.",
+  "I was gonna say something profound but I forgot. Hey though.",
+  "Still here if you need me. That's all.",
+  "Water. Food. Sunlight. Just a thought.",
+  "You good? Cool. Moving on.",
+  "The vibe seems right. Riggy approves.",
+  "Hey. That's the whole message. Hey."
 ];
 const FACT_INTROS = [
   "Okay this one's actually wild —","Random thing I just found interesting —",
@@ -201,8 +216,17 @@ let locationCacheTime = 0;
 const LOCATION_CACHE_MS = 5 * 60 * 1000;
 
 async function getIpLocation() {
-  // NOTE: IP geolocation returns Railway server location (California), not user location.
-  // Always return the hardcoded default. GPS via getGlassesLocation() is the real source.
+  const now = Date.now();
+  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) return cachedLocation;
+  try {
+    const res = await fetch('https://ipapi.co/json/', { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
+    const data = await res.json();
+    if (data.latitude && data.longitude) {
+      cachedLocation = { lat: data.latitude, lng: data.longitude, city: data.city, region: data.region, country: data.country_name };
+      locationCacheTime = now;
+      return cachedLocation;
+    }
+  } catch(e) {}
   return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
 }
 
@@ -992,7 +1016,7 @@ async function askGemini(userText, sessionId, userId, photoData = null, systemOv
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: systemOverride ? [{ role: 'user', parts: userParts }] : history,
-    generationConfig: { temperature: systemOverride ? 0.7 : 0.9, maxOutputTokens: systemOverride ? 150 : 180, thinkingConfig: { thinkingBudget: 0 } },
+    generationConfig: { temperature: systemOverride ? 0.7 : 0.9,maxOutputTokens: systemOverride ? 100 : 120 , thinkingConfig: { thinkingBudget: 0 } },
     ...(useSearch && { tools: [{ googleSearch: {} }] })
   };
   if (useSearch) console.log('🔍 Search grounding enabled for:', userText.slice(0, 50));
@@ -1009,23 +1033,26 @@ async function speakWithElevenLabs(text, session) {
   try {
     const cleanText = text.replace(/[🤖⚡🛸]/g, '').trim();
     if (!cleanText) return;
+    const cappedText = cleanText.length > 400 ? cleanText.slice(0, 400).replace(/\s+\S*$/, '...') : cleanText;
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: cleanText, model_id: 'eleven_turbo_v2_5', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+      body: JSON.stringify({ text: cappedText, model_id: 'eleven_turbo_v2_5', output_format: 'mp3_44100_128', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
     });
     if (!response.ok) throw new Error(`ElevenLabs error: ${response.status}`);
     const audioBytes = Buffer.from(await response.arrayBuffer());
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
-    const durationMs = Math.max(4000, Math.ceil((audioBytes.length / 16000) * 1000) + 4000);
+    const durationMs = Math.max(3000, Math.ceil((audioBytes.length / 16000) * 1000) + 2000);
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`🔊 Playing full response — ${audioBytes.length} bytes — wait up to ${Math.round(durationMs)}ms`);
-    try {
-      session.audio.playAudio({ audioUrl, waitForCompletion: false }).catch(e => console.error('playAudio error:', e));
-      await new Promise(r => setTimeout(r, durationMs));
-    } catch(e) { console.error('playAudio error:', e); }
+    console.log(`🔊 Playing — ${audioBytes.length} bytes — ${Math.round(durationMs)}ms`);
+    let played = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try { await session.audio.playAudio({ audioUrl, waitForCompletion: false }); played = true; break; }
+      catch(e) { console.error(`playAudio attempt ${attempt} failed: ${e.message}`); if (attempt < 3) await new Promise(r => setTimeout(r, 1000)); }
+    }
+    if (played) await new Promise(r => setTimeout(r, durationMs));
     setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
   } catch (err) { console.error('speakWithElevenLabs error:', err); }
 }
