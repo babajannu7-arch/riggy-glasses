@@ -313,6 +313,21 @@ function isNoteRequest(text) { const l = text.toLowerCase(); return l.includes('
 function isNoteListRequest(text) { const l = text.toLowerCase(); return l.includes('my notes')||l.includes('read my notes')||l.includes('what are my notes')||l.includes('show my notes'); }
 function isNoteDoneRequest(text) { const l = text.toLowerCase(); return l.includes('riggy done')||l.includes('done noting')||l.includes('end note')||l.includes('stop note'); }
 function isBatteryRequest(text) { const l = text.toLowerCase(); return l.includes('battery')&&l.includes('riggy'); }
+function isCaptureRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('hold this') || l.includes('grab this') || l.includes('grab this shot') ||
+         l.includes('take this picture') || l.includes('take this pic') ||
+         l.includes('save this shot') || l.includes('riggy capture') || l.includes('get this shot') ||
+         l.includes('lock this in') || l.includes('freeze this');
+}
+
+function isEnhanceRequest(text) {
+  const l = text.toLowerCase();
+  return l.includes('sharp pic') || l.includes('clean pic') || l.includes('enhanced pic') ||
+         l.includes('enhance pic') || l.includes('riggy sharpen') || l.includes('riggy enhance') ||
+         l.includes('sharpen this') || l.includes('clean this up') || l.includes('boost this') ||
+         l.includes('riggy boost') || l.includes('run enhancement') || l.includes('enhance this');
+}
 
 // ─── TWILIO ───────────────────────────────────────────────────────────────────
 async function twilioCall(toNumber, customMessage = null) {
@@ -1076,31 +1091,40 @@ async function generateStyledImage(photoBase64, stylePrompt) {
 }
 
 function buildVisorStyledImage(imageBase64, label, caption) {
-  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">
-    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">${label}</div>
-    <div style="width:100%;border-radius:14px;overflow:hidden;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1)">
-      <img id="styledImg" src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;border-radius:14px" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Image failed to load</div>'"/>
+  const savedFileName = `riggy_${Date.now()}.jpg`;
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:0;margin:0">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin:0 0 8px 4px;opacity:.7;padding-top:4px">${label}</div>
+    <div style="width:100%;aspect-ratio:1;overflow:hidden;background:#000;border-radius:12px">
+      <img src="data:image/png;base64,${imageBase64}" style="width:100%;height:100%;object-fit:contain;display:block" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Image failed to load</div>'"/>
     </div>
-    ${caption ? `<div style="font-size:12px;color:rgba(232,213,176,0.5);margin-top:10px;line-height:1.5">${caption}</div>` : ''}
-    <a href="data:image/png;base64,${imageBase64}" download="riggy_styled_${Date.now()}.png" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px 20px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;text-decoration:none;color:#6B8FA8;font-size:13px;font-family:'DM Sans',sans-serif">
-      ⬇ Save Image
-    </a>
+    ${caption ? `<div style="font-size:11px;color:rgba(232,213,176,0.4);margin:8px 4px;line-height:1.4">${caption}</div>` : ''}
+    <button onclick="fetch('/save-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:'${imageBase64}',filename:'riggy_styled_'+Date.now()+'.png',mime:'image/png'})}).then(r=>r.json()).then(d=>{if(d.url){window.open(d.url,'_blank');this.textContent='✓ Opened — long press to save';this.style.background='rgba(107,143,168,0.25)';}else{this.textContent='Error saving';}}).catch(()=>{this.textContent='Error';});this.textContent='Opening...';" style="display:flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:13px 20px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;cursor:pointer;box-sizing:border-box">⬇ Save Image</button>
   </div>`;
 }
 
 function buildVisorZoom(imageBase64) {
-  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">
-    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">ZOOMED VIEW</div>
-    <div style="width:100%;overflow:auto;border-radius:14px;background:#000;border:1px solid rgba(107,143,168,0.1);touch-action:pan-x pan-y;position:relative" id="zoomBox">
-      <img id="zoomImg" src="data:image/jpeg;base64,${imageBase64}" style="width:100%;display:block;transform:scale(2.5);transform-origin:center center;transition:transform 0.2s" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load image</div>'"/>
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:0;margin:0">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin:0 0 8px 4px;opacity:.7;padding-top:4px">ZOOMED VIEW</div>
+    <div style="width:100%;aspect-ratio:1;overflow:auto;background:#000;border-radius:12px;touch-action:pan-x pan-y" id="zoomBox">
+      <img id="zoomImg" src="data:image/jpeg;base64,${imageBase64}" style="width:100%;height:100%;object-fit:contain;display:block;transform:scale(2.5);transform-origin:center center;transition:transform 0.2s" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load image</div>'"/>
     </div>
-    <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
-      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(s+0.5)+')';" style="padding:8px 20px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:20px;color:#6B8FA8;font-size:13px;cursor:pointer">+ Zoom In</button>
-      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(Math.max(1,s-0.5))+')';" style="padding:8px 20px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:20px;color:#6B8FA8;font-size:13px;cursor:pointer">− Zoom Out</button>
+    <div style="display:flex;gap:8px;margin:10px 0 4px">
+      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(s+0.5)+')';" style="flex:1;padding:13px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:15px;cursor:pointer">+ Zoom</button>
+      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(Math.max(1,s-0.5))+')';" style="flex:1;padding:13px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:15px;cursor:pointer">− Zoom</button>
     </div>
-    <div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:8px;text-align:center">Tap buttons to zoom · Drag to pan</div>
   </div>`;
 }
+function buildVisorCapture(imageBase64, comment) {
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:0;margin:0">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin:0 0 8px 4px;opacity:.7;padding-top:4px">CAPTURED</div>
+    <div style="width:100%;aspect-ratio:4/3;overflow:hidden;background:#000;border-radius:12px">
+      <img src="data:image/jpeg;base64,${imageBase64}" style="width:100%;height:100%;object-fit:contain;display:block" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load</div>'"/>
+    </div>
+    ${comment ? `<div style="font-size:13px;color:rgba(232,213,176,0.7);margin:10px 0 6px;line-height:1.5;font-style:italic">"${comment}"</div>` : ''}
+    <button onclick="fetch('/save-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:'${imageBase64}',filename:'riggy_capture_'+Date.now()+'.jpg',mime:'image/jpeg'})}).then(r=>r.json()).then(d=>{if(d.url){window.open(d.url,'_blank');this.textContent='✓ Opened — long press image to save';this.style.background='rgba(107,143,168,0.25)';}else{this.textContent='Error';}}).catch(()=>{this.textContent='Error';});this.textContent='Opening...';" style="display:flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:13px 20px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;cursor:pointer;box-sizing:border-box">⬇ Save to Gallery</button>
+  </div>`;
+}
+
 
 async function askGemini(userText, sessionId, userId, photoData = null, systemOverride = null, memoryContext = null, locationContext = '') {
   if (!conversationHistory.has(sessionId)) conversationHistory.set(sessionId, []);
@@ -1724,6 +1748,38 @@ class RiggyGlasses extends AppServer {
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
         }
+                // ── CAPTURE THIS — raw photo to visor with save ──
+                if (isCaptureRequest(userSaid)) {
+                  const photo = await takePhoto(false);
+                  if (!photo) { await speakSafe("Can't get a shot. Try again."); return; }
+                  const comment = await askGemini('Look at this image. One short dry observation in Riggy voice. One sentence only. No descriptions of what you see.', sessionId, userId, photo, null, null, '');
+                  latestState.visor = { type:'html', label:'CAPTURED', html: buildVisorCapture(photo.base64, comment) };
+                  await speakSafe(`${comment ? comment + ' Check your visor.' : 'Locked in. Check your visor Commander.'}`);
+                  latestState.riggySaid = comment || 'Locked in.'; return;
+                }
+
+                // ── ENHANCE — AI enhancement via Gemini image ──
+                if (isEnhanceRequest(userSaid)) {
+                  if (imageGenCount >= IMAGE_GEN_MAX) {
+                    await speakSafe(`That's your ${IMAGE_GEN_MAX} enhancements for today Commander. Fresh start tomorrow.`); return;
+                  }
+                  const photo = await takePhoto(false);
+                  if (!photo) { await speakSafe("Can't get a shot. Try again."); return; }
+                  latestState.visor = { type:'html', label:'ENHANCING...', html: buildVisorShowMeSkeleton('Running enhancement...') };
+                  await speakSafe("Running enhancement. Check your visor in a moment Commander.");
+                  const enhanced = await generateStyledImage(photo.base64, 'ultra high resolution, sharp focus, enhanced clarity, professional photography, HDR, vivid detail, noise reduction');
+                  imageGenCount++;
+                  if (enhanced) {
+                    const remaining = IMAGE_GEN_MAX - imageGenCount;
+                    latestState.visor = { type:'html', label:'ENHANCED', html: buildVisorStyledImage(enhanced, 'ENHANCED SHOT', `${remaining} enhancement${remaining !== 1 ? 's' : ''} remaining today`) };
+                    await speakSafe("Enhancement complete. Check your visor Commander.");
+                  } else {
+                    latestState.visor = { type:'html', label:'CAPTURED', html: buildVisorCapture(photo.base64, null) };
+                    await speakSafe("Enhancement failed. Showing raw capture Commander.");
+                  }
+                  return;
+                }
+
         // ── ZOOM ──
         if (isZoomRequest(userSaid)) {
           const photo = await takePhoto(false);
@@ -2251,6 +2307,28 @@ expressApp.post('/bt/command', async (req, res) => {
     const reply = await askGemini(text, 'bt-session', userId || 'bt-user', null, null, memoryContext);
     res.json({ ok: true, reply });
   } catch(e) { console.error('BT command error:', e); res.json({ ok: false, reply: "I hit a snag friend." }); }
+});
+expressApp.post('/save-image', async (req, res) => {
+  try {
+    const { base64, filename, mime } = req.body;
+    if (!base64 || !filename) { res.json({ ok: false }); return; }
+    const safeFileName = filename.replace(/[^a-z0-9_.-]/gi, '_').slice(0, 100);
+    const filePath = path.join(__dirname, safeFileName);
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 10 * 60 * 1000);
+    res.json({ ok: true, url: `https://riggy-glasses-production.up.railway.app/captures/${safeFileName}` });
+  } catch(e) { console.error('save-image error:', e); res.json({ ok: false }); }
+});
+
+expressApp.get('/captures/:filename', (req, res) => {
+  const safeFileName = req.params.filename.replace(/[^a-z0-9_.-]/gi, '_');
+  const filePath = path.join(__dirname, safeFileName);
+  if (!fs.existsSync(filePath)) { res.status(404).end(); return; }
+  const ext = path.extname(safeFileName).toLowerCase();
+  const mimeType = (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'image/png';
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`);
+  fs.createReadStream(filePath).pipe(res);
 });
 
 console.log(`🤖 Mr. Riggy glasses server running on port ${process.env.PORT || 3000}`);
