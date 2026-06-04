@@ -1115,13 +1115,24 @@ function buildVisorZoom(imageBase64) {
   </div>`;
 }
 function buildVisorCapture(imageBase64, comment) {
+  const id = `cap_${Date.now()}`;
   return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:0;margin:0">
     <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin:0 0 8px 4px;opacity:.7;padding-top:4px">CAPTURED</div>
     <div style="width:100%;aspect-ratio:4/3;overflow:hidden;background:#000;border-radius:12px">
-      <img src="data:image/jpeg;base64,${imageBase64}" style="width:100%;height:100%;object-fit:contain;display:block" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load</div>'"/>
+      <img src="data:image/jpeg;base64,${imageBase64}" style="width:100%;height:100%;object-fit:contain;display:block"/>
     </div>
     ${comment ? `<div style="font-size:13px;color:rgba(232,213,176,0.7);margin:10px 0 6px;line-height:1.5;font-style:italic">"${comment}"</div>` : ''}
-    <button onclick="fetch('/save-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:'${imageBase64}',filename:'riggy_capture_'+Date.now()+'.jpg',mime:'image/jpeg'})}).then(r=>r.json()).then(d=>{if(d.url){window.open(d.url,'_blank');this.textContent='✓ Opened — long press image to save';this.style.background='rgba(107,143,168,0.25)';}else{this.textContent='Error';}}).catch(()=>{this.textContent='Error';});this.textContent='Opening...';" style="display:flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:13px 20px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;cursor:pointer;box-sizing:border-box">⬇ Save to Gallery</button>
+    <textarea id="${id}" style="display:none">${imageBase64}</textarea>
+    <button id="${id}_btn" onclick="
+      var b=document.getElementById('${id}').value;
+      var btn=document.getElementById('${id}_btn');
+      btn.textContent='Saving...';
+      fetch('/save-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:b,filename:'riggy_capture_${Date.now()}.jpg',mime:'image/jpeg'})})
+      .then(r=>r.json()).then(d=>{
+        if(d.url){window.open(d.url,'_blank');btn.textContent='✓ Opened — long press to save';}
+        else{btn.textContent='Error — try again';}
+      }).catch(function(){btn.textContent='Error';});
+    " style="display:flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:13px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;color:#6B8FA8;font-size:14px;width:100%;cursor:pointer;box-sizing:border-box">⬇ Save to Gallery</button>
   </div>`;
 }
 
