@@ -216,17 +216,8 @@ let locationCacheTime = 0;
 const LOCATION_CACHE_MS = 5 * 60 * 1000;
 
 async function getIpLocation() {
-  const now = Date.now();
-  if (cachedLocation && now - locationCacheTime < LOCATION_CACHE_MS) return cachedLocation;
-  try {
-    const res = await fetch('https://ipapi.co/json/', { headers: { 'User-Agent': 'RiggyGlasses/1.0' } });
-    const data = await res.json();
-    if (data.latitude && data.longitude) {
-      cachedLocation = { lat: data.latitude, lng: data.longitude, city: data.city, region: data.region, country: data.country_name };
-      locationCacheTime = now;
-      return cachedLocation;
-    }
-  } catch(e) {}
+  // Railway servers are in SF — IP lookup always returns wrong location
+  // Always return Deltona as default
   return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
 }
 
@@ -234,8 +225,8 @@ async function getGlassesLocation(session) {
   try {
     const location = await session.location.getLatestLocation({ accuracy: 'high' });
     if (location && location.lat && location.lng) return { lat: location.lat, lng: location.lng };
-  } catch(e) { console.log('GPS unavailable, using IP location'); }
-  return await getIpLocation();
+  } catch(e) { console.log('GPS unavailable, using Deltona default'); }
+  return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, city: 'Deltona', region: 'Florida', country: 'US' };
 }
 
 // ─── GOOGLE PLACES + DIRECTIONS (replaces Overpass/Nominatim/OSRM) ──────────
@@ -994,6 +985,103 @@ function needsSearchGrounding(text) {
   const l = text.toLowerCase();
   return FACTUAL_KEYWORDS.some(k => l.includes(k));
 }
+// ─── GEMINI IMAGE GENERATION — STYLE TRANSFER + ZOOM ─────────────
+let imageGenCount = 0;
+const IMAGE_GEN_MAX = 10;
+
+function parseStylePrompt(userSaid) {
+  const l = userSaid.toLowerCase();
+  if (l.includes('fifties') || l.includes('50s')) return 'vintage 1950s style, kodachrome film, retro photograph, warm tones, classic americana';
+  if (l.includes('sixties') || l.includes('60s')) return 'vintage 1960s style, mod aesthetic, retro photograph, saturated colors, pop art influence';
+  if (l.includes('seventies') || l.includes('70s')) return 'vintage 1970s style, warm faded film, retro photograph, earthy tones, grainy texture';
+  if (l.includes('eighties') || l.includes('80s')) return 'vintage 1980s style, neon colors, retro aesthetic, vaporwave, synthwave atmosphere';
+  if (l.includes('nineties') || l.includes('90s')) return 'vintage 1990s style, disposable camera film grain, warm nostalgic tones, retro photograph';
+  if (l.includes('black and white') || l.includes('grayscale') || l.includes('bw')) return 'black and white photograph, high contrast, classic monochrome, cinematic';
+  if (l.includes('painting') || l.includes('oil painting')) return 'oil painting style, brushstrokes visible, artistic, classical painting technique';
+  if (l.includes('watercolor')) return 'watercolor painting style, soft edges, translucent washes, artistic illustration';
+  if (l.includes('sketch') || l.includes('drawing')) return 'pencil sketch, hand drawn, detailed linework, artistic illustration';
+  if (l.includes('cartoon') || l.includes('animated')) return 'cartoon style, vibrant colors, bold outlines, animated illustration';
+  if (l.includes('cyberpunk')) return 'cyberpunk aesthetic, neon lights, dark atmosphere, futuristic urban, blade runner style';
+  if (l.includes('horror') || l.includes('scary')) return 'horror style, dark atmosphere, eerie lighting, unsettling, cinematic horror';
+  if (l.includes('sunset') || l.includes('golden hour')) return 'golden hour lighting, warm sunset tones, dramatic sky, beautiful natural light';
+  if (l.includes('night') || l.includes('dark')) return 'nighttime scene, dramatic dark lighting, moonlight, atmospheric shadows';
+  if (l.includes(' red')) return 'dramatic red color grading, red tones, cinematic red filter';
+  if (l.includes(' blue')) return 'cool blue color grading, blue tones, cinematic blue filter';
+  if (l.includes(' green')) return 'lush green color grading, emerald tones, nature aesthetic';
+  if (l.includes('purple') || l.includes('violet')) return 'purple color grading, violet tones, dreamy aesthetic';
+  if (l.includes('vintage') || l.includes('retro') || l.includes('old school')) return 'vintage film photograph, faded colors, nostalgic, aged film grain, retro aesthetic';
+  if (l.includes('cinematic') || l.includes('movie')) return 'cinematic photography, dramatic lighting, movie still, professional cinematography';
+  if (l.includes('futuristic') || l.includes('sci-fi')) return 'futuristic sci-fi aesthetic, high tech, sleek design, science fiction atmosphere';
+  if (l.includes('winter') || l.includes('snow')) return 'winter scene, cold blue tones, snow covered, icy atmosphere';
+  if (l.includes('summer') || l.includes('tropical')) return 'vibrant summer scene, warm tropical colors, bright sunshine';
+  if (l.includes('neon')) return 'neon glow aesthetic, vibrant neon colors, dark background, synthwave';
+  if (l.includes('sepia') || l.includes('old photo')) return 'sepia tone vintage photograph, aged paper texture, old timey, antique photograph';
+  if (l.includes('anime') || l.includes('manga')) return 'anime illustration style, japanese animation aesthetic, vibrant colors, cel shading';
+  if (l.includes('comic') || l.includes('superhero')) return 'comic book art style, bold outlines, halftone dots, dramatic superhero aesthetic';
+  return null;
+}
+
+function isStyleRequest(text) {
+  const l = text.toLowerCase();
+  return (l.includes('show me this') || l.includes('show me it') || l.includes('make this') || l.includes('make it') || l.includes('turn this')) &&
+    (l.includes('style') || l.includes('fifties') || l.includes('50s') || l.includes('sixties') ||
+     l.includes('60s') || l.includes('seventies') || l.includes('70s') || l.includes('eighties') ||
+     l.includes('80s') || l.includes('nineties') || l.includes('90s') || l.includes('black and white') ||
+     l.includes('painting') || l.includes('watercolor') || l.includes('sketch') || l.includes('cartoon') ||
+     l.includes('cyberpunk') || l.includes('vintage') || l.includes('retro') || l.includes('cinematic') ||
+     l.includes(' red') || l.includes(' blue') || l.includes(' green') || l.includes('purple') ||
+     l.includes('night') || l.includes('sunset') || l.includes('horror') || l.includes('futuristic') ||
+     l.includes('old school') || l.includes('winter') || l.includes('summer') || l.includes('neon') ||
+     l.includes('sepia') || l.includes('anime') || l.includes('manga') || l.includes('comic'));
+}
+
+function isZoomRequest(text) {
+  const l = text.toLowerCase();
+  return (l.includes('show me this') || l.includes('show me it') || l.includes('zoom')) &&
+    (l.includes('zoom') || l.includes('zoomed in') || l.includes('closer') || l.includes('bigger') || l.includes('magnif'));
+}
+
+async function generateStyledImage(photoBase64, stylePrompt) {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [
+            { inline_data: { mime_type: 'image/jpeg', data: photoBase64 } },
+            { text: `Transform this image with this style: ${stylePrompt}. Keep the main subject and composition but apply the style transformation fully. Output only the transformed image.` }
+          ]
+        }],
+        generationConfig: { responseModalities: ['IMAGE'], temperature: 0.8 }
+      })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('Gemini image gen error:', response.status, err.slice(0, 300));
+      return null;
+    }
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData?.data) return part.inlineData.data;
+    }
+    console.error('No image in Gemini response:', JSON.stringify(data).slice(0, 200));
+    return null;
+  } catch(e) {
+    console.error('generateStyledImage error:', e.message);
+    return null;
+  }
+}
+
+function buildVisorStyledImage(imageBase64, label, caption) {
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px"><div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">${label}</div><div style="width:100%;border-radius:14px;overflow:hidden;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1)"><img src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;border-radius:14px" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Image failed to load</div>'"/></div>${caption ? `<div style="font-size:12px;color:rgba(232,213,176,0.5);margin-top:10px;line-height:1.5">${caption}</div>` : ''}</div>`;
+}
+
+function buildVisorZoom(imageBase64) {
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px"><div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">ZOOMED VIEW</div><div style="width:100%;overflow:auto;border-radius:14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1);touch-action:pinch-zoom;max-height:80vh"><img src="data:image/jpeg;base64,${imageBase64}" style="width:200%;display:block;transform-origin:top left" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load image</div>'"/></div><div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:8px;text-align:center">Pinch to zoom · Drag to pan</div></div>`;
+}
 
 async function askGemini(userText, sessionId, userId, photoData = null, systemOverride = null, memoryContext = null, locationContext = '') {
   if (!conversationHistory.has(sessionId)) conversationHistory.set(sessionId, []);
@@ -1044,15 +1132,12 @@ async function speakWithElevenLabs(text, session) {
     const fileName = `audio_${Date.now()}.mp3`;
     const filePath = path.join(__dirname, fileName);
     fs.writeFileSync(filePath, audioBytes);
-    const durationMs = Math.max(3000, Math.ceil((audioBytes.length / 16000) * 1000) + 2000);
     const audioUrl = `https://riggy-glasses-production.up.railway.app/${fileName}`;
-    console.log(`🔊 Playing — ${audioBytes.length} bytes — ${Math.round(durationMs)}ms`);
-    let played = false;
+    console.log(`🔊 Playing — ${audioBytes.length} bytes`);
     for (let attempt = 1; attempt <= 3; attempt++) {
-      try { await session.audio.playAudio({ audioUrl, waitForCompletion: false }); played = true; break; }
+      try { await session.audio.playAudio({ audioUrl, waitForCompletion: true }); break; }
       catch(e) { console.error(`playAudio attempt ${attempt} failed: ${e.message}`); if (attempt < 3) await new Promise(r => setTimeout(r, 1000)); }
     }
-    if (played) await new Promise(r => setTimeout(r, durationMs));
     setTimeout(() => { try { fs.unlinkSync(filePath); } catch(e) {} }, 60000);
   } catch (err) { console.error('speakWithElevenLabs error:', err); }
 }
@@ -1619,6 +1704,37 @@ class RiggyGlasses extends AppServer {
           const label = parseReminderLabel(userSaid); setReminder(label, fireAtMs);
           const confirmation = `Got it. I'll remind you to ${label} ${formatTimeUntil(fireAtMs)}.`;
           await speakSafe(confirmation); latestState.riggySaid = confirmation; return;
+        }
+        // ── ZOOM ──
+        if (isZoomRequest(userSaid)) {
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot. Try again."); return; }
+          latestState.visor = { type:'html', label:'ZOOMED VIEW', html: buildVisorZoom(photo.base64) };
+          await speakSafe("Zoomed in. Check your visor Commander.");
+          latestState.riggySaid = "Zoomed in. Check your visor Commander."; return;
+        }
+
+        // ── STYLE TRANSFER ──
+        if (isStyleRequest(userSaid)) {
+          if (imageGenCount >= IMAGE_GEN_MAX) {
+            await speakSafe(`That's your ${IMAGE_GEN_MAX} image generations for today Commander. Fresh start tomorrow.`); return;
+          }
+          const stylePrompt = parseStylePrompt(userSaid);
+          if (!stylePrompt) { await speakSafe("Didn't catch the style. Try: show me this in the fifties, as a painting, black and white, cyberpunk."); return; }
+          const photo = await takePhoto(false);
+          if (!photo) { await speakSafe("Can't get a shot. Try again."); return; }
+          latestState.visor = { type:'html', label:'GENERATING...', html: buildVisorShowMeSkeleton('Styling image...') };
+          await speakSafe("Generating your styled image. Check your visor in a moment Commander.");
+          const styledB64 = await generateStyledImage(photo.base64, stylePrompt);
+          imageGenCount++;
+          if (styledB64) {
+            const remaining = IMAGE_GEN_MAX - imageGenCount;
+            latestState.visor = { type:'html', label:'STYLED IMAGE', html: buildVisorStyledImage(styledB64, `${userSaid.toUpperCase()}`, `${remaining} generation${remaining !== 1 ? 's' : ''} remaining today`) };
+          } else {
+            latestState.visor = null;
+            await speakSafe("Couldn't generate that one Commander. Try again.");
+          }
+          return;
         }
 
         // ── SHOW ME ABOUT — images + wiki + riggy talks ──
