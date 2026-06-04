@@ -1076,11 +1076,30 @@ async function generateStyledImage(photoBase64, stylePrompt) {
 }
 
 function buildVisorStyledImage(imageBase64, label, caption) {
-  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px"><div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">${label}</div><div style="width:100%;border-radius:14px;overflow:hidden;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1)"><img src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;border-radius:14px" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Image failed to load</div>'"/></div>${caption ? `<div style="font-size:12px;color:rgba(232,213,176,0.5);margin-top:10px;line-height:1.5">${caption}</div>` : ''}</div>`;
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">${label}</div>
+    <div style="width:100%;border-radius:14px;overflow:hidden;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1)">
+      <img id="styledImg" src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;border-radius:14px" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Image failed to load</div>'"/>
+    </div>
+    ${caption ? `<div style="font-size:12px;color:rgba(232,213,176,0.5);margin-top:10px;line-height:1.5">${caption}</div>` : ''}
+    <a href="data:image/png;base64,${imageBase64}" download="riggy_styled_${Date.now()}.png" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px 20px;background:rgba(107,143,168,0.12);border:1px solid rgba(107,143,168,0.3);border-radius:12px;text-decoration:none;color:#6B8FA8;font-size:13px;font-family:'DM Sans',sans-serif">
+      ⬇ Save Image
+    </a>
+  </div>`;
 }
 
 function buildVisorZoom(imageBase64) {
-  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px"><div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">ZOOMED VIEW</div><div style="width:100%;overflow:auto;border-radius:14px;background:rgba(107,143,168,0.06);border:1px solid rgba(107,143,168,0.1);touch-action:pinch-zoom;max-height:80vh"><img src="data:image/jpeg;base64,${imageBase64}" style="width:200%;display:block;transform-origin:top left" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load image</div>'"/></div><div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:8px;text-align:center">Pinch to zoom · Drag to pan</div></div>`;
+  return `<div style="font-family:'DM Sans',sans-serif;color:#E8D5B0;padding:4px">
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#9E8A68;margin-bottom:12px;opacity:.7">ZOOMED VIEW</div>
+    <div style="width:100%;overflow:auto;border-radius:14px;background:#000;border:1px solid rgba(107,143,168,0.1);touch-action:pan-x pan-y;position:relative" id="zoomBox">
+      <img id="zoomImg" src="data:image/jpeg;base64,${imageBase64}" style="width:100%;display:block;transform:scale(2.5);transform-origin:center center;transition:transform 0.2s" onerror="this.parentElement.innerHTML='<div style=padding:24px;text-align:center;color:rgba(232,213,176,0.4)>Could not load image</div>'"/>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
+      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(s+0.5)+')';" style="padding:8px 20px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:20px;color:#6B8FA8;font-size:13px;cursor:pointer">+ Zoom In</button>
+      <button onclick="const i=document.getElementById('zoomImg');const s=parseFloat(i.style.transform.replace('scale(',''));i.style.transform='scale('+(Math.max(1,s-0.5))+')';" style="padding:8px 20px;background:rgba(107,143,168,0.15);border:1px solid rgba(107,143,168,0.3);border-radius:20px;color:#6B8FA8;font-size:13px;cursor:pointer">− Zoom Out</button>
+    </div>
+    <div style="font-size:11px;color:rgba(232,213,176,0.35);margin-top:8px;text-align:center">Tap buttons to zoom · Drag to pan</div>
+  </div>`;
 }
 
 async function askGemini(userText, sessionId, userId, photoData = null, systemOverride = null, memoryContext = null, locationContext = '') {
